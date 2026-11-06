@@ -1,0 +1,47 @@
+name: etnias-recovery
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: etnias
+      MARIADB_USER: etnias
+      MARIADB_PASSWORD: ${ETNIAS_DB_PASSWORD:?Configure deploy/.env}
+      MARIADB_ROOT_PASSWORD: ${ETNIAS_DB_ROOT_PASSWORD:?Configure deploy/.env}
+    volumes:
+      - database:/var/lib/mysql
+    networks: [database]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  web:
+    build: .
+    image: etnias-recovery-php:8.3
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ETNIAS_HTTP_PORT:-8099}:80"
+    environment:
+      ETNIAS_DB_PASSWORD: ${ETNIAS_DB_PASSWORD:?Configure deploy/.env}
+      ETNIAS_SITE_URL: ${ETNIAS_SITE_URL:?Configure deploy/.env}
+      ETNIAS_ENCRYPTION_KEY: ${ETNIAS_ENCRYPTION_KEY:?Configure deploy/.env}
+      ETNIAS_PURCHASE_CODE: ${ETNIAS_PURCHASE_CODE:-}
+      ETNIAS_OPY_ENABLED: ${ETNIAS_OPY_ENABLED:-1}
+    volumes:
+      - ../public_html:/var/www/html:ro
+      - ./config.php:/var/www/html/config.php:ro
+      - ./runtime.htaccess:/var/www/html/.htaccess:ro
+      - ${ETNIAS_UPLOAD_DIRECTORY:?Configure the recovered upload directory}:/var/www/html/upload:${ETNIAS_UPLOAD_MODE:-ro}
+      - cache:/var/www/html/cache
+    networks: [frontend, database]
+networks:
+  frontend: {}
+  database:
+    internal: true
+volumes:
+  database: {}
+  cache: {}
