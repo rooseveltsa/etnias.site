@@ -702,3 +702,5 @@ body[data-preview-route=account] .rightcol,body[data-preview-route=setting] .rig
 .feed-refresh{flex-basis:44px;width:44px;height:44px}
 .pf-avatar-btn{width:44px;height:44px}
 .author-name-btn{min-width:44px;text-align:left}
+/* Etapa 4: recursos sem conteúdo ficam fora do menu da prévia até existirem (rotas diretas seguem com aviso honesto) */
+body.opy-preview [data-opy-destination=mercado],body.opy-preview [data-opy-destination=eventos],body.opy-preview [data-opy-destination=filmes],body.opy-preview [data-opy-destination=empregos],body.opy-preview [data-opy-destination=coletas],body.opy-preview a[href="/albuns/"],body.opy-preview a[href="/recordacoes/"],body.opy-preview a[href="/minhas-paginas/"]{display:none!important}

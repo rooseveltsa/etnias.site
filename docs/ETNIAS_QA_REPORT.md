@@ -69,3 +69,11 @@ Observação: rodar `chat-browser.cjs` duas vezes na mesma base falha por nome d
 ### Mudanças
 
 `preview/server/calls.mjs` (novo), `preview/calls.js` (novo), `preview/server/community.mjs` (rota `view=calls`, ações `call_*`, remoção da sala pública), `preview/server/chat.mjs` (`canCall`, registros de chamada imutáveis), `preview/chat.php` e `preview/chat.js` (novo visual), `preview/preview.css` (bloco do chat e tela de chamada), `preview/preview.js` (−37 linhas mortas), `preview/page.php` (carrega `calls.js`, versões de cache), `scripts/export-opy-preview.php`, `scripts/opy-preview-server.mjs` (`HOST` e cabeçalhos de segurança), `deploy/opy/*` (novo), testes `calls.mjs`, `calls-browser.cjs`, `chat-browser.cjs`, `live-api.cjs` e `chat-races.mjs` (o DOM simulado ganhou `style` e `classList`, usados pelo novo campo que cresce sozinho e pelo botão de gravação; sem isso 2 testes falhavam).
+
+## 7. Rodada de usabilidade (2026-11-07, decisões delegadas pelo usuário)
+
+**Mudanças:** barra flutuante só no celular; barra do celular Feed · Comunidades · Postagem · Saberes · EtnIA (criar no centro); “Grupos” → “Comunidades” na prévia; Mercado, Eventos, Filmes, Empregos, Coletas, Álbuns, Recordações e Minhas páginas fora do menu até existirem (rotas diretas com aviso honesto); filtros e rótulos de comunidades unificados; plurais corretos; alvos de toque ≥ 44 px. Detalhes em `docs/ETNIAS_UX_AUDIT.md`.
+
+**Gate final (servidor local limpo):** `node --test` com admin, calls, chat, chat-races, communities, local-store e etnia: 31/31 PASS; `community-integration.mjs`: PASS; `chat-browser.cjs` e `calls-browser.cjs`: PASS; `audit-screens.cjs` (29 rotas × 375/768/1440): 0 overflow, 0 violação axe séria/crítica, 0 alvo < 44 px, 0 erro JS.
+
+**Fica para depois:** isolar as regras `body.opy-preview` do `opy.css` e tokens de cor (Etapa 2 do plano); estados vazios com ação (Maracá); revisão visual de entrada, Stories, EtnIA e IAra; regressão visual automática; teste com 5 usuários reais.

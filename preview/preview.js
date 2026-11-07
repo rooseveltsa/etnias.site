@@ -32,6 +32,14 @@ const glyph={
 function svg(name){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+glyph[name]+'</svg>';}
 function clock(seconds){if(!Number.isFinite(seconds))return '0:00';const whole=Math.max(0,Math.round(seconds));return Math.floor(whole/60)+':'+String(whole%60).padStart(2,'0');}
 const plural=(n,one,many)=>n+' '+(n===1?one:many);
+// O menu vem do legado ("Grupos"); na prévia o nome é Comunidades, como no resto da tela.
+document.querySelectorAll('[data-opy-destination="grupos"] span:not(.opy-pending)').forEach(el=>{el.textContent='Comunidades';});
+// Barra do celular: Comunidades ocupa o lugar do Mercado (oculto até existir), mantendo Postagem no centro.
+(()=>{const merc=document.querySelector('.opy-bottom [data-opy-destination="mercado"]'),icon=document.querySelector('[data-opy-destination="grupos"] img');if(!merc)return;
+ const item=merc.cloneNode(true);item.dataset.opyDestination='comunidades';item.setAttribute('href','/grupos/');item.removeAttribute('data-opy-info');
+ const route=document.body.dataset.previewRoute;if(route==='suggested-groups'||route==='joined_groups')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
+ const img=item.querySelector('img');if(img&&icon)img.src=icon.src;const label=[...item.querySelectorAll('span')].find(el=>!el.classList.contains('opy-pending'));if(label)label.textContent='Comunidades';
+ merc.before(item);})();
 function postAction(name, label, fn){const b=document.createElement('button');b.type='button';b.className='post-action';b.innerHTML=svg(name);if(label){const span=document.createElement('span');span.textContent=label;b.append(span);}b.addEventListener('click',async event=>{b.disabled=true;try{await fn(event);}catch(e){showError(e.message);}finally{b.disabled=false;}});return b;}
 function avatarNode(name, url, size=42){
  const fallback=()=>make('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');

@@ -111,7 +111,8 @@ IDs próprios, para não alterar a contagem oficial.
 | CX-COM-04 | Moderação e denúncia | 🟡 | Denúncia gravada; falta a fila humana |
 | CX-COM-05 | Visibilidade para conhecimento tradicional restrito | ⛔ | Só público/privado; requer definição com as comunidades |
 | CX-NAV-02 | Coluna lateral com comunidades por tema em vez de lista de pessoas | ✅ | `paintCommunity()` em `preview/preview.js` |
-| CX-NAV-01 | Barra inferior com Criar central | 🟡 | Hoje: Feed, Mercado, Postagem, Saberes, EtnIA. Comunidades, Inbox e Maracá ficam fora da barra |
+| CX-UX-01 | Auditoria de usabilidade: 0 overflow, 0 axe sério, alvos ≥ 44 px, menu sem telas vazias | ✅ | `docs/ETNIAS_UX_AUDIT.md`, `tests/opy/audit-screens.cjs` |
+| CX-NAV-01 | Barra inferior com Criar central | ✅ | Celular: Feed · Comunidades · Postagem · Saberes · EtnIA; desktop usa o menu lateral (barra flutuante oculta ≥ 992 px) |
 | CX-DS-01 | Design system azul premium com tokens centralizados | ⛔ | Proposta em `ETNIAS_DESIGN_SYSTEM.md` |
 | CX-QA-01 | Textos de ajuda coerentes com o comportamento real | ✅ (corrigido nesta sessão) | D1/D2 em `ETNIAS_AUDIT.md` |
 | CX-QA-02 | Remover a sala pública oculta (D4) | ✅ | Ação `message` rejeitada (400) e `messages` fora do snapshot; dados antigos preservados em `state.messages`; código morto removido de `preview.js`; `tests/opy/live-api.cjs` atualizado |
