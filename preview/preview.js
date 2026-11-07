@@ -20,7 +20,19 @@ function emptyState(title,text,actions=[]){
  if(actions.length){const row=make('div',undefined,'opy-empty-actions');actions.forEach(([label,go],i)=>{const el=typeof go==='string'?make('a',label):make('button',label);if(typeof go==='string')el.href=go;else{el.type='button';el.onclick=go;}el.className=i?'preview-secondary':'opy-primary';row.append(el);});box.append(row);}
  return box;
 }
-async function change(body){state=await api(body);render();}
+// Aviso curto e acessível depois de uma ação concluída.
+function toast(msg){
+ let host=$('#opy-toast');if(!host){host=make('div');host.id='opy-toast';host.setAttribute('role','status');host.setAttribute('aria-live','polite');document.body.append(host);}
+ const t=make('div',msg,'opy-toast');host.append(t);setTimeout(()=>t.classList.add('is-out'),2600);setTimeout(()=>t.remove(),3000);
+}
+const TOASTS={publish:'Publicado',repost:'Repostado no seu perfil',delete:'Publicação excluída',post_edit:'Alterações salvas',profile_update:'Perfil atualizado',story_create:'Story publicado por 24 horas',community_create:'Comunidade criada',community_invite:'Convite enviado',community_update:'Configurações salvas',community_approve:'Entrada aprovada',community_accept_invite:'Você entrou na comunidade'};
+function toastFor(body){
+ if(body.action==='save'){const p=state.posts.find(x=>x.id===body.postId);return p?(p.saved?'Salvo para ler depois':'Removido dos salvos'):'';}
+ if(body.action==='community_join'){const c=communitiesList().find(x=>x.id===body.communityId);return !c?'':c.joined?'Você entrou em '+c.name:(c.pending||c.requested)?'Pedido enviado à coordenação':'Pedido cancelado';}
+ if(body.action==='community_leave')return 'Você saiu da comunidade';
+ return TOASTS[body.action]||'';
+}
+async function change(body){state=await api(body);render();const msg=toastFor(body);if(msg)toast(msg);}
 function picker(root,target){root.replaceChildren();for(const [symbol,label] of emoji){const b=button(symbol,()=>{const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();root.hidden=true;},root);b.setAttribute('aria-label',label);}root.hidden=false;}
 const glyph={
  like:'<path d="M8 10v10H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zm0 0 3.4-6.1A2.2 2.2 0 0 1 15.3 5.2L14 10h5.1a2 2 0 0 1 2 2.4l-1 6.2a2 2 0 0 1-2 1.4H8"/>',
@@ -239,6 +251,29 @@ function feedPosts(base){
  return base.filter(p=>matchMediaKind(p,view==='files'?'files':view));
 }
 // Comunicados da administração no topo do feed e atalho para o Centro de gestão de quem modera.
+// Primeiros passos de quem chegou agora: some quando tudo está feito ou quando a pessoa fecha.
+function paintWelcome(){
+ const feed=$('#preview-feed');if(!feed||!state?.me)return;
+ const key='opy-welcome-closed-'+state.me.id;let closed=false;try{closed=localStorage.getItem(key)==='1';}catch{}
+ const steps=[
+  ['Coloque uma foto no perfil',!!state.me.avatar,'/perfil/'],
+  ['Conte quem você é na apresentação',!!state.me.bio,'/perfil/'],
+  ['Entre em uma comunidade',communitiesList().some(c=>c.joined&&c.id!=='avaliacao-casa-opy'),'/grupos/'],
+  ['Siga 3 pessoas',(state.directory||[]).filter(p=>p.following).length>=3,()=>$('[data-feed-view="discover"]')?.click()],
+  ['Faça sua primeira publicação',state.posts.some(p=>p.own),()=>{const t=$('#opy-compose textarea');t?.scrollIntoView({block:'center'});t?.focus();}]
+ ];
+ const done=steps.filter(s=>s[1]).length;
+ let box=$('#opy-welcome');
+ if(closed||done===steps.length){box?.remove();return;}
+ if(!box){box=make('section',undefined,'opy-welcome');box.id='opy-welcome';box.setAttribute('aria-labelledby','opy-welcome-title');($('.feed-chips')||feed).before(box);}
+ const head=make('div',undefined,'opy-welcome-head');const h=make('h2',`Boas-vindas à Casa Opy, ${state.me.name.split(' ')[0]}`);h.id='opy-welcome-title';
+ const close=make('button','✕','opy-welcome-close');close.type='button';close.setAttribute('aria-label','Fechar primeiros passos');close.onclick=()=>{try{localStorage.setItem(key,'1');}catch{}box.remove();};
+ head.append(h,close);
+ const bar=make('div',undefined,'opy-welcome-bar');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax',String(steps.length));bar.setAttribute('aria-valuenow',String(done));bar.setAttribute('aria-label','Primeiros passos');const fill=make('span');fill.style.width=(done/steps.length*100)+'%';bar.append(fill);
+ const list=make('ol',undefined,'opy-welcome-steps');
+ for(const [label,ok,go] of steps){const li=make('li',undefined,ok?'is-done':'');const el=ok?make('span',label):typeof go==='string'?make('a',label):make('button',label);if(!ok){if(typeof go==='string')el.href=go;else{el.type='button';el.onclick=go;}}li.append(el);list.append(li);}
+ box.replaceChildren(head,make('p',`${done} de ${steps.length} passos para aproveitar a rede.`,'opy-welcome-sub'),bar,list);
+}
 function paintAnnouncements(){
  if(state?.me?.role&&!$('.opy-admin-link')){const anchor=$('.notification-container');if(anchor){const a=make('a','Gestão','opy-admin-link');a.href='/admin/';a.title='Centro de gestão';anchor.before(a);}}
  const feed=$('#preview-feed');if(!feed)return;
@@ -689,7 +724,7 @@ function render(){if(!state)return;
   else if(badge)badge.remove();
  }
  paintCommunity();
- paintAnnouncements();
+ paintAnnouncements();paintWelcome();
  renderCommunities();
  const stories=$('#story-list');if(stories&&Array.isArray(state.stories)){
   stories.replaceChildren();const create=button('',()=>openStorySheet(),stories);create.classList.add('story-card','story-create');create.append(make('span','+','story-plus'),make('strong','Criar story'));
@@ -702,7 +737,7 @@ function render(){if(!state)return;
   }
   if(!state.stories.length)stories.append(make('p','Compartilhe o primeiro story da comunidade.','story-empty'));
  }
- const feed=$('#preview-feed');if(feed){
+ const feed=$('#preview-feed');if(feed){feed.removeAttribute('aria-busy');
   const saved=document.body.dataset.previewRoute==='saved-posts';
   const basePosts=state.posts.filter(p=>(!saved||p.saved)&&(filter==='all'||p.origin===filter));
   const posts=feedPosts(basePosts);
