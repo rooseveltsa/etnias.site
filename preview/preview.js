@@ -31,6 +31,7 @@ const glyph={
 };
 function svg(name){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+glyph[name]+'</svg>';}
 function clock(seconds){if(!Number.isFinite(seconds))return '0:00';const whole=Math.max(0,Math.round(seconds));return Math.floor(whole/60)+':'+String(whole%60).padStart(2,'0');}
+const plural=(n,one,many)=>n+' '+(n===1?one:many);
 function postAction(name, label, fn){const b=document.createElement('button');b.type='button';b.className='post-action';b.innerHTML=svg(name);if(label){const span=document.createElement('span');span.textContent=label;b.append(span);}b.addEventListener('click',async event=>{b.disabled=true;try{await fn(event);}catch(e){showError(e.message);}finally{b.disabled=false;}});return b;}
 function avatarNode(name, url, size=42){
  const fallback=()=>make('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');
@@ -223,6 +224,13 @@ function feedPosts(base){
  if(view==='news')return base;
  return base.filter(p=>matchMediaKind(p,view==='files'?'files':view));
 }
+// Comunicados da administração no topo do feed e atalho para o Centro de gestão de quem modera.
+function paintAnnouncements(){
+ if(state?.me?.role&&!$('.opy-admin-link')){const anchor=$('.notification-container');if(anchor){const a=make('a','Gestão','opy-admin-link');a.href='/admin/';a.title='Centro de gestão';anchor.before(a);}}
+ const feed=$('#preview-feed');if(!feed)return;
+ let box=$('#opy-announcements');if(!box){box=make('div');box.id='opy-announcements';const host=$('.feed-chips')||feed;host.before(box);}
+ box.replaceChildren(...(state.announcements||[]).map(a=>{const card=make('aside',undefined,'opy-announcement');card.setAttribute('aria-label','Comunicado');const body=make('div');body.append(make('strong',a.title),make('p',a.text));if(a.link){const l=make('a','Saiba mais');l.href=a.link;body.append(l);}const close=make('button','✕');close.type='button';close.setAttribute('aria-label','Fechar comunicado');close.onclick=()=>change({action:'announcement_dismiss',id:a.id}).catch(e=>showError(e.message));card.append(body,close);return card;}));
+}
 function matchMediaKind(p, kind){
  if(kind==='photos')return p.media?.kind==='image'||!!p.image||p.repostOf?.media?.kind==='image'||!!p.repostOf?.image;
  if(kind==='videos')return p.media?.kind==='video'||p.repostOf?.media?.kind==='video';
@@ -400,7 +408,7 @@ function renderCommunities(){
   const av=make('span',current.avatar||current.name.slice(0,2).toUpperCase(),'preview-avatar community-detail-avatar');
   const titleWrap=make('div');
   const h2=make('h2',current.name);h2.id='community-detail-title';
-  const statsLine=make('small',`${current.membersCount} participante(s) · ${current.postsCount||0} publicação(ões)`);
+  const statsLine=make('small',plural(current.membersCount||0,'participante','participantes')+' · '+plural(current.postsCount||0,'publicação','publicações'));
   if(current.id==='avaliacao-casa-opy')statsLine.dataset.communityMembers='';
   titleWrap.append(h2,statsLine);
   titleRow.append(av,titleWrap);
@@ -589,7 +597,7 @@ function renderCommunities(){
    );
    const titleBtn=make('button',c.name,'community-card-title');titleBtn.type='button';
    titleBtn.onclick=()=>openCommunityDetail(c.id);
-   const countSpan=make('small',`${c.membersCount} participante(s) neste ambiente · ${c.postsCount||0} publicação(ões)`);
+   const countSpan=make('small',plural(c.membersCount||0,'participante','participantes')+' · '+plural(c.postsCount||0,'publicação','publicações'));
    if(c.id==='avaliacao-casa-opy')countSpan.dataset.communityMembers='';
    meta.append(badges,titleBtn,countSpan);
    top.append(av,meta);
@@ -598,7 +606,7 @@ function renderCommunities(){
    const openBtn=make('button','Abrir comunidade','preview-secondary');openBtn.type='button';
    openBtn.onclick=()=>openCommunityDetail(c.id);
    foot.append(openBtn);
-   const jLabel=c.joined?(c.id==='avaliacao-casa-opy'?'Sair do grupo':'Participando ✓'):isPending?'Solicitação enviada':isPrivate?'Solicitar entrada':(c.id==='avaliacao-casa-opy'?'Participar do grupo':'Participar');
+   const jLabel=c.joined?(c.id==='avaliacao-casa-opy'?'Sair da comunidade':'Participando ✓'):isPending?'Pedido enviado':isPrivate?'Pedir entrada':'Participar';
    const jBtn=button(jLabel,()=>change({action:c.joined?'community_leave':'community_join',communityId:c.id}),foot);
    jBtn.className=c.joined||isPending?'preview-secondary':'opy-primary';
    jBtn.setAttribute('aria-pressed',String(c.joined));
@@ -644,6 +652,7 @@ function render(){if(!state)return;
   else if(badge)badge.remove();
  }
  paintCommunity();
+ paintAnnouncements();
  renderCommunities();
  const stories=$('#story-list');if(stories&&Array.isArray(state.stories)){
   stories.replaceChildren();const create=button('',()=>openStorySheet(),stories);create.classList.add('story-card','story-create');create.append(make('span','+','story-plus'),make('strong','Criar story'));

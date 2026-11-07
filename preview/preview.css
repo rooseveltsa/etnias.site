@@ -689,3 +689,16 @@ body[data-preview-route=account] .rightcol,body[data-preview-route=setting] .rig
 .rail-community-info strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow:hidden}
 .rail-community-join{margin:0;min-height:32px;padding:4px 12px;font-size:13px}
 .rail-community-more{margin-top:12px}
+
+/* Auditoria de usabilidade (Etapa 3): barra flutuante só no celular; filtros de comunidades no padrão de chips; alvos de 44 px */
+@media(min-width:992px){body.opy-preview .opy-bottom{display:none}}
+#communities-categories{display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:6px;margin:12px 0;padding:2px;overflow-x:auto;direction:ltr;border:0;border-radius:0;background:none;box-shadow:none;scrollbar-width:none}
+#communities-categories::-webkit-scrollbar{display:none}
+#communities-categories button{flex:0 0 auto;min-height:36px;padding:6px 14px;border:1px solid #dde2df;border-radius:999px;background:#fff;color:#182c34;font-size:14px;font-weight:600;white-space:nowrap}
+#communities-categories button:hover{background:#f1f3f0}
+#communities-categories button[aria-pressed=true]{border-color:#182c34;background:#182c34;color:#fff}
+.community-post .post-action{min-height:44px}
+.community-post .author-trigger{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
+.feed-refresh{flex-basis:44px;width:44px;height:44px}
+.pf-avatar-btn{width:44px;height:44px}
+.author-name-btn{min-width:44px;text-align:left}

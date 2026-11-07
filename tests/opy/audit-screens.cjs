@@ -29,7 +29,7 @@ const widths = [375, 768, 1440];
       const m = await page.evaluate(() => {
         const vis = el => { const r = el.getBoundingClientRect(), s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
         const small = [...document.querySelectorAll('a[href],button,input:not([type=hidden]),select,textarea,[role=button],[role=tab]')]
-          .filter(vis).filter(el => !el.closest('[hidden],dialog:not([open])')).map(el => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), t: (el.getAttribute('aria-label') || el.textContent || el.name || el.tagName).trim().slice(0, 30) }; })
+          .filter(vis).filter(el => !el.closest('[hidden],dialog:not([open])')).map(el => { const r = (el.matches('input,select,textarea') && el.closest('label') || el).getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), t: (el.getAttribute('aria-label') || el.textContent || el.name || el.tagName).trim().slice(0, 30) }; })
           .filter(x => x.w < 44 && x.h < 44);
         return { overflowX: document.documentElement.scrollWidth - innerWidth, generic: !!document.querySelector('.preview-empty'), small: small.slice(0, 8), smallCount: small.length };
       });
