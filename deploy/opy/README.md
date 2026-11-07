@@ -2,7 +2,7 @@
 
 Sobe a Casa Opy (app Node com dados em disco) e o coturn (TURN/STUN para as chamadas) em Docker. Não toca no banco recuperado nem no domínio etnias.site sem decisão explícita (`AGENTS.md`).
 
-Validado localmente em 2026-11-07: imagem construída, container servindo com CSP, E2E de chat e de chamadas (`tests/opy/chat-browser.cjs`, `tests/opy/calls-browser.cjs`) passando contra o container, coturn lendo `turnserver.conf`. **Nada foi publicado na VPS.**
+Validado localmente em 2026-11-07: imagem construída, container servindo com CSP, E2E de chat e de chamadas (`tests/opy/chat-browser.cjs`, `tests/opy/calls-browser.cjs`) passando contra o container, coturn lendo `turnserver.conf`. Publicado na VPS no mesmo dia; ver a seção abaixo.
 
 ## Instalação atual (2026-11-07)
 
