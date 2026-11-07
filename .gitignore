@@ -25,3 +25,5 @@ iara/local/
 deploy/.env
 deploy/backups/
 deploy/runtime.htaccess
+
+audit-reports/

@@ -9,6 +9,7 @@
     "test:uploads": "node uploads.cjs"
   },
   "devDependencies": {
+    "axe-core": "^4.10.2",
     "playwright": "1.62.1"
   }
 }
