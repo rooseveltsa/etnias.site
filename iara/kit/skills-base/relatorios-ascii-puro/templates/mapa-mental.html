@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>MAPA MENTAL - <TITULO> - <AAAA-MM-DD></title>
+<!--
+  TEMPLATE de mapa mental visual (arquivo unico, sem CDN, sem JS de terceiro).
+  Como usar:
+  1. Copiar para ~/pexinxavel/relatorios/MAPA-MENTAL-<assunto>-<AAAA-MM-DD>.html
+  2. Trocar <TITULO>, <SUBTITULO>, a data e o conteudo de cada <section class="branch">.
+  3. Um card por RAMO do fluxo; sub-itens em <details>/<summary> (abre e fecha no clique).
+  4. Ramos principais: <details open>. Ramos secundarios: <details>.
+  5. Estados com classe, nunca emoji: .on (ATIVO), .off (PAUSADO), .warn (BLOQUEIO),
+     <span class="tag">FUTURO</span> para o que ainda nao existe.
+  6. Manter 100% ASCII: grep -cP '[^\x00-\x7F]' arquivo.html deve dar 0.
+  7. Atualizar o rodape com o caminho absoluto da pasta e os irmaos .txt.
+  NAO abrir o navegador por conta propria: entregar o caminho e oferecer.
+-->
+<style>
+  :root{
+    --bg:#0c0a10; --card:#161220; --card2:#1d1830; --line:#2e2743;
+    --pink:#ff5fa2; --lime:#c8ff4d; --cyan:#5fe0ff; --orange:#ffa64d; --violet:#b98cff;
+    --txt:#efeaf7; --dim:#9c93b5;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px 22px 60px;color:var(--txt);
+    background:
+      radial-gradient(1100px 620px at 12% -8%, #2a1240 0%, transparent 60%),
+      radial-gradient(900px 520px at 92% 6%, #123036 0%, transparent 58%),
+      var(--bg);
+    font-family:"DejaVu Sans","Segoe UI",system-ui,sans-serif;
+  }
+  header{max-width:1400px;margin:0 auto 26px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.4px;
+    background:linear-gradient(90deg,var(--pink),var(--lime));
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{color:var(--dim);font-size:13px;line-height:1.6}
+  .hint{color:var(--dim);font-size:12px;margin-top:10px}
+  .wrap{max-width:1400px;margin:0 auto;display:grid;gap:16px;
+    grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
+  .branch{background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
+    border:1px solid var(--line);border-radius:14px;padding:14px 16px 10px;
+    position:relative;overflow:hidden;}
+  .branch::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+    background:var(--accent,var(--pink));}
+  .branch h2{font-size:15px;margin:2px 0 10px;display:flex;align-items:center;gap:8px;
+    color:var(--accent,var(--pink));letter-spacing:.3px;text-transform:uppercase;}
+  .num{font-size:11px;background:var(--accent,var(--pink));color:#12101a;
+    border-radius:999px;padding:1px 8px;font-weight:700;}
+  details{margin:0 0 7px;border-left:1px dashed var(--line);padding-left:10px}
+  summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--txt);padding:2px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+ ";color:var(--accent,var(--pink));font-weight:700}
+  details[open] summary::before{content:"- ";}
+  ul{list-style:none;margin:6px 0 4px;padding-left:8px}
+  li{font-size:12.5px;color:#d9d2ea;line-height:1.55;padding:2px 0 2px 12px;position:relative}
+  li::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;
+    border-radius:50%;background:var(--accent,var(--pink));opacity:.75}
+  li b{color:#fff;font-weight:600}
+  li .tag{font-size:10.5px;border:1px solid var(--line);border-radius:6px;
+    padding:0 5px;color:var(--dim);margin-left:5px}
+  .on{color:var(--lime);font-weight:700}
+  .off{color:#7d7594}
+  .warn{color:var(--orange);font-weight:600}
+  footer{max-width:1400px;margin:28px auto 0;color:var(--dim);font-size:12px;
+    line-height:1.7;border-top:1px solid var(--line);padding-top:14px}
+  .b1{--accent:var(--pink)} .b2{--accent:var(--violet)} .b3{--accent:var(--cyan)}
+  .b4{--accent:var(--lime)} .b5{--accent:var(--orange)} .b6{--accent:var(--pink)}
+  .b7{--accent:var(--cyan)} .b8{--accent:var(--violet)} .b9{--accent:var(--lime)}
+  .b10{--accent:var(--orange)}
+</style>
+</head>
+<body>
+<header>
+  <h1><TITULO EM CAIXA ALTA></h1>
+  <div class="sub"><SUBTITULO: marca / escopo><br>
+    Medido do sistema em <AAAA-MM-DD> - <maquina> - <versao></div>
+  <div class="hint">Clique nos titulos para abrir e fechar cada ramo.</div>
+</header>
+
+<div class="wrap">
+
+  <section class="branch b1">
+    <h2><span class="num">1</span> Ramo principal 1</h2>
+    <details open>
+      <summary>Sub-grupo que fica aberto</summary>
+      <ul>
+        <li>Item de acao, com <b>numero medido</b> quando existir</li>
+        <li>Outro item</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Sub-grupo secundario</summary>
+      <ul><li>Item</li></ul>
+    </details>
+  </section>
+
+  <section class="branch b2">
+    <h2><span class="num">2</span> Ramo principal 2</h2>
+    <ul>
+      <li><b>Nome em destaque</b> - detalhe curto (canais, ferramentas, setores)</li>
+      <li>Item</li>
+    </ul>
+  </section>
+
+  <section class="branch b3">
+    <h2><span class="num">3</span> Ramo com estados</h2>
+    <details open>
+      <summary>Rodando hoje</summary>
+      <ul>
+        <li><span class="on">ATIVO</span> tarefa - horario - destino</li>
+        <li><span class="off">PAUSADO</span> tarefa</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Pendencias</summary>
+      <ul>
+        <li><span class="warn">BLOQUEIO</span> o que impede o fluxo de rodar</li>
+        <li><span class="tag">FUTURO</span> o que ainda nao existe</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- CARD EXTRA: duplicar este bloco para cada ramo novo.
+       Trocar a classe (b4, b5, ...) para mudar a cor da barra lateral. -->
+  <section class="branch b4">
+    <h2><span class="num">4</span> Ramo principal 4</h2>
+    <ul>
+      <li>Item</li>
+      <li>Item</li>
+    </ul>
+  </section>
+
+</div>
+
+<footer>
+  Arquivos desta rodada: <NOME-DO-RELATORIO>.txt (relatorio completo) e
+  <NOME-DO-MAPA>.txt (arvore em texto). Caminho base: ~/pexinxavel/relatorios/
+</footer>
+</body>
+</html>

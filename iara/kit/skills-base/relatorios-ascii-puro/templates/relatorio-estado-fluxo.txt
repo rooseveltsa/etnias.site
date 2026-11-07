@@ -1,0 +1,83 @@
+=====================================================================
+RELATORIO <PROJETO OU FLUXO> - ESTADO ATUAL
+Data: <DD/MM/AAAA> (BRT)
+<uma linha de contexto: marca, dono, fase atual>
+Status geral: <uma frase honesta - o que esta pronto e o que nao esta>
+=====================================================================
+
+NOTA: texto 100% ASCII (sem acento, cedilha, emoji, seta, travessao, borda
+decorativa). Ela cola este arquivo em outra IA. Conferir antes de entregar:
+contar bytes > 127 deve dar ZERO. Salvar o .txt e COLAR O CONTEUDO COMPLETO
+no chat - so passar o caminho do arquivo nao conta como entrega.
+
+FUNCOES POR CANAL (preencher PRIMEIRO - ela cobra esta secao)
+---------------------------------------------------------------------
+Canal 1. <grupo/chat>:  LEITURA <o que le e de onde> | ESCRITA <o que posta, com que
+         legenda e sob qual autorizacao> | NUNCA <o que e proibido ali>
+Canal 2. <grupo/chat>:  LEITURA <...> | ESCRITA <...> | NUNCA <...>
+Canal 3. DIRECT da dona: LEITURA <comandos, duvidas, aviso de venda> | ESCRITA
+         <confirmacao, resumo do fechamento, pedido de OK>
+Canal 4. DIRECT com terceiros: ESCRITA <ex.: pedido de repasse, com prazo e formato>
+NOTA: pedido literal dela (22/09/2026) - "nao se esqueca das suas funcoes em cada
+grupo e nos directs". Fluxo sem a divisao por canal fica incompleto pra ela.
+Separar LEITURA de ESCRITA em cada bloco (e o que nunca fazer ali).
+
+1. O FLUXO PONTA A PONTA (o que deve acontecer quando operar)
+---------------------------------------------------------------------
+Etapa 1. <entrada: quem posta o que, onde>
+Etapa 2. <o que o agente le/extrai>
+Etapa 3. <onde se confere a verdade do dado (fonte da verdade)>
+Etapa 4. <calculo / regra de negocio>
+Etapa 5. <o que exige confirmacao humana antes de executar>
+Etapa 6. <execucao + como se extrai a prova (comprovante, log, id)>
+Etapa 7. <resposta de volta para quem acompanha>
+Etapa 8. <registro e ritmo (planilha, pausas, um item por vez)>
+
+2. O QUE FUNCIONA HOJE (com prova)
+---------------------------------------------------------------------
+[OK] <capacidade>
+     - Prova: <comando, ID, valor concreto ou verificacao que passou>
+[OK] <capacidade>
+     - Prova: <...>
+
+3. O QUE FOI FEITO (agrupado por assunto, nao por ordem cronologica)
+---------------------------------------------------------------------
+3.1 <area>
+    - <mudanca concreta>
+3.2 <area>
+    - <mudanca concreta>
+
+4. O QUE FALTA (BLOQUEIO x PENDENCIA)
+---------------------------------------------------------------------
+[BLOQUEIO 1] <o que impede o fluxo de rodar> - quem resolve: <ela / agente>
+[BLOQUEIO 2] <...>
+[PENDENCIA 3] <nao impede rodar, mas fica devendo>
+    - Opcao A: <...> Opcao B: <...>
+NOTA: separar SEMPRE bloqueio (impede) de pendencia (nao impede). Foi a
+distincao que ela mais usou para entender o proprio projeto.
+
+5. COMO CONFERIR SOZINHA (somente leitura, nao altera nada)
+---------------------------------------------------------------------
+1) <o que checar>
+   <comando>            Esperado: <saida>
+2) <o que checar>
+   <comando>            Esperado: <saida>
+
+6. RISCOS E ARMADILHAS APRENDIDAS (para nao repetir)
+---------------------------------------------------------------------
+R1. <licao generalizavel em uma frase, nao relato do caso>
+R2. <...>
+
+7. ORDEM SUGERIDA DOS PROXIMOS PASSOS
+---------------------------------------------------------------------
+Passo 1. <o que fazer primeiro e por que>
+Passo 2. <...>
+
+8. DIVISAO DE RESPONSABILIDADE (quem faz o que)
+---------------------------------------------------------------------
+<decisoes dela: autorizar, gerar chave, definir prioridade, publicar>
+<execucao do agente: ler, conferir, calcular, montar revisao, responder>
+
+=====================================================================
+FIM DO RELATORIO
+=====================================================================

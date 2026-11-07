@@ -1,0 +1,41 @@
+=========================================================================
+BRIEFING PARA <NOME DA OUTRA IA>  -  escrito pelo Hermes em <DD/MM/AAAA> (BRT)
+Assunto: <o pedido, em 6 palavras>
+ASCII puro. Pronto para colar no chat.
+=========================================================================
+
+1) QUEM ESTA FALANDO E PARA QUEM
+Voce (<OUTRA IA>) esta decidindo. O Hermes e as maos: executa o que for decidido.
+A Vytorya (dona do brecho Pexinxavel / Loja Coletivo 110) <estado dela hoje, ex.: descansou e
+deixou a decisao por sua conta>. Ela quer o fluxo: Hermes manda a analise, <OUTRA IA> decide,
+Hermes executa.
+
+2) O QUE ELA PEDIU, PALAVRAS DELA
+"<citacao literal do pedido, transliterada para ASCII - acento sai>"
+
+3) ESTADO REAL DO DISCO (medido agora, <DD/MM/AAAA>)
+<arvore + tamanhos reais, colhidos de du/find/ls NESTA sessao. Nunca de memoria.>
+
+4) O PROBLEMA / O RISCO (importante)
+<o que quebra se a opcao obvia for executada: quantas referencias, quais atalhos, qual fluxo
+em operacao para. Numeros, nao adjetivos.>
+
+5) OPCOES (numeradas, para voce decidir)
+OPCAO 1 - <nome curto>. <o que entrega>. Custo: <X>. Risco: <Y>.
+OPCAO 2 - <nome curto>. <o que entrega>. Custo: <X>. Risco: <Y>.
+  <marcar aqui a que o Hermes recomenda e em 1 linha o por que>
+OPCAO 3 - <nome curto>. <o que entrega>. Custo: <X>. Risco: <Y>.
+OPCAO 4 - <combinacao: rapido agora, planejado depois>.
+
+6) PENDENCIAS ABERTAS
+<o que ficou pela metade, o que ja foi autorizado e nao executado, e por que parou.
+Incluir passo que ELA tem que fazer sozinha, se houver.>
+
+7) O QUE EU PRECISO DE VOCE (<OUTRA IA>)
+Responder com uma decisao numerada e curta:
+  a) Qual opcao (1, 2, 3 ou 4) e por que, em 2 linhas.
+  b) <pendencia>: fazer agora, sim ou nao.
+  c) A ordem exata de execucao, passo a passo.
+  d) O que NAO fazer (limites).
+Formato: texto simples, sem markdown pesado, para o Hermes colar de volta.
+=========================================================================

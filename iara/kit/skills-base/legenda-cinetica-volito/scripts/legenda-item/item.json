@@ -1,0 +1,23 @@
+{
+  "id": "legenda-cinetica",
+  "name": "Legenda cinética",
+  "description": "Legenda ou headline que entra palavra por palavra no tempo da fala, com marca-texto nas palavras-chave. Recebe a transcrição por --words (o Volito sincroniza sozinho).",
+  "category": "scene",
+  "placement": "overlay",
+  "duration": { "default": 20, "min": 2, "max": 600 },
+  "aspects": ["9:16", "1:1", "4:5", "16:9"],
+  "props": {
+    "linhas": { "type": "number", "default": 3, "min": 1, "max": 6 },
+    "maxCaracteres": { "type": "number", "default": 22, "min": 8, "max": 60 },
+    "pausa": { "type": "number", "default": 0.3, "min": 0, "max": 3 },
+    "tamanho": { "type": "number", "default": 96, "min": 24, "max": 200 },
+    "ancora": { "type": "number", "default": 0.72, "min": 0.2, "max": 0.95 },
+    "modo": { "type": "choice", "options": ["bloco", "headline"], "default": "bloco" },
+    "destaque": { "type": "text", "default": "", "maxLength": 200 },
+    "frases": { "type": "longtext", "default": "" },
+    "blocosJson": { "type": "longtext", "default": "" },
+    "caixa": { "type": "boolean", "default": true }
+  },
+  "parts": { "bloco": "cada bloco de legenda" },
+  "beats": { "in": 0.1, "out": -0.3 }
+}

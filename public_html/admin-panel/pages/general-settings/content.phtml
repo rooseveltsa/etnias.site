@@ -1,0 +1,630 @@
+<div class="container-fluid">
+    <div>
+        <h3>Configuração Geral</h3>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="#">Início</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a href="#">Configurações</a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Configuração Geral</li>
+            </ol>
+        </nav>
+    </div>
+    <?php $getStatus = getStatus(); if (!empty($getStatus) && !empty(checkIfThereIsError($getStatus))) {?><div class="alert alert-danger"><strong>Importante!</strong> Foram encontrados alguns erros no seu sistema, por favor revise o <a href="<?php echo Wo_LoadAdminLinkSettings('system_status'); ?>" data-ajax="?path=system_status">Status do Sistema</a>.</div><?php }?>
+    <!-- Vertical Layout -->
+    <?php if ($wo['config']['website_mode'] != 'facebook') { ?>
+        <div class="alert alert-warning">Nota: Alguns recursos estão desabilitados devido ao modo do site que você está usando.</div>
+    <?php } ?>
+    <div class="row">
+        <div class="col-lg-6 col-md-6 float-left">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Configuração Geral</h6>
+                    <form class="general-settings" method="POST">
+                        <div class="float-left">
+                            <label for="developer_mode" class="main-label">Modo Desenvolvedor</label>
+                            <br><small class="admin-info">Ao habilitar o modo desenvolvedor, o relatório de erros será habilitado, <br>não é recomendado habilitar este modo sem a ajuda de um desenvolvedor,<br> isso pode causar alguns problemas no seu site.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="developer_mode" value="0" />
+                            <input type="checkbox" name="developer_mode" id="chck-developer_mode" value="1" <?php echo ($wo['config']['developer_mode'] == 1) ? 'checked': '';?>>
+                            <label for="chck-developer_mode" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="cacheSystem" class="main-label">Sistema de Cache</label>
+                            <br><small class="admin-info">Ao habilitar o Sistema de Cache, acelere seu site em até 80%! <br>Nota: A pasta cache e todas as suas subpastas devem ter permissão definida como 777.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="cacheSystem" value="0" />
+                            <input type="checkbox" name="cacheSystem" id="chck-cacheSystem" value="1" <?php echo ($wo['config']['cacheSystem'] == 1) ? 'checked': '';?>>
+                            <label for="chck-cacheSystem" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="maintenance_mode" class="main-label">Modo de Manutenção</label>
+                            <br><small class="admin-info">Coloque todo o site em Manutenção. <br> Você pode voltar ao site visitando /admincp ou /admin-cp</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="maintenance_mode" value="0" />
+                            <input type="checkbox" name="maintenance_mode" id="chck-maintenance_mode" value="1" <?php echo ($wo['config']['maintenance_mode'] == 1) ? 'checked': '';?>>
+                            <label for="chck-maintenance_mode" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="useSeoFrindly" class="main-label">URL Amigável para SEO</label>
+                            <br><small class="admin-info">Habilite carregamento suave para economizar largura de banda.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="useSeoFrindly" value="0" />
+                            <input type="checkbox" name="useSeoFrindly" id="chck-useSeoFrindly" value="1" <?php echo ($wo['config']['useSeoFrindly'] == 1) ? 'checked': '';?>>
+                            <label for="chck-useSeoFrindly" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="developers_page" class="main-label">Desenvolvedores (Sistema de API)</label>
+                            <br><small class="admin-info">Mostrar página /developers para todos os usuários para solicitações de API.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="developers_page" value="0" />
+                            <input type="checkbox" name="developers_page" id="chck-developers_page" value="1" <?php echo ($wo['config']['developers_page'] == 1) ? 'checked': '';?>>
+                            <label for="chck-developers_page" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="profile_privacy" class="main-label">Usuários da Página de Boas-vindas</label>
+                            <br><small class="admin-info">Permitir que usuários não logados vejam perfis de usuários na página de boas-vindas.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="profile_privacy" value="0" />
+                            <input type="checkbox" name="profile_privacy" id="chck-profile_privacy" value="1" <?php echo ($wo['config']['profile_privacy'] == 1) ? 'checked': '';?>>
+                            <label for="chck-profile_privacy" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <label for="defualtLang" class="main-label">Idioma Padrão</label>
+                        <br><small class="admin-info">Defina o idioma padrão do seu site.</small>
+                        <div class="form-group">
+                            <select class="form-control show-tick" id="defualtLang" name="defualtLang">
+                                <?php
+                                 foreach (Wo_LangsNamesFromDB() as $lang) {
+                                    
+                                   $languages = $lang;
+                                    
+                                   $languages_name = ucfirst(strtolower($languages));
+                                    
+                                   $selected_lang = ($languages == $wo['config']['defualtLang']) ? ' selected' : '';
+                                    
+                                 ?>
+                              <option value="<?php echo $languages;?>"<?php echo $selected_lang;?> ><?php echo $languages_name;?></option>
+                              <?php } ?>
+                            </select>
+                        </div>
+                        <hr>
+                        <label for="date_style" class="main-label">Formato de Data</label>
+                        <br><small class="admin-info">Defina o formato de data padrão do seu site.</small>
+                        <select class="form-control show-tick" id="date_style" name="date_style">
+                          <option value="m-d-y" <?php if($wo['config']['date_style'] == 'm-d-y'){echo 'selected';};?> >mm-dd-yy</option>
+                          <option value="d-m-y" <?php if($wo['config']['date_style'] == 'd-m-y'){echo 'selected';};?> >dd-mm-yy</option>
+                          <option value="y-m-d" <?php if($wo['config']['date_style'] == 'y-m-d'){echo 'selected';};?> >yy-mm-dd</option>
+                          <option value="M-d-y" <?php if($wo['config']['date_style'] == 'M-d-y'){echo 'selected';};?> >mmm-dd-yy</option>      
+                          <option value="d-F-y" <?php if($wo['config']['date_style'] == 'd-F-y'){echo 'selected';};?> >dd-mmmm-yy</option>
+                          <option value="Y-m-d" <?php if($wo['config']['date_style'] == 'Y-m-d'){echo 'selected';};?> >yyyy-mm-dd</option> 
+                          <option value="d-M-Y" <?php if($wo['config']['date_style'] == 'd-M-Y'){echo 'selected';};?> >dd-mmm-yyyy</option>
+                          <option value="d-F-Y" <?php if($wo['config']['date_style'] == 'd-F-Y'){echo 'selected';};?> >dd-mmmm-yyyy</option>
+                        </select>
+                        <hr>
+
+                        <label for="directory_landing_page">Página Inicial</label>
+                        <select class="form-control show-tick" id="directory_landing_page" name="directory_landing_page">
+                          <option value="welcome" <?php echo ($wo['config']['directory_landing_page'] == 'welcome')   ? ' selected' : '';?> >Página de Login</option>
+                          <option value="register" <?php echo ($wo['config']['directory_landing_page'] == 'register')   ? ' selected' : '';?> >Página de Registro</option>
+                          <option value="home" <?php echo ($wo['config']['directory_landing_page'] == 'home')   ? ' selected' : '';?> >Página do Feed</option>
+                          <option value="directory" <?php echo ($wo['config']['directory_landing_page'] == 'directory')   ? ' selected' : '';?> >Página do Diretório</option>
+                        </select>
+                        <small class="admin-info">Se as pessoas não estiverem logadas, elas serão redirecionadas para esta página.</small>
+                        
+                        <!-- <div class="general-settings-alert"></div> -->
+                        <input type="hidden" name="hash_id" value="<?php echo Wo_CreateSession();?>">
+                        <!-- <button type="submit" class="btn btn-primary m-t-15 waves-effect">Save</button> -->
+                    </form>
+                </div>
+            </div>
+              <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Configuração do Usuário</h6>
+                    <form class="user2-settings" method="POST">
+                        <div class="float-left">
+                            <label for="online_sidebar" class="main-label">Usuários Online</label>
+                        <br><small class="admin-info">Mostrar usuários ativos atuais na página inicial.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="online_sidebar" value="0" />
+                            <input type="checkbox" name="online_sidebar" id="chck-online_sidebar" value="1" <?php echo ($wo['config']['online_sidebar'] == 1) ? 'checked': '';?>>
+                            <label for="chck-online_sidebar" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="user_lastseen" class="main-label">Status de Última Visualização do Usuário</label>
+                           <br><small class="admin-info">Permitir que usuários definam seu status, online e última atividade.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="user_lastseen" value="0" />
+                            <input type="checkbox" name="user_lastseen" id="chck-user_lastseen" value="1" <?php echo ($wo['config']['user_lastseen'] == 1) ? 'checked': '';?>>
+                            <label for="chck-user_lastseen" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="deleteAccount" class="main-label">Exclusão de Conta do Usuário</label>
+                            <br><small class="admin-info">Permitir que usuários excluam suas contas.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="deleteAccount" value="0" />
+                            <input type="checkbox" name="deleteAccount" id="chck-deleteAccount" value="1" <?php echo ($wo['config']['deleteAccount'] == 1) ? 'checked': '';?>>
+                            <label for="chck-deleteAccount" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="profile_back" class="main-label">Alteração do Plano de Fundo do Perfil </label>
+                            <select class="form-control show-tick" id="profile_background_request" name="profile_background_request" onchange="SelectProModel('can_use_background',this)">
+                              <option value="admin" <?php echo ($wo['config']['profile_background_request'] == 'admin')   ? ' selected' : '';?> ><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"> <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path> <circle cx="12" cy="7" r="4"></circle> </svg>Admin</option>
+                              <option value="all" <?php echo ($wo['config']['profile_background_request'] == 'all')   ? ' selected' : '';?> ><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-globe"> <circle cx="12" cy="12" r="10"></circle> <line x1="2" y1="12" x2="22" y2="12"></line> <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path> </svg> Todos os Usuários</option>
+                              <option value="verified" <?php echo ($wo['config']['profile_background_request'] == 'verified')   ? ' selected' : '';?> ><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="verified-color feather feather-check-circle" title="" data-toggle="tooltip" data-original-title="Verified User"><path d="M23,12L20.56,9.22L20.9,5.54L17.29,4.72L15.4,1.54L12,3L8.6,1.54L6.71,4.72L3.1,5.53L3.44,9.21L1,12L3.44,14.78L3.1,18.47L6.71,19.29L8.6,22.47L12,21L15.4,22.46L17.29,19.28L20.9,18.46L20.56,14.78L23,12M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"></path></svg>Apenas Usuários Verificados</option>
+                              <option value="pro" <?php echo ($wo['config']['profile_background_request'] == 'pro')   ? ' selected' : '';?> ><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M7,2V13H10V22L17,10H13L17,2H7Z"></path></svg>Apenas Usuários Pro</option>
+                            </select>
+                            <br><small class="admin-info">Permitir que usuários alterem seus planos de fundo do perfil enviando uma imagem.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="profile_back" value="0" />
+                            <input type="checkbox" name="profile_back" id="chck-profile_back" value="1" <?php echo ($wo['config']['profile_back'] == 1) ? 'checked': '';?>>
+                            <label for="chck-profile_back" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                         <div class="float-left">
+                            <label for="connectivitySystem" class="main-label">Sistema de Amigos</label>
+                        <br><small class="admin-info">Escolha entre o sistema de Seguir e Amigos. <br> <span style="color: #c48a36">Se você alterar o sistema para outro, todos os seguidores, seguindo e amigos existentes serão excluídos.</span></small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="connectivitySystem" value="0" />
+                            <input type="checkbox" name="connectivitySystem" id="chck-connectivitySystem" value="1" <?php echo ($wo['config']['connectivitySystem'] == 1) ? 'checked': '';?>>
+                            <label for="chck-connectivitySystem" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <div class="form-group">
+                            <div class="form-line">
+                                <label class="form-label" class="main-label">Limite do Sistema de Amigos</label>
+                                <input type="text" name="connectivitySystemLimit" class="form-control" value="<?php echo $wo['config']['connectivitySystemLimit']?>"><small class="admin-info">Quantos amigos cada usuário pode ter?</small>
+                            </div>
+                        </div>
+                        <hr>
+                        
+                         <div class="float-left">
+                            <label for="invite_links_system" class="main-label">Sistema de Convite de Usuário</label>
+                            <br><small class="admin-info">Permitir que usuários convidem outros usuários para o seu site.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="invite_links_system" value="0" />
+                            <input type="checkbox" name="invite_links_system" id="chck-invite_links_system" value="1" <?php echo ($wo['config']['invite_links_system'] == 1) ? 'checked': '';?>>
+                            <label for="chck-invite_links_system" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <div class="form-group form-float">
+                            <label class="form-label" class="main-label">Quantos links um usuário pode gerar?</label>
+                            <div class="form-line">
+                                <input type="text" id="user_links_limit" name="user_links_limit" class="form-control" value="<?php echo $wo['config']['user_links_limit']?>">
+                            </div>
+                        </div>
+                        <div class="form-group form-float">
+                            <label class="form-label" class="main-label">Um usuário pode gerar X links dentro de?</label>
+                            <div class="form-line">
+                                <select class="form-control show-tick" id="expire_user_links" name="expire_user_links">
+                                      <option value="hour" <?php echo ($wo['config']['expire_user_links'] == 'hour')   ? ' selected': '';?>>1 Hora</option>
+                                      <option value="day" <?php echo ($wo['config']['expire_user_links'] == 'day')   ? ' selected': '';?>>1 Dia</option>
+                                      <option value="week" <?php echo ($wo['config']['expire_user_links'] == 'week')   ? ' selected': '';?>>1 Semana</option>
+                                      <option value="month" <?php echo ($wo['config']['expire_user_links'] == 'month')   ? ' selected': '';?>>1 Mês</option>
+                                      <option value="year" <?php echo ($wo['config']['expire_user_links'] == 'year')   ? ' selected': '';?>>1 Ano</option>
+                                </select>
+                            </div>
+                        </div>
+                        <!-- <div class="user2-settings-alert"></div> -->
+                        <input type="hidden" name="hash_id" value="<?php echo Wo_CreateSession();?>">
+                        <!-- <button type="submit" class="btn btn-primary m-t-15 waves-effect">Save</button> -->
+                    </form>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Outras Configurações</h6>
+                    <div class="other-settings-alert"></div>
+                    <form class="other-settings" method="POST">
+                        <div class="form-group form-float">
+                            <label class="form-label">Palavras Censuradas</label>
+                            <div class="form-line">
+                                <input type="text" id="censored_words" name="censored_words" class="form-control" value="<?php echo $wo['config']['censored_words']?>">
+                                <small class="admin-info">Palavras a serem censuradas e substituídas por *** em mensagens, posts, comentários etc, separadas por vírgula.</small>
+                            </div>
+                        </div>
+                        <label for="cache_sidebar" >Cache da Página Inicial</label>
+                        <select class="form-control show-tick" id="cache_sidebar" name="cache_sidebar">
+                          <option value="1" <?php echo ($wo['config']['cache_sidebar'] == 1)   ? ' selected' : '';?> >Atualize os dados da barra lateral da página inicial a cada 2 minutos (carregamento mais rápido)</option>
+                          <option value="0" <?php echo ($wo['config']['cache_sidebar'] == 0)   ? ' selected' : '';?> >Nunca cache, sempre obtenha novos dados</option>
+                        </select>
+                        <small class="admin-info">Habilite esta funcionalidade para economizar o uso do MySQL e aumentar a velocidade da página inicial. </small>
+                        <div class="clearfix"></div>
+                        <label for="update_user_profile" >Cache da Página do Perfil</label>
+                        <div class="form-group">
+                            <select class="form-control show-tick" id="update_user_profile" name="update_user_profile">
+                              <option value="30" <?php echo ($wo['config']['update_user_profile'] == 30)   ? ' selected' : '';?> >A cada 30 segundos</option>
+                              <option value="120" <?php echo ($wo['config']['update_user_profile'] == 120)   ? ' selected' : '';?> >A cada 2 minutos</option>
+                              <option value="3600" <?php echo ($wo['config']['update_user_profile'] == 3600)   ? ' selected' : '';?> >A cada 1 hora</option>
+                              <option value="7200" <?php echo ($wo['config']['update_user_profile'] == 7200)   ? ' selected' : '';?> >A cada 2 horas</option>
+                              <option value="43200" <?php echo ($wo['config']['update_user_profile'] == 43200)   ? ' selected' : '';?> >A cada 12 horas</option>
+                              <option value="86400" <?php echo ($wo['config']['update_user_profile'] == 86400)   ? ' selected' : '';?> >A cada 24 horas</option>
+                            </select>
+                            <small class="admin-info margin-top-5">Atualize os dados da barra lateral a cada X, isso está relacionado ao sistema de cache para economizar o uso do MySQL.</small>
+                        </div>
+                        <div class="form-group form-float">
+                            <label class="form-label">Chave da API de Taxas de Câmbio</label>
+                            <div class="form-line">
+                                <input type="text" id="exchangerate_key" name="exchangerate_key" class="form-control" value="<?php echo $wo['config']['exchangerate_key']?>">
+                                <small class="admin-info">Sua chave da API de Taxas de Câmbio do <a href="https://app.exchangerate-api.com/dashboard">site</a></small>
+                            </div>
+                        </div>
+                        <hr>
+                        <input type="hidden" name="hash_id" value="<?php echo Wo_CreateSession();?>">
+                    </form>
+                </div>
+            </div>
+            
+        </div>
+        <div class="col-lg-6 col-md-6 float-right">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Login e Registro</h6>
+                    <form class="user-settings" method="POST">
+                        <div class="float-left">
+                            <label for="user_registration" class="main-label">Registro de Usuário</label>
+                            <br><small class="admin-info">Permitir que usuários criem contas no seu site.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="user_registration" value="0" />
+                            <input type="checkbox" name="user_registration" id="chck-user_registration" value="1" <?php echo ($wo['config']['user_registration'] == 1) ? 'checked': '';?>>
+                            <label for="chck-user_registration" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="auto_username" class="main-label">Nome de Usuário Automático no Registro</label>
+                            <br><small class="admin-info">Gere um nome de usuário automático no cadastro. <br> O formulário de registro pedirá o nome e sobrenome do usuário.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="auto_username" value="0" />
+                            <input type="checkbox" name="auto_username" id="chck-auto_username" value="1" <?php echo ($wo['config']['auto_username'] == 1) ? 'checked': '';?>>
+                            <label for="chck-auto_username" class="check-trail"><span class="check-handler"></span></label>
+                        </div> 
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="password_complexity_system" class="main-label">Sistema de Complexidade de Senha</label>
+                            <br><small class="admin-info">O sistema exigirá uma senha forte no cadastro, <br>incluindo letras, números e caracteres especiais.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="password_complexity_system" value="0" />
+                            <input type="checkbox" name="password_complexity_system" id="chck-password_complexity_system" value="1" <?php echo ($wo['config']['password_complexity_system'] == 1) ? 'checked': '';?>>
+                            <label for="chck-password_complexity_system" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="login_auth" class="main-label">Login Incomum</label>
+                            <br><small class="admin-info">Envie um link de confirmação quando o usuário fizer login de um local novo.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="login_auth" value="0" />
+                            <input type="checkbox" name="login_auth" id="chck-login_auth" value="1" <?php echo ($wo['config']['login_auth'] == 1) ? 'checked': '';?>>
+                            <label for="chck-login_auth" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="remember_device" class="main-label">Lembre-se deste Dispositivo</label>
+                            <br><small class="admin-info">Lembre-se deste dispositivo na página de boas-vindas.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="remember_device" value="0" />
+                            <input type="checkbox" name="remember_device" id="chck-remember_device" value="1" <?php echo ($wo['config']['remember_device'] == 1) ? 'checked': '';?>>
+                            <label for="chck-remember_device" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="login_auth" class="main-label">Autenticação de Dois Fatores</label>
+                            <br><small class="admin-info">Envie um código de confirmação para e-mail ou SMS quando o usuário fizer login.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="two_factor" value="0" />
+                            <input type="checkbox" name="two_factor" id="chck-two_factor" value="1" <?php echo ($wo['config']['two_factor'] == 1) ? 'checked': '';?>>
+                            <label for="chck-two_factor" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <label for="defualtLang" >Método de Autenticação de Dois Fatores</label>
+                        <br><small class="admin-info">Selecione o sistema que a autenticação de dois fatores deve usar.</small>
+                        <div class="form-group">
+                            <select class="form-control show-tick" id="two_factor_type" name="two_factor_type">
+                              <option value="email" <?php echo ($wo['config']['two_factor_type'] == 'email') ? 'selected': '';?>>Endereço de E-mail</option>
+                              <option value="phone" <?php echo ($wo['config']['two_factor_type'] == 'phone') ? 'selected': '';?>>SMS / Número de Telefone</option>
+                              <option value="both" <?php echo ($wo['config']['two_factor_type'] == 'both') ? 'selected': '';?>>Ambos Juntos</option>
+                            </select>
+                        </div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="google_authenticator" class="main-label">Configurações do Google Authenticator</label>
+                            <br><small class="admin-info">Código do Google Authenticator quando o usuário fizer login.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="google_authenticator" value="0" />
+                            <input type="checkbox" name="google_authenticator" id="chck-google_authenticator" value="1" <?php echo ($wo['config']['google_authenticator'] == '1') ? 'checked': '';?>>
+                            <label for="chck-google_authenticator" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="authy_settings" class="main-label">Configurações do Authy</label>
+                            <br><small class="admin-info">Código do Authy quando o usuário fizer login.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="authy_settings" value="0" />
+                            <input type="checkbox" name="authy_settings" id="chck-authy_settings" value="1" <?php echo ($wo['config']['authy_settings'] == '1') ? 'checked': '';?>>
+                            <label for="chck-authy_settings" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <div class="form-group form-float">
+                            <div class="form-line">
+                                <label class="form-label">Token do Authy</label>
+                                <input type="text" id="authy_token" name="authy_token" class="form-control" value="<?php echo $wo['config']['authy_token'] ?>">
+                                <small class="admin-info">Token do Authy da sua conta do Twilio</small>
+                            </div>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="emailValidation" class="main-label">Validação de Conta</label>
+                            <br><small class="admin-info">Envie um link de ativação após o registro.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="emailValidation" value="0" />
+                            <input type="checkbox" name="emailValidation" id="chck-emailValidation" value="1" <?php echo ($wo['config']['emailValidation'] == 1) ? 'checked': '';?>>
+                            <label for="chck-emailValidation" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <label for="defualtLang" >Método de Validação de Conta</label>
+                        <br><small class="admin-info">Escolha o tipo de validação, por SMS ou E-mail, se você escolher SMS, <br> certifique-se de que configurou o SMS.</small>
+                        <div class="form-group">
+                            <select class="form-control show-tick" id="sms_or_email" name="sms_or_email">
+                                <option value="mail" <?php echo ($wo['config']['sms_or_email'] == 'mail') ? 'selected': '';?>>Endereço de E-mail</option>
+                                <option value="sms" <?php echo ($wo['config']['sms_or_email'] == 'sms') ? 'selected': '';?>>SMS / Número de Telefone</option>
+                            </select>
+                        </div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="reCaptcha" class="main-label">reCaptcha</label>
+                            <br><small class="admin-info">Habilite o reCaptcha para prevenir spam.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="reCaptcha" value="0" />
+                            <input type="checkbox" name="reCaptcha" id="chck-reCaptcha" value="1" <?php echo ($wo['config']['reCaptcha'] == 1) ? 'checked': '';?>>
+                            <label for="chck-reCaptcha" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <div class="form-group form-float">
+                            <div class="form-line">
+                                <label class="form-label">Chave do reCaptcha</label>
+                                <input type="text" id="reCaptchaKey" name="reCaptchaKey" class="form-control" value="<?php echo $wo['config']['reCaptchaKey']?>">
+                            </div>
+                        </div>
+                        <div class="form-group form-float">
+                            <div class="form-line">
+                                <label class="form-label">Chave Secreta do reCaptcha</label>
+                                <input type="text" id="recaptcha_secret_key" name="recaptcha_secret_key" class="form-control" value="<?php echo $wo['config']['recaptcha_secret_key']?>">
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="reCaptcha" class="main-label">Prevenir Tentativas de Login Ruins</label>
+                            <br><small class="admin-info">Habilite esta funcionalidade para rastrear e parar ataques de força bruta.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="prevent_system" value="0" />
+                            <input type="checkbox" name="prevent_system" id="chck-prevent_system" value="1" <?php echo ($wo['config']['prevent_system'] == 1) ? 'checked': '';?>>
+                            <label for="chck-prevent_system" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <div class="form-group form-float">
+                            <div class="form-line">
+                                <label class="form-label">Limite de Login</label>
+                                <input type="text" id="bad_login_limit" name="bad_login_limit" class="form-control" value="<?php echo $wo['config']['bad_login_limit']?>">
+                                <small class="admin-info">Quantas vezes um usuário pode tentar fazer login antes de ser bloqueado?</small>
+                            </div>
+                        </div>
+                        <div class="form-group form-float">
+                            <div class="form-line">
+                                <label class="form-label">Tempo de Bloqueio (Em Minutos)</label>
+                                <input type="text" id="lock_time" name="lock_time" class="form-control" value="<?php echo $wo['config']['lock_time']?>">
+                                <small class="admin-info">Por quanto tempo o usuário deve ficar bloqueado?</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="form-group form-float">
+                            <label for="user_limit" class="main-label">Limites de Registro</label>
+                            <small class="admin-info">Quantas vezes um usuário pode criar contas por hora.</small>
+                            <div class="form-line">
+                                <input type="text" id="user_limit" name="user_limit" class="form-control" value="<?php echo $wo['config']['user_limit']?>">
+                                
+                            </div>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+
+                        <div class="float-left">
+                            <label for="reserved_usernames_system" class="main-label">Sistema de Nomes de Usuário Reservados</label>
+                            <br><small class="admin-info">Sistema de Nomes de Usuário Reservados</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="reserved_usernames_system" value="0" />
+                            <input type="checkbox" name="reserved_usernames_system" id="chck-reserved_usernames_system" value="1" <?php echo ($wo['config']['reserved_usernames_system'] == '1') ? 'checked': '';?>>
+                            <label for="chck-reserved_usernames_system" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <div class="form-group form-float">
+                            <div class="form-line">
+                                <label class="form-label">Nomes de Usuário Reservados</label>
+                                <textarea name="reserved_usernames" class="form-control"><?php echo ($wo['config']['reserved_usernames']);?></textarea>
+                                <small class="admin-info">Nomes de Usuário Reservados</small>
+                            </div>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="disable_start_up" class="main-label">Desabilitar Página Inicial</label>
+                            <br><small class="admin-info">Desabilitar página inicial</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="disable_start_up" value="0" />
+                            <input type="checkbox" name="disable_start_up" id="chck-disable_start_up" value="1" <?php echo ($wo['config']['disable_start_up'] == '1') ? 'checked': '';?>>
+                            <label for="chck-disable_start_up" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+
+                        <!-- <div class="user-settings-alert"></div> -->
+                        <input type="hidden" name="hash_id" value="<?php echo Wo_CreateSession();?>">
+                        <!-- <button type="submit" class="btn btn-primary m-t-15 waves-effect">Save</button> -->
+                    </form>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Configurações de Notificações</h6>
+                    <form class="notifications-settings" method="POST">
+                        <div class="float-left">
+                            <label for="emailNotification" class="main-label">Notificações por E-mail </label>
+                            <br><small class="admin-info">Envie notificações por e-mail para os usuários após receber notificações do site.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="emailNotification" value="0" />
+                            <input type="checkbox" name="emailNotification" id="chck-emailNotification" value="1" <?php echo ($wo['config']['emailNotification'] == 1) ? 'checked': '';?>>
+                            <label for="chck-emailNotification" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="profileVisit" class="main-label">Notificações de Visita ao Perfil </label>
+                            <br><small class="admin-info">Envie uma notificação para um usuário quando alguém visitar seu perfil. <br>Nota que esta funcionalidade exigirá que o usuário se torne um membro Pro se você habilitar o Sistema Pro.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="profileVisit" value="0" />
+                            <input type="checkbox" name="profileVisit" id="chck-profileVisit" value="1" <?php echo ($wo['config']['profileVisit'] == 1) ? 'checked': '';?>>
+                            <label for="chck-profileVisit" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+                        <hr>
+                        <div class="float-left">
+                            <label for="notify_new_post" class="main-label">Notificação de Novo Post</label>
+                            <br><small class="admin-info">Envie uma notificação para os seguidores quando um usuário criar um novo post.</small>
+                        </div>
+                        <div class="form-group float-right switcher">
+                            <input type="hidden" name="notify_new_post" value="0" />
+                            <input type="checkbox" name="notify_new_post" id="chck-notify_new_post" value="1" <?php echo ($wo['config']['notify_new_post'] == 1) ? 'checked': '';?>>
+                            <label for="chck-notify_new_post" class="check-trail"><span class="check-handler"></span></label>
+                        </div>
+                        <div class="clearfix"></div>
+
+                        <!--  <div class="notifications-settings-alert"></div> -->
+                        <input type="hidden" name="hash_id" value="<?php echo Wo_CreateSession();?>"><!-- 
+                        <button type="submit" class="btn btn-primary m-t-15 waves-effect">Save</button> -->
+                    </form>
+                </div>
+            </div>
+            
+            
+        </div> 
+        <div class="clearfix"></div>
+    </div>
+    <!-- #END# Vertical Layout -->
+<script>
+
+$(function() {
+    $('.switcher input[type=checkbox]').click(function () {
+        setToTrue = 0;
+        if ($(this).is(":checked") === true) {
+            setToTrue = 1;
+        }
+        var configName = $(this).attr('name');
+        var hash_id = $('input[name=hash_id]').val();
+        var objData = {};
+        objData[configName] = setToTrue;
+        objData['hash_id'] = hash_id;
+        $.post( Wo_Ajax_Requests_File() + '?f=admin_setting&s=update_general_setting', objData);
+    });
+
+    var setTimeOutColor = setTimeout(function (){});
+    $('select').on('change', function() {
+         clearTimeout(setTimeOutColor);
+        var thisElement = $(this);
+        var configName = thisElement.attr('name');
+        var hash_id = $('input[name=hash_id]').val();
+        var objData = {};
+        objData[configName] = this.value;
+        objData['hash_id'] = hash_id;
+        thisElement.addClass('warning');
+        $.post( Wo_Ajax_Requests_File() + '?f=admin_setting&s=update_general_setting', objData, function (data) {
+            if (data.status == 200) {
+                thisElement.removeClass('warning');
+                thisElement.addClass('success');
+            } else {
+                thisElement.addClass('error');
+            }
+            var setTimeOutColor = setTimeout(function () {
+                thisElement.removeClass('success');
+                thisElement.removeClass('warning');
+                thisElement.removeClass('error');
+            }, 2000);
+        });
+    });
+    $('input[type=text], input[type=number] , textarea').on('input', delay(function() {
+            clearTimeout(setTimeOutColor);
+            var thisElement = $(this);
+            var configName = thisElement.attr('name');
+            var hash_id = $('input[name=hash_id]').val();
+            var objData = {};
+            objData[configName] = this.value;
+            objData['hash_id'] = hash_id;
+            thisElement.addClass('warning');
+            $.post( Wo_Ajax_Requests_File() + '?f=admin_setting&s=update_general_setting', objData, function (data) {
+                if (data.status == 200) {
+                    thisElement.removeClass('warning');
+                    thisElement.addClass('success');
+                } else {
+                    thisElement.addClass('error');
+                }
+                var setTimeOutColor = setTimeout(function () {
+                    thisElement.removeClass('success');
+                    thisElement.removeClass('warning');
+                    thisElement.removeClass('error');
+                }, 2000);
+                //thisElement.focus();
+            });
+    }, 500));
+});
+
+</script>

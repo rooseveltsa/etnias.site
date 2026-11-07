@@ -1,0 +1,342 @@
+--- a/skills/iara-adapter/scripts/iara_adapter.py
++++ b/skills/iara-adapter/scripts/iara_adapter.py
+@@ -29,7 +29,8 @@
+ import re
+ import sys
+ import uuid
+-from datetime import datetime, timezone
++import fcntl
++from datetime import datetime, timezone, timedelta
+ from pathlib import Path
+ 
+ DADOS = Path(os.path.expanduser("~/.hermes/iara-data"))
+@@ -90,7 +91,7 @@
+ # Telefone, email e CPF. Texto com PII cru NAO entra em log nenhum: ou chega
+ # anonimizado (anonimizado=True), ou o registro e recusado.
+ PII_PADROES = {
+-    "telefone": re.compile(r"\b\d{10,11}\b"),
++    "telefone": re.compile(r"(?<!\d)(?:\+?55[ .-]*)?\(?\d{2}\)?[ .-]*9?\d{4}[ .-]*\d{4}(?!\d)"),
+     "email": re.compile(r"\S+@\S+"),
+     "cpf": re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"),
+ }
+@@ -123,7 +124,7 @@
+ 
+ def _exigir_sem_pii(rec, anonimizado, contexto):
+     pii = verificar_pii(_texto_do_registro(rec))
+-    if pii["tem_pii"] and not anonimizado:
++    if pii["tem_pii"]:
+         raise PiiNaoAnonimizada(
+             "%s com PII cru (%s): anonimizar antes de gravar (telefone, email, CPF)"
+             % (contexto, ", ".join(pii["achados"])),
+@@ -139,17 +140,17 @@
+         return False, "peca_id_ausente"
+     script_dir = os.path.expanduser("~/.hermes/skills/iara-institucional/scripts")
+     if not os.path.exists(os.path.join(script_dir, "institucional.py")):
+-        return False, "institucional_ausente"
++        return True, "institucional_ausente"
+     if script_dir not in sys.path:
+         sys.path.insert(0, script_dir)
+     try:
+         from institucional import esta_bloqueado as _bloqueado
+     except Exception:
+-        return False, "institucional_indisponivel"
++        return True, "institucional_indisponivel"
+     try:
+         return bool(_bloqueado(peca_id)), None
+     except Exception:
+-        return False, "institucional_erro"
++        return True, "institucional_erro"
+ 
+ 
+ def esta_bloqueado(peca_id):
+@@ -177,9 +178,11 @@
+         return {"storage": "local", "version": "1", "origem": "padrao"}
+     try:
+         cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+-    except json.JSONDecodeError:
+-        return {"storage": "local", "version": "1", "origem": "config_ilegivel_local"}
++    except json.JSONDecodeError as exc:
++        raise ErroDeValidacao("config.json corrompido: nao altero o armazenamento") from exc
++    _exige(isinstance(cfg, dict), "config.json precisa ser objeto")
+     cfg.setdefault("storage", "local")
++    _exige(cfg["storage"] in {"local", "supabase"}, "storage desconhecido: nao uso fallback")
+     cfg.setdefault("version", "1")
+     cfg["origem"] = "arquivo"
+     return cfg
+@@ -223,10 +226,21 @@
+     os.replace(tmp, caminho)
+ 
+ 
++def _local_locked(function):
++    def locked(*args, **kwargs):
++        DADOS.mkdir(parents=True, exist_ok=True)
++        with (DADOS / ".adapter.lock").open("a") as handle:
++            os.chmod(handle.name, 0o600)
++            fcntl.flock(handle, fcntl.LOCK_EX)
++            return function(*args, **kwargs)
++    return locked
++
++
+ class _Local:
+     nome = "local"
+ 
+     @staticmethod
++    @_local_locked
+     def inserir(tipo, registro):
+         registros = _carregar(tipo)
+         registros.append(registro)
+@@ -234,6 +248,7 @@
+         return registro
+ 
+     @staticmethod
++    @_local_locked
+     def listar(tipo, campo=None, valor=None):
+         registros = _carregar(tipo)
+         if campo is None:
+@@ -241,6 +256,7 @@
+         return [r for r in registros if r.get(campo) == valor]
+ 
+     @staticmethod
++    @_local_locked
+     def atualizar(tipo, campo, valor, mudancas):
+         registros = _carregar(tipo)
+         achou = None
+@@ -253,6 +269,7 @@
+         return achou
+ 
+     @staticmethod
++    @_local_locked
+     def apagar(tipo, campo, valor):
+         registros = _carregar(tipo)
+         ficaram = [r for r in registros if r.get(campo) != valor]
+@@ -358,6 +375,9 @@
+       * recusa texto com PII cru (exit 4 na skill);
+       * recusa peca com bloqueio institucional pendente (exit 3 na skill).
+     """
++    _exige(isinstance(peca_id, str) and SLUG.fullmatch(peca_id), "peca_id obrigatorio: use um slug")
++    solicitante = (extras.get("solicitante") or "").strip()
++    _exige(solicitante, "solicitante nominal obrigatorio")
+     rec = {"solicitacao_id": solicitacao_id, "aprovador": aprovador,
+            "peca_hash": peca_hash, "canal": canal, "estado": "rascunho"}
+     rec.update(extras)
+@@ -378,7 +398,7 @@
+     rec = {"id": _novo_id(), "solicitacao_id": rec["solicitacao_id"].strip(),
+            "aprovador": rec["aprovador"].strip(),
+            "peca_hash": rec["peca_hash"].strip(),
+-           "canal": rec["canal"], "estado": "rascunho",
++           "canal": rec["canal"], "peca_id": peca_id, "solicitante": solicitante, "estado": "rascunho",
+            "criado_em": agora(), "aprovado_em": None}
+     _store().inserir("aprovacoes", rec)
+     saida = {"aprovado": False, "estado": "rascunho", "registro": rec,
+@@ -405,6 +425,8 @@
+     _exige(bool(linhas),
+            "nenhuma solicitacao %r: solicite antes de aprovar" % solicitacao_id)
+     atual = linhas[-1]
++    _exige(peca_id and peca_id == atual.get("peca_id"), "peca_id obrigatorio e deve coincidir com a solicitacao")
++    _exige(atual.get("solicitante") and ap.casefold() != atual["solicitante"].casefold(), "quem solicita nao pode aprovar a propria peca")
+     _exige(atual["estado"] in {"rascunho", "revisao"},
+            "solicitacao %r esta em %r: nao volta para aprovado"
+            % (solicitacao_id, atual["estado"]))
+@@ -437,7 +459,12 @@
+     if not linhas:
+         return {"encontrado": False, "aprovado": False, "registro": None}
+     r = linhas[-1]
+-    return {"encontrado": True, "aprovado": r["estado"] in {"aprovado", "agendado", "publicado"},
++    try:
++        aprovado_em = datetime.fromisoformat(r.get("aprovado_em") or "")
++        vigente = aprovado_em.tzinfo is not None and timedelta(0) <= datetime.now(timezone.utc) - aprovado_em <= timedelta(days=7)
++    except (ValueError, TypeError):
++        vigente = False
++    return {"encontrado": True, "aprovado": vigente and r["estado"] in {"aprovado", "agendado", "publicado"},
+             "registro": r}
+ 
+ 
+@@ -451,6 +478,10 @@
+     * solicitacao sem aprovacao -> IntegridadePublicacao `aprovacao_ausente` (exit 5);
+     * peca_hash diferente do aprovado -> `divergencia_hash` (exit 5).
+     """
++    _exige(solicitacao_id, "solicitacao_id obrigatorio: publicacao exige aprovacao")
++    _exige(peca_hash, "peca_hash obrigatorio: publicacao exige hash aprovado")
++    if esta_bloqueado(peca_id):
++        raise BloqueioInstitucional("peca bloqueada ou classificacao institucional indisponivel")
+     hora = hora or agora()
+     rec = {"peca_id": peca_id, "aprovador": aprovador, "canal": canal,
+            "url": url, "hora": hora}
+@@ -476,7 +507,11 @@
+                 {"publicado": False, "motivo": "aprovacao_ausente",
+                  "solicitacao_id": solicitacao_id, "encontrada": True,
+                  "estado": (achou["registro"] or {}).get("estado")})
+-        aprovado_hash = ((achou["registro"] or {}).get("peca_hash") or "").strip()
++        approved = achou["registro"]
++        _exige(approved.get("peca_id") == peca_id, "aprovacao pertence a outra peca")
++        _exige(approved.get("canal") == canal, "aprovacao pertence a outro canal")
++        _exige(approved.get("aprovador") == aprovador, "aprovador diverge da aprovacao nominal")
++        aprovado_hash = (approved.get("peca_hash") or "").strip()
+         if not peca_hash:
+             raise IntegridadePublicacao(
+                 "publicacao ligada a solicitacao %r exige peca_hash (PEC 18.2)"
+@@ -686,4 +721,14 @@
+ 
+ 
+ if __name__ == "__main__":
+-    print(json.dumps(estado(), indent=2, ensure_ascii=False))
++    import argparse
++    parser = argparse.ArgumentParser(description="Adapter IAra: registrar_aprovacao, registrar_publicacao, registrar_metrica, calendario, biblioteca")
++    parser.add_argument("--test-connection", action="store_true")
++    args = parser.parse_args()
++    if args.test_connection:
++        if ler_config()["storage"] == "supabase":
++            print(json.dumps({"connected": False, "schema": "iara-core", "needs_install": True}))
++            sys.exit(5)
++        print(json.dumps({"connected": True, "storage": "local"}))
++    else:
++        print(json.dumps(estado(), indent=2, ensure_ascii=False))
+--- a/skills/iara-aprovacao/scripts/registrar-aprovacao.py
++++ b/skills/iara-aprovacao/scripts/registrar-aprovacao.py
+@@ -41,6 +41,7 @@
+     ap = argparse.ArgumentParser(description="aprovacao nominal da IAra (local-first)")
+     ap.add_argument("--solicitacao-id", required=True)
+     ap.add_argument("--aprovador", default="")
++    ap.add_argument("--solicitante", default="", help="nome de quem solicita; nao pode aprovar a propria peca")
+     ap.add_argument("--peca-hash", default="")
+     ap.add_argument("--canal", default="")
+     ap.add_argument("--peca-id", default="",
+@@ -66,6 +67,11 @@
+                    "antes": antes, "depois": len(ler_aprovacoes()),
+                    "storage": estado()["storage"]})
+ 
++        if not a.peca_id:
++            saida({"ok": False, "erros": ["--peca-id obrigatorio"]}, 2)
++        if a.acao == "solicitar" and not a.solicitante.strip():
++            saida({"ok": False, "erros": ["--solicitante obrigatorio"]}, 2)
++
+         if a.check:
+             rec = {"solicitacao_id": a.solicitacao_id, "aprovador": a.aprovador,
+                    "peca_hash": a.peca_hash, "canal": a.canal or None}
+@@ -82,7 +88,7 @@
+         r = registrar_aprovacao(a.solicitacao_id, a.aprovador, a.peca_hash,
+                                 canal=a.canal or None,
+                                 peca_id=a.peca_id or None,
+-                                teste=a.teste, anonimizado=a.anonimizado)
++                                teste=a.teste, anonimizado=a.anonimizado, solicitante=a.solicitante)
+         r.setdefault("aviso_institucional", aviso_institucional(a.peca_id or a.solicitacao_id))
+         saida(dict(r, ok=True))
+ 
+--- a/skills/iara-calendario/scripts/calendario.py
++++ b/skills/iara-calendario/scripts/calendario.py
+@@ -23,7 +23,7 @@
+ 
+ sys.path.insert(0, os.path.expanduser("~/.hermes/skills/iara-adapter/scripts"))
+ from iara_adapter import (  # noqa: E402
+-    ErroDeValidacao, NeedsInstall, TRANSICOES, apagar_calendario, avancar_estado,
++    ErroDeValidacao, NeedsInstall, PiiNaoAnonimizada, TRANSICOES, apagar_calendario, avancar_estado,
+     estado, ler_calendario, registrar_calendario,)
+ 
+ 
+@@ -78,6 +78,8 @@
+         saida(dict(registrar_calendario(a.solicitacao_id, a.titulo, a.canal,
+                                         a.data_prevista, a.estado_inicial), ok=True))
+ 
++    except PiiNaoAnonimizada as exc:
++        saida(dict({"ok": False}, **exc.payload), 4)
+     except ErroDeValidacao as exc:
+         saida({"ok": False, "erros": [str(exc)]}, 2)
+     except NeedsInstall as exc:
+--- a/skills/iara-solicitacao/scripts/solicitar.py
++++ b/skills/iara-solicitacao/scripts/solicitar.py
+@@ -53,9 +53,11 @@
+         return []
+     try:
+         d = json.load(open(ARQ, encoding="utf-8"))
+-        return d if isinstance(d, list) else []
+-    except Exception:
+-        return []
++        if not isinstance(d, list):
++            raise ValueError("solicitacoes.json precisa ser lista; historico preservado")
++        return d
++    except json.JSONDecodeError as exc:
++        raise ValueError("solicitacoes.json corrompido; historico preservado") from exc
+ 
+ 
+ def gravar(itens: list) -> None:
+@@ -144,6 +146,10 @@
+             sem["sla_risco"] = True
+             sem["motivo_sla_risco"] = "prazo menor que SLA"
+ 
++    pii = iara_adapter.verificar_pii(sem["descricao"] + "\n" + sem["solicitante"])
++    if pii["tem_pii"]:
++        print(json.dumps({"ok": False, "motivo": "pii_nao_anonimizada", "pii": pii["achados"]}))
++        raise SystemExit(4)
+     itens = ler()
+     itens.append(sem)
+     gravar(itens)
+--- a/skills/iara-revisao/scripts/revisar.py
++++ b/skills/iara-revisao/scripts/revisar.py
+@@ -57,7 +57,7 @@
+               "compartilhe", "siga", "leia", "veja", "conheça", "conheca", "apoie",
+               "doe", "venha", "baixe", "assista", "ouça", "ouca", "clique", "garanta")
+ 
+-FONTE_ROTULO = re.compile(r"^\s*(fonte|veiculo|veículo|veículo)\s*:", re.I | re.M)
++FONTE_ROTULO = re.compile(r"\b(fonte|veiculo|veículo)\s*:", re.I | re.M)
+ URL_RE = re.compile(r"https?://[^\s)>\]\"']+")
+ 
+ AGRESSIVOS = ("idiota", "burro", "burra", "imbecil", "vagabundo", "vagabunda",
+--- a/skills/iara-log-publicacao/scripts/log-publicacao.py
++++ b/skills/iara-log-publicacao/scripts/log-publicacao.py
+@@ -26,7 +26,7 @@
+ 
+ sys.path.insert(0, os.path.expanduser("~/.hermes/skills/iara-adapter/scripts"))
+ from iara_adapter import (  # noqa: E402
+-    ErroDeValidacao, IntegridadePublicacao, NeedsInstall, PiiNaoAnonimizada,
++    BloqueioInstitucional, ErroDeValidacao, IntegridadePublicacao, NeedsInstall, PiiNaoAnonimizada,
+     apagar_publicacao, estado, ler_publicacoes, registrar_publicacao,
+     validar_publicacao,)
+ 
+@@ -97,6 +97,8 @@
+                                  anonimizado=a.anonimizado)
+         saida(dict(r, ok=True))
+ 
++    except BloqueioInstitucional as exc:
++        saida(dict({"ok": False}, **exc.payload), 3)
+     except IntegridadePublicacao as exc:
+         saida(dict({"ok": False, "registrado": False, "publicado": False},
+                    **exc.payload), 5)
+--- a/skills/iara-institucional/scripts/institucional.py
++++ b/skills/iara-institucional/scripts/institucional.py
+@@ -74,12 +74,9 @@
+     try:
+         d = json.load(open(caminho, encoding="utf-8"))
+     except json.JSONDecodeError as exc:
+-        print(json.dumps({"ok": False, "erro": "%s ilegivel (%s): nao sobrescrevo"
+-                          % (nome, exc)}, ensure_ascii=False))
+-        sys.exit(3)
++        raise ValueError("%s ilegivel: nao sobrescrevo" % nome) from exc
+     if not isinstance(d, list):
+-        print(json.dumps({"ok": False, "erro": "%s nao e lista" % nome}))
+-        sys.exit(3)
++        raise ValueError("%s nao e lista" % nome)
+     return d
+ 
+ 
+@@ -124,6 +121,11 @@
+ 
+ def esta_bloqueado(peca_id):
+     """Porta para outras skills: bloqueio institucional pendente?"""
++    for record in reversed(agora_registros()):
++        if record.get("tipo_registro") == "autorizacao" and record.get("peca_id") == peca_id:
++            if record.get("bloqueado") or record.get("restritas"):
++                return True
++            break
+     c = classificacao_de(peca_id)
+     if not c or not c.get("institucional"):
+         return False
+@@ -311,4 +313,8 @@
+ 
+ 
+ if __name__ == "__main__":
+-    sys.exit(main())
++    try:
++        sys.exit(main())
++    except (ValueError, OSError) as exc:
++        print(json.dumps({"ok": False, "erro": str(exc)}))
++        sys.exit(3)

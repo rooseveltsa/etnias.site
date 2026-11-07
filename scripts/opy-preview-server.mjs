@@ -1,0 +1,30 @@
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { resolve, extname, sep } from 'node:path';
+import handler from '../preview/server/community.mjs';
+import middleware from '../preview/middleware.js';
+const root = resolve('preview/dist/public');
+const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json' };
+const port = Number(process.env.PORT) || 8101;
+http.createServer(async (req, res) => {
+ try {
+  const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+  const pathname = url.pathname;
+  const path = pathname.replace(/\/$/, '') || '/';
+  if (path === '/api/community' || path === '/api/media') {
+    if (req.method === 'POST') {
+      let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 4*1024*1024) { res.writeHead(413); return res.end(); } }
+      try { req.body = JSON.parse(raw); } catch { res.writeHead(400); return res.end(); }
+    }
+    return handler(req, res);
+  }
+  const gate = await middleware(new Request(url, { headers: req.headers }));
+  if (gate) { res.writeHead(gate.status, Object.fromEntries(gate.headers)); return res.end(); }
+  const file = resolve(root, '.' + decodeURIComponent(pathname) + (pathname.endsWith('/') ? 'index.html' : ''));
+  if (!file.startsWith(root + sep) || !types[extname(file)]) { res.writeHead(404); return res.end(); }
+  try { res.setHeader('Content-Type', types[extname(file)]); res.end(await readFile(file)); } catch { res.writeHead(404); res.end(); }
+ } catch { if (!res.headersSent) res.writeHead(400); res.end('Requisição inválida.'); }
+}).on('error', error => {
+  console.error(error.code === 'EADDRINUSE' ? `A porta ${port} está ocupada. Feche a outra prévia ou use PORT=8102 node scripts/dev-opy.mjs.` : error.message);
+  process.exitCode = 1;
+}).listen(port, '127.0.0.1', () => console.log('Abra http://127.0.0.1:' + port));

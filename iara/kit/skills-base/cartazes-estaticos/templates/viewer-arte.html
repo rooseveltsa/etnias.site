@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Acompanhando a arte</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; }
+  body { display: flex; align-items: center; justify-content: center; }
+  img { max-width: 100vw; max-height: 100vh; object-fit: contain;
+        box-shadow: 0 0 40px rgba(0,0,0,.8); }
+  #aviso { position: fixed; left: 12px; bottom: 10px; color: #b87333;
+           font: 13px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+  <!-- Trocar CAMINHO pelo JPG que o script gera. O preview recarrega sozinho
+       a cada 2 s: cada render novo aparece sem reabrir a janela. -->
+  <img id="arte" alt="arte">
+  <div id="aviso">atualiza sozinho quando o Hermes gera uma versao nova</div>
+  <script>
+    const CAMINHO = "file:///CAMINHO/ABSOLUTO/DA/ARTE.jpg";
+    const img = document.getElementById("arte");
+    function recarregar() { img.src = CAMINHO + "?t=" + Date.now(); }
+    recarregar();
+    setInterval(recarregar, 2000);
+  </script>
+</body>
+</html>

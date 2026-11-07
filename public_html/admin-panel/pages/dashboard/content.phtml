@@ -1,0 +1,491 @@
+<?php 
+$this_start = strtotime("1 January ".date('Y')." 12:00am");
+$this_end = strtotime("31 December ".date('Y')." 11:59pm");
+$array = array('01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0);
+$code = 'm';
+$main_range = 'Este Ano';
+$title = "Anual";
+if (!empty($_GET['range']) && in_array($_GET['range'], array('Hoje','Ontem','Esta Semana','Este Mês','Mês Passado'))) {
+    if ($_GET['range'] == 'Hoje' || $_GET['range'] == 'Ontem') {
+        $array = array('00' => 0 ,'01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0 ,'13' => 0 ,'14' => 0 ,'15' => 0 ,'16' => 0 ,'17' => 0 ,'18' => 0 ,'19' => 0 ,'20' => 0 ,'21' => 0 ,'22' => 0 ,'23' => 0);
+        $this_start = strtotime(date('M')." ".date('d').", ".date('Y')." 12:00am");
+        $this_end = strtotime(date('M')." ".date('d').", ".date('Y')." 11:59pm");
+        if ($_GET['range'] == 'Ontem') {
+            $this_start = strtotime(date('M')." ".date('d',strtotime("-1 days")).", ".date('Y')." 12:00am");
+            $this_end = strtotime(date('M')." ".date('d',strtotime("-1 days")).", ".date('Y')." 11:59pm");
+        }
+        $code = 'H';
+        $main_range = 'Hoje';
+        $title = "Diário";
+    }
+    elseif ($_GET['range'] == 'Esta Semana') {
+        $time = strtotime(date('l').", ".date('M')." ".date('d').", ".date('Y'));
+
+        if (date('l') == 'Sábado') {
+            $this_start = strtotime(date('M')." ".date('d').", ".date('Y')." 12:00am");
+        }
+        else{
+            $this_start = strtotime('last saturday, 12:00am', $time);
+        }
+
+        if (date('l') == 'Sexta') {
+            $this_end = strtotime(date('M')." ".date('d').", ".date('Y')." 11:59pm");
+        }
+        else{
+            $this_end = strtotime('next Friday, 11:59pm', $time);
+        }
+        
+        $array = array('Sábado' => 0 , 'Domingo' => 0 , 'Segunda' => 0 , 'Terça' => 0 , 'Quarta' => 0 , 'Quinta' => 0 , 'Sexta' => 0);
+        $code = 'l';
+        $main_range = 'Esta Semana';
+        $title = "Semanal";
+    }
+    elseif ($_GET['range'] == 'Este Mês' ||$_GET['range'] == 'Mês Passado') {
+        $this_start = strtotime("1 ".date('M')." ".date('Y')." 12:00am");
+        $this_end = strtotime(cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y'))." ".date('M')." ".date('Y')." 11:59pm");
+        $array = array_fill(1, cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')),0);
+        $month_days = cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y'));
+        if ($_GET['range'] == 'Mês Passado') {
+            $this_start = strtotime("1 ".date('M',strtotime("-1 month"))." ".date('Y')." 12:00am");
+            $this_end = strtotime(cal_days_in_month(CAL_GREGORIAN, date('m',strtotime("-1 month")), date('Y'))." ".date('M',strtotime("-1 month"))." ".date('Y')." 11:59pm");
+            $array = array_fill(1, cal_days_in_month(CAL_GREGORIAN, date('m',strtotime("-1 month")), date('Y')),0);
+            $month_days = cal_days_in_month(CAL_GREGORIAN, date('m',strtotime("-1 month")), date('Y'));
+        }
+        if (cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')) == 31) {
+            $array = array('01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0 ,'13' => 0 ,'14' => 0 ,'15' => 0 ,'16' => 0 ,'17' => 0 ,'18' => 0 ,'19' => 0 ,'20' => 0 ,'21' => 0 ,'22' => 0 ,'23' => 0,'24' => 0 ,'25' => 0 ,'26' => 0 ,'27' => 0 ,'28' => 0 ,'29' => 0 ,'30' => 0 ,'31' => 0);
+        }elseif (cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')) == 30) {
+            $array = array('01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0 ,'13' => 0 ,'14' => 0 ,'15' => 0 ,'16' => 0 ,'17' => 0 ,'18' => 0 ,'19' => 0 ,'20' => 0 ,'21' => 0 ,'22' => 0 ,'23' => 0,'24' => 0 ,'25' => 0 ,'26' => 0 ,'27' => 0 ,'28' => 0 ,'29' => 0 ,'30' => 0);
+        }elseif (cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')) == 29) {
+            $array = array('01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0 ,'13' => 0 ,'14' => 0 ,'15' => 0 ,'16' => 0 ,'17' => 0 ,'18' => 0 ,'19' => 0 ,'20' => 0 ,'21' => 0 ,'22' => 0 ,'23' => 0,'24' => 0 ,'25' => 0 ,'26' => 0 ,'27' => 0 ,'28' => 0 ,'29' => 0);
+        }elseif (cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')) == 28) {
+            $array = array('01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0 ,'13' => 0 ,'14' => 0 ,'15' => 0 ,'16' => 0 ,'17' => 0 ,'18' => 0 ,'19' => 0 ,'20' => 0 ,'21' => 0 ,'22' => 0 ,'23' => 0,'24' => 0 ,'25' => 0 ,'26' => 0 ,'27' => 0 ,'28' => 0);
+        }
+        $code = 'd';
+        $main_range = 'Este Mês';
+        $title = "Mensal";
+    }
+}
+$start = '';
+$end = '';
+$first_code = '';
+$second_code = '';
+if (!empty($_GET['range']) && !in_array($_GET['range'], array('Hoje','Ontem','Esta Semana','Este Mês','Mês Passado','Este Ano'))) {
+    $arr = explode('-', $_GET['range']);
+    if (preg_match('~(0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])[- /.](19|20)\d\d~m', $arr[0]) && preg_match('~(0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])[- /.](19|20)\d\d~m', $arr[1])) {
+        $start = Wo_Secure($arr[0]);
+        $end = Wo_Secure($arr[1]);
+        $this_start = strtotime($start);
+        $this_end = strtotime($end);
+        $month_days = cal_days_in_month(CAL_GREGORIAN, date('m',strtotime($start)), date('Y',strtotime($start)));
+        $diff = abs(strtotime($end) - strtotime($start));
+        $years = floor($diff / (365*60*60*24));
+        $months = floor(($diff - $years * 365*60*60*24) / (30*60*60*24));
+        $days = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+        if ($years >= 1) {
+            $array = array();
+            for ($i=date('Y',strtotime($start)); $i <= date('Y',strtotime($end)); $i++) { 
+                $array["'".$i."'"] = 0;
+            }
+            $main_range = 'Personalizado';
+            $code = 'Y';
+            $title = "Anual";
+        }
+        elseif ($months >= 1) {
+            $array = array('01' => 0 ,'02' => 0 ,'03' => 0 ,'04' => 0 ,'05' => 0 ,'06' => 0 ,'07' => 0 ,'08' => 0 ,'09' => 0 ,'10' => 0 ,'11' => 0 ,'12' => 0);
+            $code = 'm';
+            $main_range = 'Este Ano';
+            $title = "Mensal";
+            if (date('Y',strtotime($start)) == date('Y',strtotime($end))) {
+                $array = array();
+                for ($i=date('m',strtotime($start)); $i <= date('m',strtotime($end)); $i++) { 
+                    $array["'".(int)$i."'"] = 0;
+                }
+                $code = 'm';
+                $main_range = 'Personalizado';
+            }
+            else{
+                $month = cal_days_in_month(CAL_GREGORIAN, date('m',strtotime($start)), date('Y',strtotime($start)));
+                $array = array();
+                for ($i=(int)date('m',strtotime($start)); $i <= 12; $i++) { 
+                    $array["'".(int)$i.'-'.date('Y',strtotime($start))."'"] = 0;
+                }
+                for ($i=1; $i <= (int)date('m',strtotime($end)); $i++) { 
+                    $array["'".(int)$i.'-'.date('Y',strtotime($end))."'"] = 0;
+                }
+                $first_code = 'm';
+                $second_code = 'Y';
+                $main_range = 'Personalizado';
+            }
+        }
+        elseif ($days > 7) {
+            if (date('m',strtotime($start)) == date('m',strtotime($end))) {
+                $array = array();
+                for ($i=date('d',strtotime($start)); $i <= date('d',strtotime($end)); $i++) { 
+                    $array["'".(int)$i."'"] = 0;
+                }
+                $code = 'd';
+                $main_range = 'Personalizado';
+            }
+            else{
+                $month = cal_days_in_month(CAL_GREGORIAN, date('m',strtotime($start)), date('Y',strtotime($start)));
+                $array = array();
+                for ($i=(int)date('d',strtotime($start)); $i <= $month; $i++) { 
+                    $array["'".(int)$i.'-'.date('m',strtotime($start))."'"] = 0;
+                }
+                for ($i=1; $i <= (int)date('d',strtotime($end)); $i++) { 
+                    $array["'".(int)$i.'-'.date('m',strtotime($end))."'"] = 0;
+                }
+                $first_code = 'd';
+                $second_code = 'm';
+                $main_range = 'Personalizado';
+            }
+            $title = "Diário";
+        }
+        elseif ($days >= 1 && $days < 8) {
+            $title = "Diário";
+            $code = 'l';
+            $array = array('Sábado' => 0 , 'Domingo' => 0 , 'Segunda' => 0 , 'Terça' => 0 , 'Quarta' => 0 , 'Quinta' => 0 , 'Sexta' => 0);
+            if (date('m',strtotime($start)) == date('m',strtotime($end))) {
+                $array = array();
+                for ($i=date('d',strtotime($start)); $i <= date('d',strtotime($end)); $i++) { 
+                    $array["'".(int)$i."'"] = 0;
+                }
+                $code = 'd';
+                $main_range = 'Personalizado';
+            }
+            else{
+                $month = cal_days_in_month(CAL_GREGORIAN, date('m',strtotime($start)), date('Y',strtotime($start)));
+                $array = array();
+                for ($i=(int)date('d',strtotime($start)); $i <= $month; $i++) { 
+                    $array["'".(int)$i.'-'.date('m',strtotime($start))."'"] = 0;
+                }
+                for ($i=1; $i <= (int)date('d',strtotime($end)); $i++) { 
+                    $array["'".(int)$i.'-'.date('m',strtotime($end))."'"] = 0;
+                }
+                $first_code = 'd';
+                $second_code = 'm';
+                $main_range = 'Personalizado';
+            }
+        }
+    }
+}
+$users_array = $array;
+$posts_array = $array;
+$pages_array = $array;
+$groups_array = $array;
+
+$users = $db->where('joined',$this_start,'>=')->where('joined',$this_end,'<=')->get(T_USERS,null,array('joined'));
+foreach ($users as $key => $value) {
+    $day = date($code,$value->joined);
+    if ($main_range == 'Personalizado' && !empty($first_code) && !empty($second_code)) {
+        $day = "'".(int)date($first_code,$value->joined).'-'.(int)date($second_code,$value->joined)."'";
+    }
+    elseif ($main_range == 'Personalizado') {
+        $day = "'".(int)date($code,$value->joined)."'";
+    }
+    if (in_array($day, array_keys($users_array))) {
+        $users_array[$day] += 1; 
+    }
+}
+$u_array = implode(', ', $users_array);
+$users = array();
+$users_array = array();
+
+
+$posts = $db->where('time',$this_start,'>=')->where('time',$this_end,'<=')->get(T_POSTS,null,array('time'));
+foreach ($posts as $key => $value) {
+    $day = date($code,$value->time);
+    if ($main_range == 'Personalizado' && !empty($first_code) && !empty($second_code)) {
+        $day = "'".(int)date($first_code,$value->time).'-'.(int)date($second_code,$value->time)."'";
+    }
+    elseif ($main_range == 'Personalizado') {
+        $day = "'".(int)date($code,$value->time)."'";
+    }
+    if (in_array($day, array_keys($posts_array))) {
+        $posts_array[$day] += 1; 
+    }
+}
+$p_array = implode(', ', $posts_array);
+$posts = array();
+$posts_array = array();
+
+$pages = $db->where('time',$this_start,'>=')->where('time',$this_end,'<=')->get(T_PAGES,null,array('time'));
+foreach ($pages as $key => $value) {
+    $day = date($code,$value->time);
+    if ($main_range == 'Personalizado' && !empty($first_code) && !empty($second_code)) {
+        $day = "'".(int)date($first_code,$value->time).'-'.(int)date($second_code,$value->time)."'";
+    }
+    elseif ($main_range == 'Personalizado') {
+        $day = "'".(int)date($code,$value->time)."'";
+    }
+    if (in_array($day, array_keys($pages_array))) {
+        $pages_array[$day] += 1; 
+    }
+}
+$pa_array = implode(', ', $pages_array);
+$pages = array();
+$pages_array = array();
+
+$groups = $db->where('time',$this_start,'>=')->where('time',$this_end,'<=')->get(T_GROUPS,null,array('time'));
+foreach ($groups as $key => $value) {
+    $day = date($code,$value->time);
+    if ($main_range == 'Personalizado' && !empty($first_code) && !empty($second_code)) {
+        $day = "'".(int)date($first_code,$value->time).'-'.(int)date($second_code,$value->time)."'";
+    }
+    elseif ($main_range == 'Personalizado') {
+        $day = "'".(int)date($code,$value->time)."'";
+    }
+    if (in_array($day, array_keys($groups_array))) {
+        $groups_array[$day] += 1; 
+    }
+}
+$g_array = implode(', ', $groups_array);
+$groups = array();
+$groups_array = array();
+
+
+
+
+?>
+<div class="container-fluid">
+    <div>
+        <h3>Bem-vindo de volta, <?php echo $wo['user']['name'];?></h3>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="#">Início</a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">PAINEL</li>
+            </ol>
+        </nav>
+    </div>
+    <!-- Widgets -->
+    <?php $getStatus = getStatus(); if (!empty($getStatus) && !empty(checkIfThereIsError($getStatus))) {?><div class="alert alert-danger"><strong>Importante!</strong> Foram encontrados alguns erros no seu sistema, por favor revise o <a href="<?php echo Wo_LoadAdminLinkSettings('system_status'); ?>" data-ajax="?path=system_status">Status do Sistema</a>.</div><?php }?>
+    <div class="row clearfix">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE USUÁRIOS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-primary-bright text-primary rounded-pill">
+                                    <i class="material-icons">people</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('user')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE POSTS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-info-bright text-info rounded-pill">
+                                    <i class="material-icons">border_color</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('posts')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE PÁGINAS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-warning-bright text-warning rounded-pill">
+                                    <i class="material-icons">flag</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('page')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE GRUPOS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-secondary-bright text-secondary rounded-pill">
+                                    <i class="material-icons">supervisor_account</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('group')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">USUÁRIOS ONLINE</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-success-bright text-success rounded-pill">
+                                    <i class="material-icons">people</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountOnlineData()); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE COMENTÁRIOS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-primary-bright text-primary rounded-pill">
+                                    <i class="material-icons">comment</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('comments')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE JOGOS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-info-bright text-info rounded-pill">
+                                    <i class="material-icons">videogame_asset</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('games')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">TOTAL DE MENSAGENS</h6>
+                    <div class="d-flex align-items-center mb-3">
+                        <div>
+                            <div class="avatar">
+                                <span class="avatar-title bg-warning-bright text-warning rounded-pill">
+                                    <i class="material-icons">message</i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="font-weight-bold ml-1 font-size-30 ml-3"><?php echo number_format(Wo_CountAllData('messages')); ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- #END# Widgets -->
+    <div class="row clearfix">
+        <!-- Bar Chart -->
+        <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">ESTATÍSTICAS</h6>
+                    <div class="row">
+                    <div class="col-md-11"></div>
+                    <div class="col-md-1">
+                        <div id="dashboard-daterangepicker" class="btn btn-outline-light">
+                            <?php 
+                            if (!empty($_GET['range']) && in_array($_GET['range'], array('Hoje','Ontem','Esta Semana','Este Mês','Mês Passado','Este Ano'))) {
+                                echo $_GET['range'];
+                            }else if (!empty($start) && !empty($end)){
+                                echo $_GET['range'];
+                            }else{
+                                echo 'Este Ano';
+                            } ?>
+                        </div>
+                    </div>
+                </div>
+                    <div id="admin-chart-container" style="min-width: 100%; height: 400px; margin: 0 auto;"></div>
+                </div>
+            </div>
+        </div>
+        <!-- #END# Bar Chart -->
+    </div>
+</div>
+<script>
+jQuery(document).ready(function($) {
+        var range = { "Hoje": [moment() , moment()], 
+                      "Ontem": [moment().subtract(1, 'days') , moment().subtract(1, 'days')], 
+                      "Esta_Semana": [moment().subtract(6, 'days') , moment()],
+                      "Este_Mês": [moment().startOf('month') , moment().endOf('month')],
+                      "Mês_Passado": [moment().subtract(1, 'month').startOf('month') , moment().subtract(1, 'month').endOf('month')],
+                      "Este_Ano": [moment().subtract(1, 'year').startOf('year') , moment().subtract(1, 'year').endOf('year')]}; 
+        <?php 
+        if (!empty($_GET['range']) && in_array($_GET['range'], array('Hoje','Ontem','Esta Semana','Este Mês','Mês Passado','Este Ano'))) { 
+            if ($_GET['range'] == 'Hoje') { ?>
+                var start = range.Hoje[0];
+                var end = range.Hoje[1];
+            <?php }elseif ($_GET['range'] == 'Ontem') { ?>
+                var start = range.Ontem[0];
+                var end = range.Ontem[1];
+            <?php }elseif ($_GET['range'] == 'Esta Semana') { ?>
+                var start = range.Esta_Semana[0];
+                var end = range.Esta_Semana[1];
+            <?php }elseif ($_GET['range'] == 'Este Mês') { ?>
+                var start = range.Este_Mês[0];
+                var end = range.Este_Mês[1];
+            <?php }elseif ($_GET['range'] == 'Mês Passado') { ?>
+                var start = range.Mês_Passado[0];
+                var end = range.Mês_Passado[1];
+            <?php }elseif ($_GET['range'] == 'Este Ano') { ?>
+                var start = range.Este_Ano[0];
+                var end = range.Este_Ano[1];
+{{ ... }}
+            var start = range.Este_Ano[0];
+            var end = range.Este_Ano[1];
+{{ ... }}
+            ranges: {
+                'Hoje': [moment(), moment()],
+                'Ontem': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                'Esta Semana': [moment().subtract(6, 'days'), moment()],
+                'Este Mês': [moment().startOf('month'), moment().endOf('month')],
+                'Mês Passado': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')],
+                'Este Ano': [moment().subtract(1, 'year').startOf('year'), moment().subtract(1, 'year').endOf('year')],
+            }
+{{ ... }}
+        name: 'Usuários',
+{{ ... }}
+        name: 'Posts',
+{{ ... }}
+        name: 'Páginas',
+{{ ... }}
+        name: 'Grupos',
+{{ ... }}
+                    categories: [
+                        'Sábado',
+                        'Domingo',
+                        'Segunda',
+                        'Terça',
+                        'Quarta',
+                        'Quinta',
+                        'Sexta'
+                    ]
+{{ ... }}
+                    categories: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out','Nov','Dez']
+{{ ... }}

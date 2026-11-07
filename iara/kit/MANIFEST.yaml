@@ -1,0 +1,42 @@
+# MANIFEST.yaml — kit etnias-iara-v1.0 (v4)
+kit: etnias-iara-v1.0
+cliente: etnias
+versao: iara-v1.0
+gerado_por: SEMEA (PEF 15 v4)
+skills_iara: 19
+skills_base: 8
+scripts_design: 2
+design_kit_mb: 9.32
+jsons_dados: 17
+dirs_dados: 4
+modelo_voz: nenhum
+credenciais: nenhuma
+skills:
+  - iara-triagem
+  - iara-referencia
+  - iara-adapter
+  - iara-aprovacao
+  - iara-log-publicacao
+  - iara-metrica
+  - iara-calendario
+  - iara-biblioteca
+  - iara-pesquisa
+  - iara-radar
+  - iara-marketing
+  - iara-revisao
+  - iara-atendimento
+  - iara-escuta
+  - iara-relatorio
+  - iara-misto
+  - iara-solicitacao
+  - iara-institucional
+  - iara-design-etnias   # de creative/
+skills_base_lista:
+  - cartazes-estaticos  # F14
+  - artes-de-campanha-em-serie  # F15
+  - iara-design-etnias  # F16
+  - video-volito-com-narracao  # F19
+  - montagem-final-de-video-em-camadas  # F20
+  - legenda-cinetica-volito  # F21
+  - prova-visual-de-render  # F23
+  - relatorios-ascii-puro  # F24

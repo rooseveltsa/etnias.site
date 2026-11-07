@@ -1,0 +1,20 @@
+[
+  {
+    "id": "faq-curso-001",
+    "tema": "cursos",
+    "pergunta": "Como faço para me inscrever nos cursos do Etnias?",
+    "resposta": "As inscrições abrem por edital no site etnias.site. Cada curso tem página própria com o formulário, os requisitos e o prazo. Se o edital estiver aberto, a inscrição é pelo formulário da página do curso; se estiver fechado, entre na lista de avisos para receber a próxima abertura."
+  },
+  {
+    "id": "faq-evento-001",
+    "tema": "eventos",
+    "pergunta": "Onde vejo a agenda de eventos e encontros?",
+    "resposta": "A agenda fica na área de eventos do etnias.site e é atualizada também nos stories do @etnias.site. Encontros abertos têm inscrição gratuita; encontros internos são divulgados só para a comunidade cadastrada."
+  },
+  {
+    "id": "faq-doacao-001",
+    "tema": "doacao",
+    "pergunta": "Como apoiar ou doar para o projeto Etnias?",
+    "resposta": "O apoio pode ser financeiro (doação via Pix divulgado no site) ou institucional (parceria com organização, universidade ou empresa). Toda doação recebe recibo e o destino do recurso é publicado no relatório do projeto."
+  }
+]

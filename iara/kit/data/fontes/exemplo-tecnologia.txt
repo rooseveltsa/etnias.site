@@ -1,0 +1,19 @@
+ARQUIVO DE EXEMPLO — texto de demonstracao para o treinamento do junior.
+Nao e fonte jornalistica nem documento oficial: serve para mostrar o formato
+que a skill iara-pesquisa espera (paragrafos separados por linha em branco).
+
+Indigenas na tecnologia e o campo de trabalho de desenvolvedores, pesquisadores
+e comunicadores originarios que constroem as proprias ferramentas digitais, em
+vez de apenas usar o que foi feito por outros. O recorte importa: presenca de
+indigenas usando aplicativo nao e o mesmo que indigenas decidindo como o
+aplicativo funciona.
+
+Governanca indigena de dados e a pratica de decidir, em comunidade, quais
+informacoes podem ser coletadas, quem pode consultar e para onde os dados vao.
+E a diferenca entre emprestar a terra para um servidor e manter a soberania
+sobre o que circula nele.
+
+Formacao tecnica costuma encontrar dois gargalos: a distancia dos polos de
+ensino e a falta de trilha em portugues para quem entra sem base de logica.
+Turmas pequenas, no territorio e com mentoria proxima reduzem os dois, e o
+efeito aparece na permanencia, nao so na matricula.

@@ -1,0 +1,14 @@
+{
+  "name": "etnias-opy-ui-tests",
+  "private": true,
+  "scripts": {
+    "test": "node browser.cjs",
+    "test:integration": "node integration.cjs",
+    "test:recovery": "node recovery.cjs",
+    "test:messages": "node messages.cjs",
+    "test:uploads": "node uploads.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
