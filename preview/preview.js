@@ -7,7 +7,7 @@ const button=(label, fn, root)=>{const b=make('button',label,'preview-secondary'
 const emoji=[['😀','Sorriso'],['❤️','Coração'],['😂','Risada'],['👏','Palmas'],['🙏','Gratidão'],['🌱','Planta'],['💚','Coração verde'],['✨','Brilho']];
 const reactions=[['like','👍','Curti'],['heart','❤️','Amei'],['laugh','😂','Haha'],['wow','😮','Surpresa'],['sad','😢','Triste']];
 let state, filter='all', view='news', videoAttachment=null, fileAttachment=null, busy=false;
-const expandedComments=new Set(), openCommentForms=new Set();
+const expandedComments=new Set(), openCommentForms=new Set(), replyTargets=new Map();
 let profileTab='posts', dockChatKey='';
 const seenStories=new Set((()=>{try{return JSON.parse(localStorage.getItem('opy_seen_stories')||'[]');}catch{return[];}})());
 const markStorySeen=id=>{seenStories.add(id);try{localStorage.setItem('opy_seen_stories',JSON.stringify([...seenStories].slice(-200)));}catch{}};
@@ -67,7 +67,7 @@ function renderPost(post, communityContext=null){
  const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42));avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
  const who=make('div');
  const nameBtn=make('button',post.author,'author-name-btn');nameBtn.type='button';nameBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
- const metaLine=make('small',(post.origin==='legacy'?'Acervo público · ':'')+date(post.createdAt)+(post.audience==='private'?' · Somente eu':''));
+ const metaLine=make('small',(post.origin==='legacy'?'Acervo público · ':'')+date(post.createdAt)+(post.editedAt?' · editada':'')+(post.audience==='private'?' · Somente eu':''));
  who.append(nameBtn);
  if(post.communityId&&post.communityName){
   const commLink=make('a','Comunidade · '+post.communityName,'post-community-badge');
@@ -96,8 +96,13 @@ function renderPost(post, communityContext=null){
  const charCount=make('small','0/500','comment-char-count');
  input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';});
  const submit=make('button','Enviar','preview-secondary');submit.type='submit';submit.setAttribute('aria-label','Enviar comentário');
- form.append(input,charCount,submit);
- form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{openCommentForms.add(post.id);const draft=input.value;await change({action:'comment',postId:post.id,text:draft});const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
+ const target=replyTargets.get(post.id);
+ if(target){const chip=make('p',undefined,'comment-reply-chip');chip.append(make('span','Respondendo a '+target.author));const x=button('Cancelar',()=>{replyTargets.delete(post.id);render();},chip);x.className='pf-link';form.append(chip);input.placeholder='Escreva sua resposta…';}
+ const emojiBtn=make('button','😀','comment-emoji-btn');emojiBtn.type='button';emojiBtn.setAttribute('aria-label','Inserir emoji');emojiBtn.setAttribute('aria-expanded','false');
+ const emojiBox=make('div',undefined,'comment-emoji-picker');emojiBox.hidden=true;
+ emojiBtn.onclick=()=>{emojiBox.hidden=!emojiBox.hidden;emojiBtn.setAttribute('aria-expanded',String(!emojiBox.hidden));if(!emojiBox.hidden)picker(emojiBox,input);};
+ form.append(input,emojiBtn,charCount,submit,emojiBox);
+ form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{openCommentForms.add(post.id);const draft=input.value;const replyTo=replyTargets.get(post.id)?.id;await change({action:'comment',postId:post.id,text:draft,...(replyTo?{replyTo}:{})});replyTargets.delete(post.id);const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
  const repostInput=make('input');repostInput.maxLength=1000;repostInput.placeholder='Adicione um comentário ao repostar (opcional)…';repostInput.setAttribute('aria-label','Comentário do repost');
  const repostSubmit=make('button','Repostar agora','opy-primary');repostSubmit.type='submit';
@@ -136,6 +141,13 @@ function renderPost(post, communityContext=null){
  shareBtn.setAttribute('aria-expanded','false');
  const save=postAction('save','',()=>change({action:'save',postId:post.id}));save.classList.add('post-action-quiet');save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
  actions.append(reactWrap,commentBtn,heart,shareBtn,save);card.append(actions,repostForm);
+ if(post.own){const edit=make('button','Editar','post-delete post-edit');edit.type='button';edit.addEventListener('click',()=>{
+  if(card.querySelector('.post-edit-form'))return;
+  const f=make('form',undefined,'post-edit-form');const ta=make('textarea');ta.value=post.text||'';ta.maxLength=5000;ta.rows=4;ta.setAttribute('aria-label','Editar publicação');
+  const save=make('button','Salvar','opy-primary');save.type='submit';const cancel=button('Cancelar',()=>f.remove(),f);f.prepend(ta);f.append(save);f.append(cancel);
+  f.addEventListener('submit',async ev=>{ev.preventDefault();save.disabled=true;try{await change({action:'post_edit',postId:post.id,text:ta.value});}catch(err){showError(err.message);save.disabled=false;}});
+  edit.after(f);ta.focus();
+ });card.append(edit);}
  if(post.own){const remove=make('button','Excluir minha publicação','post-delete');remove.type='button';remove.addEventListener('click',async()=>{if(!confirm('Excluir esta publicação?'))return;try{await change({action:'delete',postId:post.id});}catch(e){showError(e.message);}});card.append(remove);}
  else if(communityContext?.canModerate&&post.communityId===communityContext.id){
   const modRemove=make('button','Moderação: remover publicação da comunidade','post-delete');modRemove.type='button';
@@ -143,21 +155,31 @@ function renderPost(post, communityContext=null){
   card.append(modRemove);
  }
  const COMMENT_LIMIT=2;
+ const tops=post.comments.filter(c=>!c.parentId);
  const isExpanded=expandedComments.has(post.id);
- const visibleComments=isExpanded||post.comments.length<=COMMENT_LIMIT?post.comments:post.comments.slice(-COMMENT_LIMIT);
- if(post.comments.length>COMMENT_LIMIT){
-  const moreBtn=make('button',isExpanded?'Ocultar comentários':`Ver todos os ${post.comments.length} comentários (${post.comments.length-COMMENT_LIMIT} anteriores)`,'comments-toggle');
+ const visibleTops=isExpanded||tops.length<=COMMENT_LIMIT?tops:tops.slice(-COMMENT_LIMIT);
+ if(tops.length>COMMENT_LIMIT){
+  const moreBtn=make('button',isExpanded?'Ocultar comentários':`Ver comentários anteriores (${tops.length-COMMENT_LIMIT})`,'comments-toggle');
   moreBtn.type='button';moreBtn.onclick=()=>{if(isExpanded)expandedComments.delete(post.id);else expandedComments.add(post.id);render();};
   card.append(moreBtn);
  }
- for(const comment of visibleComments){
-  const block=make('div',undefined,'preview-comment');
+ const renderComment=(comment,isReply)=>{
+  const block=make('div',undefined,'preview-comment'+(isReply?' is-reply':''));
   const cKey=comment.authorKey||`name:${comment.author}`;
   const avatar=make('button',comment.author.slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar author-trigger');avatar.type='button';avatar.setAttribute('aria-label','Abrir perfil de '+comment.author);avatar.onclick=()=>openProfile(cKey,comment.author,'');
   const body=make('div',undefined,'preview-comment-body');
+  const bubble=make('div',undefined,'comment-bubble');
   const cAuthor=make('button',comment.author,'author-name-btn');cAuthor.type='button';cAuthor.onclick=()=>openProfile(cKey,comment.author,'');
-  body.append(cAuthor,make('small',date(comment.createdAt)),make('p',comment.text));block.append(avatar,body);card.append(block);
- }
+  bubble.append(cAuthor,make('p',comment.text));
+  if(comment.likes){const n=make('span','❤ '+comment.likes,'comment-likes');n.setAttribute('aria-label',comment.likes+(comment.likes===1?' curtida':' curtidas'));bubble.append(n);}
+  const bar=make('div',undefined,'comment-actions');
+  const like=button(comment.liked?'Curtido':'Curtir',()=>change({action:'comment_like',postId:post.id,commentId:comment.id}),bar);like.className='comment-act'+(comment.liked?' is-on':'');like.setAttribute('aria-pressed',String(!!comment.liked));
+  const reply=button('Responder',()=>{replyTargets.set(post.id,{id:comment.id,author:comment.author});openCommentForms.add(post.id);render();document.getElementById('comment-'+post.id)?.querySelector('input')?.focus();},bar);reply.className='comment-act';
+  if(comment.own||post.own){const del=button('Apagar',async()=>{if(!confirm('Apagar este comentário'+(isReply?'':' e as respostas')+'?'))return;await change({action:'comment_delete',postId:post.id,commentId:comment.id});},bar);del.className='comment-act';}
+  bar.append(make('small',date(comment.createdAt)));
+  body.append(bubble,bar);block.append(avatar,body);card.append(block);
+ };
+ for(const top of visibleTops){renderComment(top,false);for(const r of post.comments.filter(c=>c.parentId===top.id))renderComment(r,true);}
  card.append(form);return card;
 }
 function paintCommunity(){
@@ -731,6 +753,12 @@ function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-regi
 }
 async function refresh(){try{state=await api();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(!all('.preview-comment-form input').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
 all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();});$('#feed-location-query')?.addEventListener('input',()=>render());
+// Barra de modalidades fixa sob o cabeçalho; ganha sombra quando os Stories saem da tela (doc. 5.1 e 6.1).
+(()=>{const bar=$('.feed-chips'),stories=$('.story-section'),top=$('.opy-topbar');if(!bar)return;
+ const setTop=()=>document.documentElement.style.setProperty('--opy-head',(top?top.getBoundingClientRect().height:0)+'px');
+ setTop();addEventListener('resize',setTop);
+ if(stories&&'IntersectionObserver' in window)new IntersectionObserver(([e])=>bar.classList.toggle('is-stuck',!e.isIntersecting),{rootMargin:'-120px 0px 0px 0px'}).observe(stories);
+})();
 $('[data-community-join]')?.addEventListener('click',()=>change({action:'join'}).catch(e=>showError(e.message)));
 all('[data-saber-enroll]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await change({action:'enroll_saber',trackId:b.dataset.saberEnroll});}catch(e){showError(e.message);}finally{b.disabled=false;}}));
 all('[data-music-like]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await change({action:'like_music',trackId:b.dataset.musicLike});}catch(e){showError(e.message);}finally{b.disabled=false;}}));

@@ -16,9 +16,9 @@ Itens do documento são requisitos, não defeitos confirmados.
 | 02 Chat | 9 | 1 | 7 | 1 | 0 | 0 |
 | 03 Notificações | 8 | 0 | 1 | 4 | 3 | 0 |
 | 04 Logo e menu | 2 | 0 | 2 | 0 | 0 | 0 |
-| 05 Stories | 6 | 0 | 2 | 4 | 0 | 0 |
-| 06 Feed e publicações | 13 | 0 | 7 | 5 | 1 | 0 |
-| **Total** | **47** | **1** | **22** | **18** | **6** | **0** |
+| 05 Stories | 6 | 1 | 1 | 4 | 0 | 0 |
+| 06 Feed e publicações | 13 | 1 | 7 | 4 | 1 | 0 |
+| **Total** | **47** | **3** | **21** | **17** | **6** | **0** |
 
 ## Módulo 01 — Login, autenticação e cadastro
 
@@ -74,7 +74,7 @@ Itens do documento são requisitos, não defeitos confirmados.
 
 | ID | Requisito | Estado | Evidência no código | Teste | Dependência | Critério de aceite |
 |---|---|---|---|---|---|---|
-| 5.1 | Formato atual mais compacto; ocultar na rolagem; reaparecer no topo | 🟡 | Cards `.story-card` (`preview.js:563`). Não há ocultação por rolagem. | — | — | Rolar 1 card para baixo oculta os Stories sem salto de layout (CLS < 0,05); voltar ao topo reexibe |
+| 5.1 | Formato atual mais compacto; ocultar na rolagem; reaparecer no topo | ✅ | Cards 92×138 (80×120 no celular); Stories saem com a rolagem e a barra de modalidades fica fixa sob o cabeçalho, com sombra quando eles saem (`IntersectionObserver`), sem salto de layout | M (revisão visual 375 px) | — | Atendido |
 | 5.2 | Mobile: sem barra de navegação, gestos, avanço automático, pausar/retomar | 🟡 | Swipe, segurar para pausar, autoavanço com `requestAnimationFrame`, barra de progresso (`preview.js:714-808`) | A* (`stories-browser.cjs`) | — | Validar em dispositivo real; a barra de progresso é indicador, não navegação |
 | 5.3 | Interações: curtir, comentar, compartilhar, contagem, respostas, notificar autor | ⛔ | `story_create`/`story_delete` apenas | — | — | Curtida persiste e notifica o autor |
 | 5.4 | Privacidade: quem comenta/compartilha/vê, lista de bloqueio, padrão ou por Story | ⛔ | Story sem campo de público | — | — | Pessoa na lista de exclusão recebe 404 no Story e na mídia |
@@ -85,7 +85,7 @@ Itens do documento são requisitos, não defeitos confirmados.
 
 | ID | Requisito | Estado | Evidência no código | Teste | Dependência | Critério de aceite |
 |---|---|---|---|---|---|---|
-| 6.1 | Barra de modalidades após ocultar Stories, sem recarregar | 🟡 | Barra `data-feed-view` com filtragem no cliente (`preview.js:580-587`). Não está ligada à rolagem. | M (código) | 5.1 | A barra fica fixa (sticky) quando os Stories saem; troca sem recarregar |
+| 6.1 | Barra de modalidades após ocultar Stories, sem recarregar | ✅ | Barra única de chips, fixa ao rolar, troca sem recarregar | A (E2E), M | — | Atendido |
 | 6.2 | Seguindo | 🟡 | O filtro “Amigos” mistura seguir e amizade (`p.following || friendStatus==='friends'`) | — | — | Filtro “Seguindo” mostra só autores seguidos |
 | 6.3 | Descobrir pessoas | ⛔ | — | — | Regra de distribuição para novos integrantes | Só autores não seguidos; botão Seguir no post; rodízio que não depende só de popularidade |
 | 6.4 | Microblog: textos curtos, respostas encadeadas | ⛔ | Comentários planos, sem encadeamento | — | 6.12 (respostas) | Post curto com respostas em thread |
@@ -96,7 +96,7 @@ Itens do documento são requisitos, não defeitos confirmados.
 | 6.9 | Comportamento dos filtros (estado ativo, desktop/mobile, privacidade, voltar, rolagem horizontal) | 🟡 | `aria-pressed` no filtro ativo; privacidade aplicada no snapshot do servidor (`visible()`) | — | 6.2–6.7 | Rolagem horizontal em 320 px sem overflow da página |
 | 6.10 | Vídeos verticais (Reels) | ⛔ | — | — | Transcodificação/streaming progressivo | Ver critérios em `ETNIAS_UX_ARCHITECTURE.md` §5 |
 | 6.11 | Criação pelo botão central e pelo balão do feed, mesmo fluxo | 🟡 | O Composer com 6 abas está no feed. O botão central “Postagem” só foca o textarea (`DESIGN.md` §Composer). | — | — | Os dois caminhos abrem o mesmo painel, já com as abas |
-| 6.12 | Comentários: curtir, responder, compartilhar, emojis, contagens | ⛔ | Comentário = `{author, text, createdAt}` (`community.mjs:423`) | — | — | Curtida e resposta persistem e são autorizadas no servidor |
+| 6.12 | Comentários: curtir, responder, compartilhar, emojis, contagens | 🟡 | Curtir com contagem (sem expor quem curtiu), resposta encadeada em um nível, apagar (autor ou dono do post), emojis no campo (`preview/server/community.mjs`, `renderPost`). Falta compartilhar um comentário. | A (`community-integration.mjs`) | — | Compartilhar comentário quando o autor permitir |
 | 6.13 | Emojis e figurinhas como bibliotecas distintas, geridas pelo admin, validadas no back-end | ⛔ | Lista fixa de 8 emojis no cliente (`preview.js:7`). Sem figurinhas. | — | Painel admin + acervo de figurinhas com licença | O servidor rejeita figurinha desativada |
 
 ## Requisitos complementares (fora dos 47)

@@ -110,7 +110,9 @@ function snapshot(state, me) {
       shares: p.shares || 0,
       repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file) } : null,
       reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
-      comments: p.comments || [], saved: (p.saves || []).includes(me.id),
+      comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
+        parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(myKey), own: c.authorKey === myKey })),
+      editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
       poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
     };
   });
@@ -315,7 +317,7 @@ export default async function handler(req, res) {
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -378,7 +380,7 @@ export default async function handler(req, res) {
         return;
       }
       const post = state.posts.find(p => p.id === body.postId);
-      if (['repost', 'react', 'comment', 'vote', 'save', 'delete'].includes(body.action) && (!post || !visible(post, me, state))) fail(404, 'Publicação não encontrada.');
+      if (['repost', 'react', 'comment', 'vote', 'save', 'delete', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action) && (!post || !visible(post, me, state))) fail(404, 'Publicação não encontrada.');
       switch (body.action) {
         case 'profile_update': {
           const nextName = personName(body.name);
@@ -447,7 +449,31 @@ export default async function handler(req, res) {
           post.reactions[me.id] = body.reaction; break;
         case 'comment':
           if (post.comments.length >= 60) fail(409, 'Esta publicação atingiu o limite de comentários na homologação.');
-          post.comments.push({ id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(body.text, 500), createdAt: Date.now() }); break;
+          {
+            // Respostas ficam em um nível só, presas ao comentário principal, como nas redes sociais.
+            let parentId = '';
+            if (body.replyTo) { const parent = post.comments.find(c => c.id === body.replyTo); if (!parent) fail(404, 'Comentário não encontrado.'); parentId = parent.parentId || parent.id; }
+            post.comments.push({ id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(body.text, 500), createdAt: Date.now(), ...(parentId ? { parentId } : {}) });
+          }
+          break;
+        case 'comment_like': {
+          const c = post.comments.find(item => item.id === body.commentId); if (!c) fail(404, 'Comentário não encontrado.');
+          const mine = `id:${me.id}`; c.likes = (c.likes || []).includes(mine) ? c.likes.filter(k => k !== mine) : [...(c.likes || []), mine];
+          break;
+        }
+        case 'comment_delete': {
+          const c = post.comments.find(item => item.id === body.commentId); if (!c) fail(404, 'Comentário não encontrado.');
+          if (c.authorKey !== `id:${me.id}` && post.authorId !== me.id) fail(403, 'Só quem comentou ou quem publicou pode apagar.');
+          post.comments = post.comments.filter(item => item.id !== c.id && item.parentId !== c.id);
+          break;
+        }
+        case 'post_edit': {
+          if (post.authorId !== me.id) fail(403, 'Só quem publicou pode editar.');
+          const next = text(String(body.text ?? ''), 5000, false);
+          if (!next && !post.media && !post.file && !post.repostOf) fail(400, 'A publicação não pode ficar vazia.');
+          post.text = next; post.editedAt = Date.now();
+          break;
+        }
         case 'vote':
           if (!post.poll || !Number.isInteger(body.option) || body.option < 0 || body.option >= post.poll.options.length) fail(400, 'Escolha uma opção válida.');
           post.poll.votes[me.id] = body.option; break;

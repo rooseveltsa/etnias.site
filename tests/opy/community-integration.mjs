@@ -175,6 +175,35 @@ try {
   assert.equal((await getMedia('/api/media?id='+attachment.id,third.cookie)).statusCode,404);
   assert.equal((await getMedia('/api/media?id='+attachment.id,login.cookie)).statusCode,200);
   assert.equal((await api({action:'chat_delete',messageId:state.dms.at(-1).id,scope:'all'},login.cookie)).status,403);
-  console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada e preservação dos registros.');
+  // Comentários em conversa, curtidas, permissões e edição de publicação
+  assert.equal((await api({ action:'publish', text:'Post para comentários', audience:'public' }, login.cookie)).status, 200);
+  const cPost = state.posts.find(p => p.text === 'Post para comentários');
+  assert.equal((await api({ action:'comment', postId:cPost.id, text:'Comentário principal' }, second.cookie)).status, 200);
+  const top = state.posts.find(p => p.id === cPost.id).comments.at(-1);
+  assert.equal((await api({ action:'comment', postId:cPost.id, text:'Resposta', replyTo:top.id }, third.cookie)).status, 200);
+  const reply = state.posts.find(p => p.id === cPost.id).comments.at(-1);
+  assert.equal(reply.parentId, top.id);
+  assert.equal((await api({ action:'comment', postId:cPost.id, text:'Resposta da resposta', replyTo:reply.id }, login.cookie)).status, 200);
+  assert.equal(state.posts.find(p => p.id === cPost.id).comments.at(-1).parentId, top.id, 'resposta de resposta fica no mesmo nível');
+  await api({ action:'comment_like', postId:cPost.id, commentId:top.id }, third.cookie);
+  let seen = (await api(null, third.cookie)).data.posts.find(p => p.id === cPost.id).comments.find(c => c.id === top.id);
+  assert.equal(seen.likes, 1); assert.equal(seen.liked, true); assert.equal('likesBy' in seen || Array.isArray(seen.likes), false, 'lista de quem curtiu não vaza');
+  await api({ action:'comment_like', postId:cPost.id, commentId:top.id }, third.cookie);
+  assert.equal((await api(null, third.cookie)).data.posts.find(p => p.id === cPost.id).comments.find(c => c.id === top.id).likes, 0);
+  assert.equal((await api({ action:'comment_delete', postId:cPost.id, commentId:top.id }, third.cookie)).status, 403);
+  assert.equal((await api({ action:'post_edit', postId:cPost.id, text:'invasão' }, second.cookie)).status, 403);
+  assert.equal((await api({ action:'post_edit', postId:cPost.id, text:'Post corrigido' }, login.cookie)).status, 200);
+  assert.ok(state.posts.find(p => p.id === cPost.id).editedAt > 0);
+  assert.equal((await api({ action:'comment_delete', postId:cPost.id, commentId:top.id }, login.cookie)).status, 200);
+  assert.equal(state.posts.find(p => p.id === cPost.id).comments.length, 0, 'apagar o principal leva as respostas');
+  // Foto de perfil: envio, visibilidade na rede e remoção da anterior
+  assert.equal((await api({ action:'profile_media', kind:'avatar', media:png }, login.cookie)).status, 200);
+  const firstAvatar = (await api(null, login.cookie)).data.me.avatar;
+  assert.match(firstAvatar, /^\/api\/media\?id=/);
+  assert.equal((await getMedia(firstAvatar, third.cookie)).statusCode, 200);
+  assert.equal((await api({ action:'profile_media', kind:'avatar', media:png }, login.cookie)).status, 200);
+  assert.equal((await getMedia(firstAvatar, third.cookie)).statusCode, 404, 'foto anterior é apagada');
+  assert.equal((await api({ action:'profile_media', kind:'banner', media:png }, login.cookie)).status, 400);
+  console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }
