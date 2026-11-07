@@ -19,6 +19,28 @@ Validado localmente em 2026-11-07: imagem construída, container servindo com CS
   ```
 - **Desfazer:** restaurar o `Caddyfile.bak-*`, rodar `docker exec etnias-caddy-1 caddy reload --config /etc/caddy/Caddyfile` e `docker compose ... down` em `/srv/casa-opy/deploy/opy`.
 
+## Backup e reserva na Vercel (2026-11-07)
+
+**Arquitetura:** produção na VPS; backup diário criptografado no Blob privado da Vercel; o app da Vercel (casa-opy-preview.vercel.app) serve de reserva de emergência, porque lê o mesmo formato de dados.
+
+- **Quando:** todo dia às 03:30 de Brasília (`/etc/cron.d/casa-opy-backup`), log em `/var/log/casa-opy-backup.log`.
+- **O quê:** volume `casa-opy_opy-data` inteiro (contas, publicações, mensagens, fotos e anexos), compactado e criptografado com AES-256 (`openssl enc -aes-256-cbc -pbkdf2 -iter 200000`).
+- **Onde:** `backups/casa-opy/opy-AAAA-MM-DD.tgz.enc` no Blob da Vercel (14 dias) e `/var/backups/casa-opy` na VPS (7 dias).
+- **Chaves (só root, permissão 600):** `/root/.casa-opy/backup.key` (criptografia) e `/root/.casa-opy/blob.env` (acesso ao Blob). Há uma cópia da chave de criptografia nas Senhas do Mac do responsável, no item **“Casa Opy - chave do backup”**. Sem ela os backups não abrem.
+- **Testado em 2026-11-07:** backup enviado; restauração num local de teste do Blob com `community.json` idêntico byte a byte ao da VPS; anexo sintético restaurado idêntico; local de teste apagado.
+- **Snapshot da máquina:** criado pela API da Hostinger em 2026-11-07 (a VPS não tinha backup nem snapshot). Recomendado ativar backups automáticos no hPanel.
+
+### Emergência: VPS fora do ar
+1. Restaurar o backup mais recente na Vercel (de qualquer máquina com a chave e o acesso ao Blob, ou da própria VPS se ainda responder):
+   ```bash
+   /srv/casa-opy/deploy/opy/backup/restore-to-vercel.sh            # último backup, no prefixo opy-v2 da prévia
+   /srv/casa-opy/deploy/opy/backup/restore-to-vercel.sh 2026-11-07 # um dia específico
+   ```
+2. No painel da Vercel, adicionar `opy.etnias.site` ao projeto `casa-opy-preview` e trocar o registro DNS `opy` para o CNAME indicado pela Vercel.
+3. Limitação no modo reserva: sem o TURN da VPS, chamadas entre redes móveis podem falhar.
+
+**Atenção:** restaurar no prefixo `opy-v2` substitui os dados atuais da prévia na Vercel. Para testar, use um prefixo de teste: `restore-to-vercel.sh "" restore-test/opy-v2` e depois apague com `blob.mjs remove restore-test/`.
+
 ## Pré-requisitos
 
 - Docker com o plugin compose na VPS.
