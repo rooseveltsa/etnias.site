@@ -76,7 +76,7 @@ function renderPost(post, communityContext=null){
  const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42));avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
  const who=make('div');
  const nameBtn=make('button',post.author,'author-name-btn');nameBtn.type='button';nameBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
- const metaLine=make('small',(post.origin==='legacy'?'Acervo público · ':'')+date(post.createdAt)+(post.editedAt?' · editada':'')+(post.audience==='private'?' · Somente eu':''));
+ const metaLine=make('small',(post.origin==='legacy'?'Acervo público · ':'')+date(post.createdAt)+(post.editedAt?' · editada':'')+(post.audience==='private'?' · Somente eu':post.audience==='friends'?' · Amigos':''));
  who.append(nameBtn);
  if(post.communityId&&post.communityName){
   const commLink=make('a','Comunidade · '+post.communityName,'post-community-badge');
@@ -206,7 +206,7 @@ function paintCommunity(){
   link.append(info);li.append(link);
   if(!c.joined){
    const join=make('button',c.pending?'Pedido enviado':c.visibility==='private'?'Pedir entrada':'Participar','rail-community-join');join.type='button';join.disabled=!!c.pending;
-   join.onclick=async()=>{join.disabled=true;try{await change({action:'community_join',communityId:c.id});}catch(e){join.disabled=false;const st=$('#community-connection');if(st)st.textContent=e.message;}};
+   join.onclick=async()=>{join.disabled=true;try{await joinCommunity(c);}catch(e){join.disabled=false;const st=$('#community-connection');if(st)st.textContent=e.message;}};
    li.append(join);
   }
   return li;
@@ -374,6 +374,26 @@ function openCommunityDialog(title, submitLabel, buildBody, onSubmit){
  communityDialogAction=onSubmit;
  if(!dlg.open)dlg.showModal();
 }
+// Pedido de entrada: se a comunidade privada tem perguntas, abre o formulário de respostas antes de enviar.
+function joinCommunity(c){
+ const qs=c.entryQuestions||[];
+ if(c.joined||c.pending||c.requested||!qs.length)return change({action:c.joined?'community_leave':'community_join',communityId:c.id});
+ if(!$('#community-dialog')){location.href='/grupos/?c='+encodeURIComponent(c.id);return Promise.resolve();}
+ openCommunityDialog('Pedir entrada em '+c.name,'Enviar pedido',body=>{
+  body.append(make('p','A coordenação lê suas respostas antes de aprovar a entrada.','community-dialog-hint'));
+  qs.forEach((q,i)=>{const l=make('label',q);const t=make('textarea');t.name='answer'+i;t.required=true;t.maxLength=500;t.rows=2;l.append(t);body.append(l);});
+ },form=>change({action:'community_join',communityId:c.id,answers:qs.map((_,i)=>form.elements['answer'+i].value)}));
+ return Promise.resolve();
+}
+// Até 3 perguntas de entrada, visíveis só quando a comunidade é privada.
+function entryQuestionFields(select,values){
+ const box=make('fieldset',undefined,'community-entry-questions');
+ box.append(make('legend','Perguntas de entrada (opcional)'),make('small','Quem pedir entrada responde antes do pedido chegar à coordenação.'));
+ for(let i=0;i<3;i++){const l=make('label','Pergunta '+(i+1));const inp=make('input');inp.name='entryQuestion'+i;inp.maxLength=200;inp.value=values?.[i]||'';l.append(inp);box.append(l);}
+ const sync=()=>{box.hidden=select.value!=='private';};select.addEventListener('change',sync);sync();
+ return box;
+}
+const entryQuestionsOf=form=>[0,1,2].map(i=>form.elements['entryQuestion'+i]?.value.trim()||'').filter(Boolean);
 function openCommunityDetail(id){
  activeCommunityId=id||'';
  activeCommunityTab='feed';
@@ -425,7 +445,7 @@ function renderCommunities(){
   const leaderText=make('small','Coordenação e moderação: '+(leaders.length?leaders.map(l=>`${l.name} (${l.role==='admin'?'Admin':'Mod'})`).join(', '):'Equipe Casa Opy'),'community-leaders');
   const actionBar=make('div',undefined,'community-hero-actions');
   const joinLabel=current.joined?'Sair da comunidade':isPending?'Cancelar solicitação (pendente)':isPrivate?'Solicitar participação':'Participar da comunidade';
-  const joinBtn=button(joinLabel,()=>change({action:current.joined?'community_leave':'community_join',communityId:current.id}),actionBar);
+  const joinBtn=button(joinLabel,()=>joinCommunity(current),actionBar);
   joinBtn.id='community-detail-join';
   joinBtn.className=current.joined||isPending?'preview-secondary':'opy-primary';
   joinBtn.setAttribute('aria-pressed',String(current.joined));
@@ -510,6 +530,8 @@ function renderCommunities(){
      const appBtn=button('Aprovar entrada',()=>change({action:'community_approve',communityId:current.id,memberKey:req.key}),acts);appBtn.className='opy-primary';
      button('Recusar',()=>change({action:'community_reject',communityId:current.id,memberKey:req.key}),acts);
      row.append(acts);reqBox.append(row);
+     const answers=req.answers||[];
+     if(answers.length){const dl=make('dl',undefined,'community-request-answers');answers.forEach((a,i)=>dl.append(make('dt',(current.entryQuestions||[])[i]||'Pergunta '+(i+1)),make('dd',a||'—')));reqBox.append(dl);}
     }
     panel.append(reqBox);
    }
@@ -557,10 +579,11 @@ function renderCommunities(){
    const lRules=make('label','Regras de convivência e protocolo cultural');const tRules=make('textarea');tRules.name='rules';tRules.maxLength=1000;tRules.rows=3;tRules.value=current.rules||'';lRules.append(tRules);
    const sBtn=make('button','Salvar configurações','opy-primary');sBtn.type='submit';
    const sStatus=make('p',undefined,'preview-feedback');sStatus.setAttribute('role','status');
-   sForm.append(lName,lCat,lPriv,lDesc,lRules,sBtn,sStatus);
+   const qBox=entryQuestionFields(sPriv,current.entryQuestions);
+   sForm.append(lName,lCat,lPriv,qBox,lDesc,lRules,sBtn,sStatus);
    sForm.onsubmit=async e=>{
     e.preventDefault();sBtn.disabled=true;
-    try{await change({action:'community_update',communityId:current.id,name:iName.value,category:sCat.value,visibility:sPriv.value,description:tDesc.value,rules:tRules.value});sStatus.textContent='Configurações atualizadas.';}
+    try{await change({action:'community_update',communityId:current.id,name:iName.value,category:sCat.value,visibility:sPriv.value,description:tDesc.value,rules:tRules.value,entryQuestions:entryQuestionsOf(sForm)});sStatus.textContent='Configurações atualizadas.';}
     catch(err){sStatus.textContent=err.message;}finally{sBtn.disabled=false;}
    };
    panel.append(sForm);
@@ -615,7 +638,7 @@ function renderCommunities(){
    openBtn.onclick=()=>openCommunityDetail(c.id);
    foot.append(openBtn);
    const jLabel=c.joined?(c.id==='avaliacao-casa-opy'?'Sair da comunidade':'Participando ✓'):isPending?'Pedido enviado':isPrivate?'Pedir entrada':'Participar';
-   const jBtn=button(jLabel,()=>change({action:c.joined?'community_leave':'community_join',communityId:c.id}),foot);
+   const jBtn=button(jLabel,()=>joinCommunity(c),foot);
    jBtn.className=c.joined||isPending?'preview-secondary':'opy-primary';
    jBtn.setAttribute('aria-pressed',String(c.joined));
    if(c.id==='avaliacao-casa-opy')jBtn.dataset.communityJoin='';
@@ -906,7 +929,7 @@ if(commWs){
    lPriv.append(sPriv);
    const lDesc=make('label','Descrição e propósito');const tDesc=make('textarea');tDesc.name='description';tDesc.id='community-create-description';tDesc.required=true;tDesc.minLength=10;tDesc.maxLength=600;tDesc.rows=3;tDesc.placeholder='Explique o objetivo coletivo desta comunidade…';lDesc.append(tDesc);
    const lRules=make('label','Regras de convivência e proteção cultural');const tRules=make('textarea');tRules.name='rules';tRules.id='community-create-rules';tRules.maxLength=1000;tRules.rows=2;tRules.placeholder='Ex.: Respeito mútuo, não expor conhecimentos restritos sem autorização.';lRules.append(tRules);
-   body.append(lName,lCat,lPriv,lDesc,lRules);
+   body.append(lName,lCat,lPriv,entryQuestionFields(sPriv),lDesc,lRules);
   },async form=>{
    const prevIds=new Set((communitiesList()).map(c=>c.id));
    await change({
@@ -915,7 +938,8 @@ if(commWs){
     category:form.elements.category.value,
     visibility:form.elements.visibility.value,
     description:form.elements.description.value,
-    rules:form.elements.rules.value
+    rules:form.elements.rules.value,
+    entryQuestions:entryQuestionsOf(form)
    });
    const created=(communitiesList()).find(c=>!prevIds.has(c.id));
    if(created)openCommunityDetail(created.id);
