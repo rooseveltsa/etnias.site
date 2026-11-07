@@ -536,3 +536,17 @@ body[data-preview-route=messages] .preview-page>h1{display:none}
  #opy-compose .preview-publish-row{flex-wrap:wrap}
  #opy-compose .preview-publish-row .opy-primary{width:100%}
 }
+
+/* Barra de modalidades do feed: uma fileira de chips com rolagem lateral */
+.feed-chips{display:flex;align-items:center;gap:8px;margin:14px 0 10px}
+.feed-chip-row{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding:2px}
+.feed-chip-row::-webkit-scrollbar{display:none}
+.feed-chip-row button{flex:0 0 auto;min-height:36px;padding:6px 14px;border:1px solid #dde2df;border-radius:999px;background:#fff;color:#182c34;font-size:14px;font-weight:600;white-space:nowrap;scroll-snap-align:start}
+.feed-chip-row button:hover{background:#f1f3f0}
+.feed-chip-row button[aria-pressed=true]{border-color:#182c34;background:#182c34;color:#fff}
+.feed-chip-row button:focus-visible,.feed-refresh:focus-visible{outline:3px solid #176b87;outline-offset:2px}
+.feed-refresh{display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;padding:0;border:1px solid #dde2df;border-radius:50%;background:#fff;color:#52656c}
+.feed-refresh:hover{background:#f1f3f0;color:#182c34}
+.feed-refresh svg{width:18px;height:18px}
+.feed-location{margin:0 0 12px}
+.feed-location input{width:100%;min-height:42px;padding:8px 16px;border:1px solid #dde2df;border-radius:999px;background:#fff;font-size:16px}

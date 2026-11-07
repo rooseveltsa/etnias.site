@@ -187,6 +187,20 @@ function paintCommunity(){
  list.replaceChildren(...items);
  const status=$('#community-connection');if(status)status.textContent=all.length?'':'Ainda não há comunidades. Crie a primeira em Grupos.';
 }
+const plain=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+// Modalidades do feed (documento 6.1–6.9). Descobrir alterna autores para dar visibilidade a quem publica pouco ou chegou agora.
+function feedPosts(base){
+ const isFollowing=p=>p.following||p.friendStatus==='friends';
+ if(view==='following')return base.filter(isFollowing);
+ if(view==='discover'){
+  const groups=new Map();for(const p of base.filter(p=>!p.own&&!isFollowing(p))){const k=p.authorKey||p.author;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p);}
+  const out=[];for(let round=0;out.length<base.length;round++){let added=false;for(const list of groups.values())if(list[round]){out.push(list[round]);added=true;}if(!added)break;}return out;
+ }
+ if(view==='location'){const q=plain($('#feed-location-query')?.value);return base.filter(p=>p.location&&(!q||plain(p.location).includes(q)));}
+ if(view==='archive')return base.filter(p=>p.origin==='legacy');
+ if(view==='news')return base;
+ return base.filter(p=>matchMediaKind(p,view==='files'?'files':view));
+}
 function matchMediaKind(p, kind){
  if(kind==='photos')return p.media?.kind==='image'||!!p.image||p.repostOf?.media?.kind==='image'||!!p.repostOf?.image;
  if(kind==='videos')return p.media?.kind==='video'||p.repostOf?.media?.kind==='video';
@@ -577,17 +591,12 @@ function render(){if(!state)return;
  const feed=$('#preview-feed');if(feed){
   const saved=document.body.dataset.previewRoute==='saved-posts';
   const basePosts=state.posts.filter(p=>(!saved||p.saved)&&(filter==='all'||p.origin===filter));
-  const viewNames={news:'Tudo',friends:'Amigos',photos:'Fotos',videos:'Vídeos',files:'Documentos',audio:'Áudios'};
-  all('.middlecol > .feed-float [data-feed-view]').forEach(b=>{
-   const v=b.dataset.feedView;
-   const cnt=basePosts.filter(p=>v==='news'?true:v==='friends'?(p.following||p.friendStatus==='friends'):matchMediaKind(p,v)).length;
-   b.textContent=viewNames[v]+(cnt?` (${cnt})`:'');
-  });
-  const posts=basePosts.filter(p=>(view!=='friends'||p.following||p.friendStatus==='friends')&&(view==='news'||view==='friends'||matchMediaKind(p,view)));
+  const posts=feedPosts(basePosts);
+  const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   const drafts=new Map(all('.community-post',feed).map(card=>[card.id,{text:$('.preview-comment-form input',card)?.value||'',open:!$('.preview-comment-form',card)?.hidden}]));
   feed.replaceChildren(...posts.map(p=>renderPost(p)));
   all('.community-post',feed).forEach(card=>{const draft=drafts.get(card.id);if(draft){$('.preview-comment-form input',card).value=draft.text;const form=$('.preview-comment-form',card);form.hidden=!draft.open;const toggle=card.querySelector('[aria-controls="'+form.id+'"]');if(toggle)toggle.setAttribute('aria-expanded',String(!!draft.open));}});
-  if(!posts.length)feed.append(make('p',saved?'Você ainda não salvou publicações.':view==='friends'&&!state.posts.some(p=>p.following||p.friendStatus==='friends')?'Você ainda não segue nem adicionou amigos. Toque no nome de alguém para seguir ou adicionar amigo.':'Nenhuma publicação neste filtro.'));
+  if(!posts.length)feed.append(make('p',saved?'Você ainda não salvou publicações.':view==='following'&&!state.posts.some(p=>p.following||p.friendStatus==='friends')?'Você ainda não segue ninguém. Use Descobrir para conhecer pessoas e seguir quem quiser.':view==='location'?'Nenhuma publicação com esse local. As pessoas informam o local ao publicar.':view==='discover'?'Você já segue todo mundo que publicou por aqui.':'Nenhuma publicação neste filtro.'));
  }
  renderProfile();
  renderDockChat();
@@ -675,7 +684,7 @@ function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-regi
  register.onsubmit=event=>{event.preventDefault();submit(register,'register');};
 }
 async function refresh(){try{state=await api();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(!all('.preview-comment-form input').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
-all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});
+all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();});$('#feed-location-query')?.addEventListener('input',()=>render());
 $('[data-community-join]')?.addEventListener('click',()=>change({action:'join'}).catch(e=>showError(e.message)));
 all('[data-saber-enroll]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await change({action:'enroll_saber',trackId:b.dataset.saberEnroll});}catch(e){showError(e.message);}finally{b.disabled=false;}}));
 all('[data-music-like]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await change({action:'like_music',trackId:b.dataset.musicLike});}catch(e){showError(e.message);}finally{b.disabled=false;}}));
