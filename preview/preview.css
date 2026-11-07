@@ -675,3 +675,17 @@ body[data-preview-route=account] .rightcol,body[data-preview-route=setting] .rig
 .community-post .preview-comment .preview-comment-body{padding:0;border:0;background:transparent;box-shadow:none}
 .community-post .preview-comment>.preview-avatar{flex:0 0 36px;width:36px;height:36px;border-radius:50%;background:#fbefec;color:#991116;font-weight:700}
 .community-post .post-edit{margin-right:16px}
+
+/* Coluna lateral alinhada: mesma margem esquerda, linha única com botão à direita */
+.rightcol .community-interactivity{gap:12px;padding:8px 0;margin-bottom:8px}
+.rightcol .community-interactivity:hover{background:transparent}
+.rightcol .community-interactivity img,.rightcol .community-interactivity .opy-icon{width:48px;height:48px}
+#community-people-title{margin:0 0 4px;font-size:18px}
+.rail-community{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px 0}
+.rail-community-link{gap:12px;min-height:48px;margin:0;padding:0;border-radius:10px}
+.rail-community-link:hover{background:transparent}
+.rail-community-link:hover strong{text-decoration:underline}
+.rail-community-mark{flex:0 0 40px}
+.rail-community-info strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow:hidden}
+.rail-community-join{margin:0;min-height:32px;padding:4px 12px;font-size:13px}
+.rail-community-more{margin-top:12px}

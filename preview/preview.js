@@ -193,7 +193,7 @@ function paintCommunity(){
   const link=make('a',undefined,'rail-community-link');link.href='/grupos/?c='+encodeURIComponent(c.id);
   link.append(make('span',(c.name||'C').slice(0,1).toLocaleUpperCase('pt-BR'),'rail-community-mark'));
   const info=make('span',undefined,'rail-community-info');
-  const n=c.membersCount||0;info.append(make('strong',c.name),make('small',[c.category,n+(n===1?' participante':' participantes'),c.visibility==='private'?'privada':''].filter(Boolean).join(' · ')));
+  const n=c.membersCount||0;info.append(make('strong',c.name),make('small',[n+(n===1?' participante':' participantes'),c.visibility==='private'?'privada':''].filter(Boolean).join(' · ')));link.title=c.category?c.name+' · '+c.category:c.name;
   link.append(info);li.append(link);
   if(!c.joined){
    const join=make('button',c.pending?'Pedido enviado':c.visibility==='private'?'Pedir entrada':'Participar','rail-community-join');join.type='button';join.disabled=!!c.pending;
