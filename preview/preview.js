@@ -7,7 +7,7 @@ const button=(label, fn, root)=>{const b=make('button',label,'preview-secondary'
 const emoji=[['😀','Sorriso'],['❤️','Coração'],['😂','Risada'],['👏','Palmas'],['🙏','Gratidão'],['🌱','Planta'],['💚','Coração verde'],['✨','Brilho']];
 const reactions=[['like','👍','Curti'],['heart','❤️','Amei'],['laugh','😂','Haha'],['wow','😮','Surpresa'],['sad','😢','Triste']];
 let state, filter='all', view='news', videoAttachment=null, fileAttachment=null, busy=false;
-const expandedComments=new Set();
+const expandedComments=new Set(), openCommentForms=new Set();
 let activeProfileKey='', profileTab='all', activeChatKey='public', dockChatKey='';
 const seenStories=new Set((()=>{try{return JSON.parse(localStorage.getItem('opy_seen_stories')||'[]');}catch{return[];}})());
 const markStorySeen=id=>{seenStories.add(id);try{localStorage.setItem('opy_seen_stories',JSON.stringify([...seenStories].slice(-200)));}catch{}};
@@ -84,13 +84,13 @@ function renderPost(post){
  const reacted=reactions.filter(([id])=>post.reactions[id]);
  const total=reacted.reduce((sum,[id])=>sum+post.reactions[id],0);
  const sharesCount=post.shares||0;
- const form=make('form',undefined,'preview-comment-form');form.hidden=true;form.id='comment-'+post.id;
+ const form=make('form',undefined,'preview-comment-form');form.hidden=!openCommentForms.has(post.id);form.id='comment-'+post.id;
  const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário (até 500 caracteres)';input.setAttribute('aria-label','Seu comentário');
  const charCount=make('small','0/500','comment-char-count');
  input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';});
  const submit=make('button','Enviar','preview-secondary');submit.type='submit';submit.setAttribute('aria-label','Enviar comentário');
  form.append(input,charCount,submit);
- form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{const draft=input.value;await change({action:'comment',postId:post.id,text:draft});const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
+ form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{openCommentForms.add(post.id);const draft=input.value;await change({action:'comment',postId:post.id,text:draft});const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
  const repostInput=make('input');repostInput.maxLength=1000;repostInput.placeholder='Adicione um comentário ao repostar (opcional)…';repostInput.setAttribute('aria-label','Comentário do repost');
  const repostSubmit=make('button','Repostar agora','opy-primary');repostSubmit.type='submit';
@@ -121,8 +121,8 @@ function renderPost(post){
  const tray=make('div',undefined,'post-react-tray');tray.setAttribute('role','group');tray.setAttribute('aria-label','Reações');
  for(const [id,icon,label] of [['like','like','Curti'],['heart','heart','Amei'],['laugh','laugh','Haha'],['wow','wow','Surpresa'],['sad','sad','Triste']]){const choice=postAction(icon,'',()=>change({action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));tray.append(choice);}
  reactWrap.append(like,tray);
- const commentBtn=postAction('comment','Comentar',()=>{form.hidden=!form.hidden;commentBtn.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)input.focus();});
- commentBtn.setAttribute('aria-expanded','false');commentBtn.setAttribute('aria-controls',form.id);
+ const commentBtn=postAction('comment','Comentar',()=>{form.hidden=!form.hidden;if(form.hidden)openCommentForms.delete(post.id);else openCommentForms.add(post.id);commentBtn.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)input.focus();});
+ commentBtn.setAttribute('aria-expanded',String(!form.hidden));commentBtn.setAttribute('aria-controls',form.id);
  const heart=postAction('heart','Amei',()=>change({action:'react',postId:post.id,reaction:post.reaction==='heart'?'':'heart'}));
  heart.setAttribute('aria-pressed',String(post.reaction==='heart'));
  const shareBtn=postAction('share','Repostar',()=>{repostForm.hidden=!repostForm.hidden;shareBtn.setAttribute('aria-expanded',String(!repostForm.hidden));if(!repostForm.hidden)repostInput.focus();});
