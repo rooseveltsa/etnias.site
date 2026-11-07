@@ -14,6 +14,12 @@ const markStorySeen=id=>{seenStories.add(id);try{localStorage.setItem('opy_seen_
 const date=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 function showError(message){let el=$('#community-error');if(!el){el=make('p',undefined,'preview-feedback');el.id='community-error';el.setAttribute('role','alert');$('.middlecol').prepend(el);}el.textContent=message;}
 async function api(body){const response=await fetch('/api/community',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json().catch(()=>({}));if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;throw error;}return data;}
+// Estado vazio com próximo passo: título, explicação e ações (href ou função).
+function emptyState(title,text,actions=[]){
+ const box=make('div',undefined,'opy-empty');box.append(make('strong',title),make('p',text));
+ if(actions.length){const row=make('div',undefined,'opy-empty-actions');actions.forEach(([label,go],i)=>{const el=typeof go==='string'?make('a',label):make('button',label);if(typeof go==='string')el.href=go;else{el.type='button';el.onclick=go;}el.className=i?'preview-secondary':'opy-primary';row.append(el);});box.append(row);}
+ return box;
+}
 async function change(body){state=await api(body);render();}
 function picker(root,target){root.replaceChildren();for(const [symbol,label] of emoji){const b=button(symbol,()=>{const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();root.hidden=true;},root);b.setAttribute('aria-label',label);}root.hidden=false;}
 const glyph={
@@ -517,7 +523,7 @@ function renderCommunities(){
    if(canViewContent){
     const cPosts=state.posts.filter(p=>p.communityId===current.id);
     if(cPosts.length)panel.append(...cPosts.map(p=>renderPost(p,current)));
-    else panel.append(make('p','Nenhuma publicação nesta comunidade ainda. Seja a primeira pessoa a compartilhar!','opy-module-empty'));
+    else panel.append(emptyState('Nenhuma publicação ainda','Seja a primeira pessoa a compartilhar algo com esta comunidade.'));
    }
   }else if(activeCommunityTab==='members'){
    if(current.canModerate&&current.pendingRequests?.length){
@@ -645,7 +651,7 @@ function renderCommunities(){
    card.append(top,desc,foot);
    return card;
   }));
-  if(!items.length)grid.append(make('p','Nenhuma comunidade encontrada para este filtro. Você pode criar uma nova comunidade acima.','opy-module-empty'));
+  if(!items.length)grid.append(emptyState('Nenhuma comunidade neste filtro','Tente outra categoria ou crie uma comunidade para reunir quem compartilha esse tema.',[['Criar comunidade',()=>$('#community-create-open')?.click()]]));
  }
 }
 function render(){if(!state)return;
@@ -704,7 +710,14 @@ function render(){if(!state)return;
   const drafts=new Map(all('.community-post',feed).map(card=>[card.id,{text:$('.preview-comment-form input',card)?.value||'',open:!$('.preview-comment-form',card)?.hidden}]));
   feed.replaceChildren(...posts.map(p=>renderPost(p)));
   all('.community-post',feed).forEach(card=>{const draft=drafts.get(card.id);if(draft){$('.preview-comment-form input',card).value=draft.text;const form=$('.preview-comment-form',card);form.hidden=!draft.open;const toggle=card.querySelector('[aria-controls="'+form.id+'"]');if(toggle)toggle.setAttribute('aria-expanded',String(!!draft.open));}});
-  if(!posts.length)feed.append(make('p',saved?'Você ainda não salvou publicações.':view==='following'&&!state.posts.some(p=>p.following||p.friendStatus==='friends')?'Você ainda não segue ninguém. Use Descobrir para conhecer pessoas e seguir quem quiser.':view==='location'?'Nenhuma publicação com esse local. As pessoas informam o local ao publicar.':view==='discover'?'Você já segue todo mundo que publicou por aqui.':'Nenhuma publicação neste filtro.'));
+  if(!posts.length){
+   const showView=v=>$(`[data-feed-view="${v}"]`)?.click();
+   feed.append(saved?emptyState('Nada salvo ainda','Toque no marcador de uma publicação para guardá-la aqui e ler depois.',[['Ir para o feed','/']])
+    :view==='following'&&!state.posts.some(p=>p.following||p.friendStatus==='friends')?emptyState('Você ainda não segue ninguém','Siga pessoas para ver aqui o que elas publicam.',[['Descobrir pessoas',()=>showView('discover')]])
+    :view==='location'?emptyState('Nenhuma publicação com esse local','As pessoas informam o local ao publicar. Tente outro nome de cidade, região ou território.')
+    :view==='discover'?emptyState('Você já segue todo mundo','Quem publicou por aqui já está no seu feed.',[['Ver tudo',()=>showView('news')]])
+    :emptyState('Nada neste filtro','Ainda não há publicações deste tipo.',[['Ver tudo',()=>showView('news')]]));
+  }
  }
  renderProfile();
  renderDockChat();
@@ -741,7 +754,7 @@ function render(){if(!state)return;
    for(const p of posts){const a=make('a');a.href='/#post-'+p.id;a.append(make('strong',p.author+(p.communityName?' · '+p.communityName:'')),make('p',p.text.slice(0,240)),make('small',date(p.createdAt)));sec.append(a);}
    results.append(sec);
   }
-  if(!matchedComms.length&&!matchedPeople.length&&!posts.length)results.append(make('p','Nenhuma publicação, pessoa ou comunidade encontrada.'));
+  if(!matchedComms.length&&!matchedPeople.length&&!posts.length)results.append(emptyState('Nada encontrado para “'+rawQuery+'”','Confira a grafia ou tente uma palavra mais curta, como o nome de uma pessoa, povo ou tema.',[['Ver comunidades','/grupos/']]));
  }
  const notices=$('#community-notifications');if(notices){
   notices.replaceChildren();
@@ -773,7 +786,7 @@ function render(){if(!state)return;
    a.href='/#post-'+p.id;
    card.append(a);notices.append(card);
   }
-  if(!notices.children.length)notices.append(make('p','As solicitações de amizade, convites de comunidades e interações nas suas publicações aparecerão aqui.'));
+  if(!notices.children.length)notices.append(emptyState('Tudo em silêncio por aqui','Quando alguém pedir sua amizade, convidar você para uma comunidade ou interagir com o que você publicou, o Maracá avisa aqui.',[['Encontrar pessoas','/search/'],['Ver comunidades','/grupos/']]));
  }
  if(state.saberes){let myCount=0;all('[data-saber-enroll]').forEach(b=>{const info=state.saberes[b.dataset.saberEnroll]||{enrolled:false,count:0};if(info.enrolled)myCount++;b.setAttribute('aria-pressed',String(info.enrolled));b.textContent=info.enrolled?'Inscrito na trilha (avaliação)':'Inscrever-se na trilha';const meta=$(`[data-saber-count="${b.dataset.saberEnroll}"]`);if(meta)meta.textContent=info.count?`${info.count} inscrição(ões) nesta homologação`:'Em avaliação';});if($('#opy-saberes-summary'))$('#opy-saberes-summary').textContent=myCount>0?`Você acompanha ${myCount} trilha(s) formativa(s) nesta sessão de homologação.`:'Selecione abaixo as trilhas de seu interesse para acompanhar seu painel formativo nesta sessão.';}
  if(state.music){all('[data-music-like]').forEach(b=>{const info=state.music[b.dataset.musicLike]||{liked:false,count:0};b.setAttribute('aria-pressed',String(info.liked));const span=$('span',b);if(span)span.textContent=info.liked?'Faixa apoiada':'Apoiar faixa';const meta=$(`[data-music-count="${b.dataset.musicLike}"]`);if(meta)meta.textContent=`${info.count} apoio(s) na homologação`;});}
