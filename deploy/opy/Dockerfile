@@ -6,6 +6,7 @@ WORKDIR /app
 COPY preview/package.json preview/package-lock.json preview/
 RUN cd preview && npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY preview/server preview/server
+COPY preview/i18n preview/i18n
 COPY preview/middleware.js preview/public-posts.json preview/
 COPY preview/dist/public preview/dist/public
 COPY scripts/opy-preview-server.mjs scripts/

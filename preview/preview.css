@@ -751,3 +751,8 @@ body .opy-empty .opy-empty-actions a,body .opy-empty .opy-empty-actions button,#
 .opy-skeleton>.sk-line:not(.w40):not(.w80){grid-column:1/-1}
 @keyframes opy-shimmer{to{background-position:-200% 0}}
 @media(prefers-reduced-motion:reduce){.opy-skeleton span,.opy-toast,.opy-welcome-bar span{animation:none;transition:none}}
+/* Idiomas */
+html.i18n-pending body{visibility:hidden}
+.opy-locale{display:inline-flex;align-items:center;gap:6px;margin:16px 0 0;font-size:14px;color:#52656c}
+.opy-locale select{min-height:44px;padding:6px 10px;border:1px solid #c4cdca;border-radius:10px;background:#fff;color:#182c34;font:inherit;font-size:15px}
+.opy-sidebar .opy-locale{margin:12px 12px 0}

@@ -275,7 +275,7 @@ function paintWelcome(){
  box.replaceChildren(head,make('p',`${done} de ${steps.length} passos para aproveitar a rede.`,'opy-welcome-sub'),bar,list);
 }
 function paintAnnouncements(){
- if(state?.me?.role&&!$('.opy-admin-link')){const anchor=$('.notification-container');if(anchor){const a=make('a','Gestão','opy-admin-link');a.href='/admin/';a.title='Centro de gestão';anchor.before(a);}}
+ if((state?.me?.role||state?.i18n?.translates?.length)&&!$('.opy-admin-link')){const anchor=$('.notification-container');if(anchor){const a=make('a',state.me.role?'Gestão':'Traduções','opy-admin-link');a.href=state.me.role?'/admin/':'/admin/#traducoes';a.title='Centro de gestão';anchor.before(a);}}
  const feed=$('#preview-feed');if(!feed)return;
  let box=$('#opy-announcements');if(!box){box=make('div');box.id='opy-announcements';const host=$('.feed-chips')||feed;host.before(box);}
  box.replaceChildren(...(state.announcements||[]).map(a=>{const card=make('aside',undefined,'opy-announcement');card.setAttribute('aria-label','Comunicado');const body=make('div');body.append(make('strong',a.title),make('p',a.text));if(a.link){const l=make('a','Saiba mais');l.href=a.link;body.append(l);}const close=make('button','✕');close.type='button';close.setAttribute('aria-label','Fechar comunicado');close.onclick=()=>change({action:'announcement_dismiss',id:a.id}).catch(e=>showError(e.message));card.append(body,close);return card;}));
@@ -689,7 +689,7 @@ function renderCommunities(){
   if(!items.length)grid.append(emptyState('Nenhuma comunidade neste filtro','Tente outra categoria ou crie uma comunidade para reunir quem compartilha esse tema.',[['Criar comunidade',()=>$('#community-create-open')?.click()]]));
  }
 }
-function render(){if(!state)return;
+function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
  if(pForm&&!pForm.contains(document.activeElement)){

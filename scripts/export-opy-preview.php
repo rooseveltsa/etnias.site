@@ -36,7 +36,9 @@ foreach (glob($root . '/public_html/assets/opy/icons/*.png') as $file) {
     if (strpos($base, 'cluster-') === 0) continue;
     copy($file, $iconDest . '/' . $base);
 }
-foreach (array('preview.css','preview.js','chat.js','calls.js','admin.js','admin.css') as $file) copy($root . '/preview/' . $file, $destination . '/assets/' . $file);
+foreach (array('preview.css','preview.js','chat.js','calls.js','admin.js','admin.css','i18n.js') as $file) copy($root . '/preview/' . $file, $destination . '/assets/' . $file);
+$folder = $destination . '/assets/i18n'; if (!is_dir($folder)) mkdir($folder, 0755, true);
+foreach (glob($root . '/preview/i18n/*.json') as $file) if (basename($file) !== 'source.json') copy($file, $folder . '/' . basename($file));
 $folder = $destination . '/assets/fonts'; if (!is_dir($folder)) mkdir($folder, 0755, true);
 foreach (array('krub-400.ttf','krub-600.ttf') as $font) {
     if (!is_file($root . '/preview/fonts/' . $font)) throw new RuntimeException('Missing bundled font');
@@ -54,7 +56,7 @@ file_put_contents($project . '/vercel.json', json_encode($config, JSON_PRETTY_PR
 file_put_contents($project . '/.vercelignore', ".vercel\n.env*\n.git*\n*.log\nnode_modules\n");
 echo 'Exported ' . count($paths) . " static preview pages. No database or private media included.\n";
 
-foreach (array('server','api') as $dir) { if (!is_dir($project.'/'.$dir)) mkdir($project.'/'.$dir,0755,true); foreach (glob($root.'/preview/'.$dir.'/*') as $file) copy($file,$project.'/'.$dir.'/'.basename($file)); }
+foreach (array('server','api','i18n') as $dir) { if (!is_dir($project.'/'.$dir)) mkdir($project.'/'.$dir,0755,true); foreach (glob($root.'/preview/'.$dir.'/*') as $file) copy($file,$project.'/'.$dir.'/'.basename($file)); }
 foreach (array('package.json','package-lock.json','public-posts.json') as $file) copy($root.'/preview/'.$file,$project.'/'.$file);
 if (!is_file($root.'/preview/middleware.js')) throw new RuntimeException('Missing preview/middleware.js welcome gate');
 copy($root.'/preview/middleware.js', $project.'/middleware.js');

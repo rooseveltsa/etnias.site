@@ -4,7 +4,7 @@ import { resolve, extname, sep } from 'node:path';
 import handler from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 const root = resolve('preview/dist/public');
-const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json' };
+const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json','.json':'application/json; charset=utf-8' };
 const port = Number(process.env.PORT) || 8101;
 // Na VPS o container precisa ouvir 0.0.0.0; o proxy HTTPS do host fica na frente. Localmente segue em 127.0.0.1.
 const host = process.env.HOST || '127.0.0.1';

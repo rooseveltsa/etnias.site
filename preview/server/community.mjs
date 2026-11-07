@@ -7,6 +7,7 @@ import { createSession, verifySession, sessionCookie, sessionAccount, addSession
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
+import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -163,7 +164,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, announcements: announcementsFor(state, me), posts, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -229,6 +230,10 @@ export default async function handler(req, res) {
       if (isSuspended(account)) fail(403, suspensionMessage(account));
       const me = member(account);
       const path = new URL(req.url, 'http://local');
+      if (path.searchParams.get('view') === 'i18n' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(i18nView(state, account)));
+      }
       if (path.searchParams.get('view') === 'admin' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(adminView(state, account, path.searchParams)));
@@ -327,7 +332,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !['announcement_dismiss', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !['announcement_dismiss', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -379,6 +384,7 @@ export default async function handler(req, res) {
       settleCalls(state);
       if (callActions.includes(body.action)) { callResult = callAction(state, me, body); return; }
       if (adminActions.includes(body.action)) { const r = adminAction(state, currentAccount, body); if (r.removedIds) removedIds.push(...r.removedIds); return; }
+      if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (body.action === 'announcement_dismiss') {
         if (!(state.announcements || []).some(a => a.id === body.id)) fail(404, 'Comunicado não encontrado.');
         state.announcementDismiss ||= {}; state.announcementDismiss[me.id] = [...new Set([...(state.announcementDismiss[me.id] || []), body.id])].slice(-100);
@@ -599,6 +605,7 @@ export default async function handler(req, res) {
     fileUpload = null;
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     if (adminActions.includes(body.action)) return res.end(JSON.stringify(adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams())));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, activeMe, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, activeMe)));

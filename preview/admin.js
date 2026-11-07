@@ -8,7 +8,16 @@ const fmtDate = t => t ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', 
 const fmtDay = t => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(t));
 const rel = t => { if (!t) return 'sem atividade'; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`; };
 let data = null, tab = location.hash.replace('#', '') || 'visao', query = '', busy = false;
-const tabs = [['visao', 'Visão geral'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro']];
+const tabs = [['visao', 'Visão geral'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções']];
+// Painel de traduções (GET /api/community?view=i18n). Quem só traduz entra direto nele.
+let idata = null, ilang = '', ifilter = 'faltando', iquery = '', ipage = 0, translatorOnly = false;
+async function api18(body) {
+  const r = await fetch('/api/community?view=i18n', { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(Error(j.error || 'Não foi possível concluir.'), { status: r.status });
+  return j;
+}
+async function act18(body, done) { if (busy) return; busy = true; try { idata = await api18(body); render(); toast(done); } catch (e) { toast(e.message, true); } finally { busy = false; } }
 
 async function api(body) {
   const url = '/api/community?' + new URLSearchParams({ view: 'admin', ...(query ? { q: query } : {}) });
@@ -20,7 +29,13 @@ async function api(body) {
 }
 function toast(msg, bad) { const t = el('p', msg, 'adm-toast' + (bad ? ' is-bad' : '')); t.setAttribute('role', bad ? 'alert' : 'status'); document.body.append(t); setTimeout(() => t.remove(), 4200); }
 async function act(body, done) { if (busy) return; busy = true; try { data = await api(body); render(); toast(done); } catch (e) { toast(e.message, true); } finally { busy = false; } }
-async function load() { try { data = await api(); render(); } catch (e) { root.replaceChildren(el('div', e.message, 'adm-denied')); } }
+async function load() {
+  try { data = await api(); if (tab === 'traducoes') idata = await api18(); render(); }
+  catch (e) {
+    try { idata = await api18(); translatorOnly = true; tab = 'traducoes'; data = { viewer: { name: '' }, role: 'translator', openAlerts: 0 }; render(); }
+    catch { root.replaceChildren(el('div', e.message, 'adm-denied')); }
+  }
+}
 
 // Diálogo único para pedir motivo (e prazo, na suspensão): toda ação fica registrada com o porquê.
 function ask({ title, help, needDays = false, confirm = 'Confirmar', danger = false, allowForever = false }) {
@@ -137,6 +152,74 @@ const views = {
     data.announcements.forEach(a => { const c = el('article', undefined, 'adm-post'); const h = el('div', undefined, 'adm-alert-head'); h.append(el('strong', a.title), pill(a.active ? 'No ar' : 'Encerrado', a.active ? 'is-ok' : 'is-muted'), el('small', 'por ' + a.by + ' · até ' + fmtDate(a.endedAt || a.until), 'adm-muted')); c.append(h, el('p', a.text)); if (a.active && data.role === 'admin') { const row = el('div', undefined, 'adm-actions'); row.append(btn('Encerrar agora', () => act({ action: 'admin_announce_end', id: a.id }, 'Comunicado encerrado.'))); c.append(row); } box.append(c); });
     return box;
   },
+  traducoes() {
+    const box = el('div');
+    if (!idata) { box.append(el('p', 'Carregando traduções…', 'adm-muted')); api18().then(d => { idata = d; render(); }).catch(e => toast(e.message, true)); return box; }
+    box.append(el('p', 'O português é a base. Inglês e espanhol vêm prontos e podem ser melhorados. Línguas indígenas são traduzidas por tradutores das comunidades. Toda sugestão passa pela aprovação da gestão.', 'adm-muted'));
+    if (!idata.languages.length) { box.append(el('p', 'Nenhum idioma disponível para você.', 'adm-empty')); return box; }
+    if (!ilang || !idata.languages.some(l => l.code === ilang)) ilang = idata.languages[0].code;
+    const langs = el('div', undefined, 'adm-langs');
+    for (const l of idata.languages) {
+      const card = el('button', undefined, 'adm-lang' + (l.code === ilang ? ' is-on' : '')); card.type = 'button'; card.onclick = () => { ilang = l.code; ipage = 0; render(); };
+      card.dataset.noI18n = '';
+      const pct = Math.round(l.done / Math.max(l.total, 1) * 100);
+      const bar = el('span', undefined, 'adm-lang-bar'); const fill = el('span'); fill.style.width = pct + '%'; bar.append(fill);
+      card.append(el('strong', l.name), el('small', `${l.code} · ${pct}%${l.kind === 'community' && !l.enabled ? ' · inativo' : ''}`), bar);
+      langs.append(card);
+    }
+    box.append(langs);
+    const lang = idata.languages.find(l => l.code === ilang);
+    if (idata.canManage) {
+      const manage = el('details', undefined, 'adm-card'); manage.append(el('summary', 'Idiomas e tradutores'));
+      const add = el('form', undefined, 'adm-inline');
+      const code = el('input'); code.placeholder = 'Código (ex.: gn, yrl)'; code.required = true; code.maxLength = 12; code.setAttribute('aria-label', 'Código do idioma');
+      const name = el('input'); name.placeholder = 'Nome (ex.: Guarani)'; name.required = true; name.maxLength = 40; name.setAttribute('aria-label', 'Nome do idioma');
+      const sub = el('button', 'Cadastrar idioma', 'adm-btn is-primary'); sub.type = 'submit';
+      add.append(code, name, sub); add.onsubmit = e => { e.preventDefault(); act18({ action: 'i18n_lang_add', code: code.value.trim(), name: name.value.trim() }, 'Idioma cadastrado. Ative quando houver tradução suficiente.'); };
+      manage.append(el('p', 'Línguas indígenas entram inativas: ninguém as vê até a gestão ativar.', 'adm-muted'), add);
+      if (lang.kind === 'community') manage.append(btn(lang.enabled ? `Desativar ${lang.name}` : `Ativar ${lang.name} para todas as pessoas`, () => act18({ action: 'i18n_lang_toggle', code: lang.code, enabled: !lang.enabled }, lang.enabled ? 'Idioma desativado.' : 'Idioma ativado.'), lang.enabled ? '' : 'is-primary'));
+      const tf = el('form', undefined, 'adm-inline');
+      const who = el('input'); who.placeholder = '@usuário de quem vai traduzir'; who.required = true; who.setAttribute('aria-label', 'Usuário');
+      const tsub = el('button', `Nomear para ${lang.name}`, 'adm-btn'); tsub.type = 'submit';
+      tf.append(who, tsub);
+      tf.onsubmit = e => { e.preventDefault(); const u = who.value.trim().replace(/^@/, '').toLowerCase(); const p = (data.people || []).find(x => (x.username || '').toLowerCase() === u); if (!p) return toast('Pessoa não encontrada. Busque na aba Pessoas para conferir o @.', true); const cur = idata.translators.find(t => t.key === p.key)?.langs || []; act18({ action: 'i18n_translator', userKey: p.key, langs: [...new Set([...cur, lang.code])] }, `${p.name} agora traduz ${lang.name}.`); };
+      manage.append(el('h3', 'Tradutores'), tf);
+      const ul = el('ul', undefined, 'adm-list');
+      idata.translators.forEach(t => { const li = el('li'); li.append(el('span', `${t.name} (@${t.username}) · ${t.langs.join(', ')}`), btn('Remover', () => act18({ action: 'i18n_translator', userKey: t.key, langs: [] }, 'Tradutor removido.'))); ul.append(li); });
+      if (!idata.translators.length) ul.append(el('li', 'Ninguém nomeado ainda.', 'adm-muted'));
+      manage.append(ul); box.append(manage);
+    }
+    const pending = idata.suggestions.filter(s => s.status === 'pendente' && s.lang === ilang);
+    if (idata.canReview && pending.length) {
+      const rev = el('section', undefined, 'adm-card'); rev.append(el('h3', `Sugestões para revisar (${pending.length})`));
+      pending.slice(0, 30).forEach(s => { const row = el('div', undefined, 'adm-sug'); const pt = el('p', s.source, 'adm-muted'); pt.dataset.noI18n = ''; const tr = el('p', s.text); tr.dataset.noI18n = ''; row.append(pt, tr, el('small', `${s.byName} · ${fmtDate(s.at)}`, 'adm-muted')); const acts = el('div', undefined, 'adm-actions'); acts.append(btn('Aprovar', () => act18({ action: 'i18n_review', id: s.id, decision: 'aprovar' }, 'Tradução aprovada e já em uso.'), 'is-primary'), btn('Recusar', () => act18({ action: 'i18n_review', id: s.id, decision: 'recusar' }, 'Sugestão recusada.'))); row.append(acts); rev.append(row); });
+      box.append(rev);
+    }
+    const tr = idata.translations[ilang] || {};
+    const bar = el('div', undefined, 'adm-inline');
+    const search = el('input'); search.type = 'search'; search.placeholder = 'Buscar frase'; search.value = iquery; search.setAttribute('aria-label', 'Buscar frase');
+    search.oninput = () => { iquery = search.value; ipage = 0; const pos = search.selectionStart; render(); const s2 = root.querySelector('.adm-i18n-search'); s2?.focus(); s2?.setSelectionRange(pos, pos); };
+    search.className = 'adm-i18n-search';
+    const sel = el('select'); sel.setAttribute('aria-label', 'Mostrar'); [['faltando', 'Sem tradução'], ['todas', 'Todas as frases']].forEach(([v, t]) => { const o = new Option(t, v); o.selected = v === ifilter; sel.append(o); }); sel.onchange = () => { ifilter = sel.value; ipage = 0; render(); };
+    bar.append(search, sel); box.append(bar);
+    const q = iquery.toLocaleLowerCase('pt-BR');
+    const list = idata.source.filter(s => (ifilter === 'todas' || !tr[s]) && (!q || s.toLocaleLowerCase('pt-BR').includes(q) || (tr[s] || '').toLocaleLowerCase('pt-BR').includes(q)));
+    const per = 25, pages = Math.max(1, Math.ceil(list.length / per)); ipage = Math.min(ipage, pages - 1);
+    box.append(el('p', `${list.length} frase(s) · página ${ipage + 1} de ${pages}`, 'adm-muted'));
+    const mine = idata.suggestions.filter(s => s.status === 'pendente' && s.lang === ilang);
+    list.slice(ipage * per, ipage * per + per).forEach(src => {
+      const row = el('form', undefined, 'adm-phrase'); row.dataset.noI18n = '';
+      const pt = el('p', src, 'adm-phrase-src'); const ta = el('textarea'); ta.rows = 2; ta.maxLength = 600; ta.value = mine.find(s => s.source === src)?.text || tr[src] || ''; ta.setAttribute('aria-label', 'Tradução para ' + lang.name);
+      const sb = el('button', mine.some(s => s.source === src) ? 'Atualizar sugestão' : 'Sugerir tradução', 'adm-btn'); sb.type = 'submit';
+      row.append(pt, ta, sb); row.onsubmit = e => { e.preventDefault(); act18({ action: 'i18n_suggest', lang: ilang, source: src, text: ta.value }, idata.canReview ? 'Sugestão enviada. Aprove acima para usar.' : 'Sugestão enviada para a gestão revisar.'); };
+      box.append(row);
+    });
+    const nav = el('div', undefined, 'adm-actions');
+    if (ipage > 0) nav.append(btn('← Anteriores', () => { ipage--; render(); }));
+    if (ipage < pages - 1) nav.append(btn('Próximas →', () => { ipage++; render(); }));
+    box.append(nav);
+    return box;
+  },
   registro() {
     const box = el('div'); box.append(el('p', 'Tudo o que a administração e a moderação fizeram, com motivo. Transparência para a comunidade.', 'adm-muted'));
     if (!data.log.length) box.append(el('p', 'Nenhuma ação registrada ainda.', 'adm-empty'));
@@ -146,13 +229,13 @@ const views = {
 function go(next) { tab = next; history.replaceState(null, '', '#' + next); render(); root.querySelector('.adm-main')?.focus(); }
 function render() {
   if (!data) return;
-  const head = el('header', undefined, 'adm-head'); const t = el('div'); t.append(el('h1', 'Centro de gestão'), el('p', `${data.viewer.name} · ${data.role === 'admin' ? 'Administração' : 'Moderação'} · atualizado ${fmtDate(Date.now())}`, 'adm-muted'));
+  const head = el('header', undefined, 'adm-head'); const t = el('div'); t.append(el('h1', translatorOnly ? 'Traduções' : 'Centro de gestão'), el('p', translatorOnly ? 'Ajude a levar a Casa Opy para a sua língua.' : `${data.viewer.name} · ${data.role === 'admin' ? 'Administração' : 'Moderação'} · atualizado ${fmtDate(Date.now())}`, 'adm-muted'));
   head.append(t, btn('Atualizar', load));
   const nav = el('nav', undefined, 'adm-tabs'); nav.setAttribute('aria-label', 'Áreas do centro de gestão');
-  tabs.forEach(([id, label]) => { const b = btn(label, () => go(id), 'adm-tab'); b.setAttribute('aria-current', String(tab === id)); if (id === 'alertas' && data.openAlerts) b.append(el('span', String(data.openAlerts), 'adm-count')); nav.append(b); });
+  (translatorOnly ? tabs.filter(x => x[0] === 'traducoes') : tabs).forEach(([id, label]) => { const b = btn(label, () => go(id), 'adm-tab'); b.setAttribute('aria-current', String(tab === id)); if (id === 'alertas' && data.openAlerts) b.append(el('span', String(data.openAlerts), 'adm-count')); nav.append(b); });
   const main = el('section', undefined, 'adm-main'); main.tabIndex = -1; main.setAttribute('aria-label', tabs.find(x => x[0] === tab)?.[1] || ''); main.append((views[tab] || views.visao)());
   root.replaceChildren(head, nav, main);
 }
 window.addEventListener('hashchange', () => { tab = location.hash.replace('#', '') || 'visao'; render(); });
-load(); setInterval(() => { if (!document.hidden && !document.querySelector('.adm-dialog[open]') && tab !== 'pessoas') load(); }, 60000);
+load(); setInterval(() => { if (!document.hidden && !document.querySelector('.adm-dialog[open]') && tab !== 'pessoas' && tab !== 'traducoes') load(); }, 60000);
 })();

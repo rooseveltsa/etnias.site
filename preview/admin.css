@@ -82,3 +82,17 @@ body[data-preview-route=admin] .preview-page>h1{display:none}
 .opy-announcement a{color:#991116;font-weight:600}
 .opy-announcement button{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:50%;background:#f1f3f0}
 .opy-admin-link{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:999px;background:#182c34;color:#fff!important;font-size:13px;font-weight:700;text-decoration:none}
+/* Traduções */
+.adm-langs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:12px 0}
+.adm-lang{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:44px;padding:12px;border:1px solid #dde2df;border-radius:12px;background:#fff;text-align:left;cursor:pointer;font:inherit}
+.adm-lang.is-on{border-color:#bd161c;box-shadow:0 0 0 2px #bd161c33}
+.adm-lang small{color:#52656c}
+.adm-lang-bar{display:block;width:100%;height:6px;border-radius:3px;background:#eef1ef;overflow:hidden}
+.adm-lang-bar span{display:block;height:100%;background:#2f7a4f}
+.adm-inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.adm-inline input,.adm-inline select{min-height:44px;padding:8px 12px;border:1px solid #c4cdca;border-radius:10px;font:inherit;font-size:15px;flex:1 1 180px}
+.adm-sug{padding:10px 0;border-top:1px solid #eef1ef}.adm-sug p{margin:2px 0}
+.adm-phrase{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid #eef1ef}
+.adm-phrase-src{margin:0;padding-top:8px;color:#182c34}
+.adm-phrase textarea{width:100%;min-height:44px;padding:8px 10px;border:1px solid #c4cdca;border-radius:10px;font:inherit;font-size:15px;resize:vertical}
+@media(max-width:760px){.adm-phrase{grid-template-columns:1fr}}
