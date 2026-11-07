@@ -46,11 +46,12 @@ const server = http.createServer(async (req, res) => {
   if (!file.startsWith(root + sep) || !types[extname(file)]) { res.writeHead(404); return res.end(); }
   try { res.setHeader('Content-Type', types[extname(file)]); res.end(await readFile(file)); } catch { res.writeHead(404); res.end(); }
 });
-const base = 'http://127.0.0.1:8101';
+const port = Number(process.env.OPY_TEST_PORT || 8101);
+const base = 'http://127.0.0.1:' + port;
 async function api(body, cookie = '', origin = base) {
   const headers = {};
   const response = { statusCode: 200, setHeader: (name, value) => { headers[name.toLowerCase()] = value; }, end: value => { response.output = value; } };
-  await handler({ method: body ? 'POST' : 'GET', url: '/api/community', headers: { cookie, origin, host: '127.0.0.1:8101' }, body }, response);
+  await handler({ method: body ? 'POST' : 'GET', url: '/api/community', headers: { cookie, origin, host: '127.0.0.1:' + port }, body }, response);
   return { status: response.statusCode, cookie: headers['set-cookie']?.split(';')[0] || '', data: JSON.parse(response.output) };
 }
 const profile = name => ({ action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' });
@@ -166,6 +167,14 @@ try {
   assert.equal(dmSent.data.dms.length, 1);
   assert.equal((await api(null, login.cookie)).data.dms.length, 1);
   assert.equal((await api(null, third.cookie)).data.dms.length, 0, 'Terceiro usuário não vê mensagem privada alheia');
+  assert.equal((await api({ action: 'dm', toKey: 'name:Acervo', text: 'não pode' }, second.cookie)).status, 404);
+  assert.equal((await api({action:'friend',authorKey:'name:Acervo'},second.cookie)).status,404);
+  const privateFile = await api({ action:'dm', toKey:firstKey, text:'Anexo privado', media:png, clientId:crypto.randomUUID() },second.cookie);
+  assert.equal(privateFile.status,200);
+  const attachment = state.dms.at(-1).media;
+  assert.equal((await getMedia('/api/media?id='+attachment.id,third.cookie)).statusCode,404);
+  assert.equal((await getMedia('/api/media?id='+attachment.id,login.cookie)).statusCode,200);
+  assert.equal((await api({action:'chat_delete',messageId:state.dms.at(-1).id,scope:'all'},login.cookie)).status,403);
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada e preservação dos registros.');
-  if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(8101, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
+  if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }

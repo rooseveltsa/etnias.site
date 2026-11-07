@@ -124,10 +124,11 @@ if (!in_array($f, $allow_array)) {
     }
 }
 if (!in_array($f, $non_login_array)) {
-    if ($wo['loggedin'] == false && ($s != 'load_more_posts' && $s != 'filter_posts')) {
-        if ($s != 'load-comments') {
-            exit("Please login or signup to continue.");
-        }
+    $public_read = ($f === 'posts' && in_array($s, array('load_more_posts', 'filter_posts'), true))
+        || ($f === 'watch' && $s === 'load_more_posts')
+        || ($f === 'movies' && $s === 'load-comments');
+    if ($wo['loggedin'] == false && !$public_read) {
+        exit("Please login or signup to continue.");
     }
 }
 if ($wo['loggedin'] && $wo['user']['banned'] == 1 && !in_array($f, $non_login_array)) {

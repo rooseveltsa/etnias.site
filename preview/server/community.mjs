@@ -4,6 +4,8 @@ import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
 import { createSession, verifySession, sessionCookie, sessionAccount, addSession } from './session.mjs';
 
+import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
+
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
 const feelings = ['feliz', 'agradecido', 'pensativo', 'animado'];
 const saberTracks = ['saberes-comunicacao', 'saberes-territorio', 'saberes-economia'];
@@ -121,7 +123,7 @@ function snapshot(state, me) {
     friendsCount: (state.friends?.[person.key] || []).length,
     postsCount: posts.filter(p => p.authorKey === person.key).length
   }));
-  const dms = (Array.isArray(state.dms) ? state.dms : []).filter(m => m.fromKey === myKey || m.toKey === myKey);
+  const dms = (Array.isArray(state.dms) ? state.dms : []).filter(m => !m.toKey.startsWith('group:') && !m.hiddenFor?.includes(myKey) && (m.fromKey === myKey || m.toKey === myKey)).slice(-30).map(m => ({ id:m.id, fromKey:m.fromKey, fromName:m.fromName, toKey:m.toKey, text:m.deleted ? '' : m.text, createdAt:m.createdAt }));
   const saberes = Object.fromEntries(saberTracks.map(id => {
     const list = Array.isArray(state.saberes?.[id]) ? state.saberes[id] : [];
     return [id, { enrolled: list.includes(me.id), count: list.length }];
@@ -206,11 +208,15 @@ export default async function handler(req, res) {
       if (!account) fail(401, 'Entre para ver a Casa Opy.');
       const me = member(account);
       const path = new URL(req.url, 'http://local');
+      if (path.searchParams.get('view') === 'chat' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(chatSnapshot(state, me, path.searchParams)));
+      }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');
         const post = state.posts.find(p => visible(p, me) && (p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
-        const named = (post?.media?.id === id ? post.media : post?.file?.id === id ? post.file : post?.repostOf?.media?.id === id ? post.repostOf.media : post?.repostOf?.file) || story?.media;
+        const named = (post?.media?.id === id ? post.media : post?.file?.id === id ? post.file : post?.repostOf?.media?.id === id ? post.repostOf.media : post?.repostOf?.file) || story?.media || chatMedia(state, me, id);
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
@@ -288,7 +294,7 @@ export default async function handler(req, res) {
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     const me = member(signedIn);
-    if (!['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'message', 'dm', 'join', 'follow', 'friend', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'message', 'dm', 'join', 'follow', 'friend', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -306,6 +312,10 @@ export default async function handler(req, res) {
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
       if (fileUpload) await saveMedia(fileUpload.id, fileUpload.bytes, fileUpload.type);
     }
+    if (body.action === 'dm') {
+      upload = mediaInput(body.media);
+      if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
+    }
     if (body.action === 'story_create') {
       body.text = text(body.text ?? '', 280, false);
       upload = mediaInput(body.media);
@@ -322,6 +332,12 @@ export default async function handler(req, res) {
       if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
       state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
+      if (chatActions.includes(body.action)) {
+        const result = chatAction(state, me, body, upload);
+        if (result.removedId) removedIds.push(result.removedId);
+        if (result.duplicate && upload) removedIds.push(upload.id);
+        return;
+      }
       const post = state.posts.find(p => p.id === body.postId);
       if (['repost', 'react', 'comment', 'vote', 'save', 'delete'].includes(body.action) && (!post || !visible(post, me))) fail(404, 'Publicação não encontrada.');
       switch (body.action) {
@@ -383,17 +399,6 @@ export default async function handler(req, res) {
         case 'message':
           state.messages.push({ id: randomUUID(), author: me.name, authorId: me.id, authorKey: `id:${me.id}`, text: text(body.text, 2000), createdAt: Date.now() });
           state.messages = state.messages.slice(-100); break;
-        case 'dm': {
-          const toKey = text(body.toKey, 90);
-          if (!/^(id:[a-f0-9-]{36}|name:.+)$/.test(toKey)) fail(400, 'Escolha um destinatário válido.');
-          const myKey = `id:${me.id}`;
-          if (toKey === myKey) fail(400, 'Escolha outra pessoa da comunidade para conversar.');
-          const msgText = text(body.text, 2000);
-          state.dms = Array.isArray(state.dms) ? state.dms : [];
-          state.dms.push({ id: randomUUID(), fromKey: myKey, fromName: me.name, toKey, toName: text(body.toName || toKey.replace(/^name:/, ''), 60, false), text: msgText, createdAt: Date.now() });
-          state.dms = state.dms.slice(-400);
-          break;
-        }
         case 'join': state.interests[me.id] = !state.interests[me.id]; break;
         case 'follow': {
           const key = text(body.authorKey, 90);
@@ -407,7 +412,8 @@ export default async function handler(req, res) {
         case 'friend': {
           const key = text(body.authorKey, 90);
           const myKey = `id:${me.id}`;
-          if (!/^(id:[a-f0-9-]{36}|name:.+)$/.test(key) || key === myKey) fail(400, 'Não foi possível atualizar esta amizade.');
+          if (key === myKey) fail(400, 'Não foi possível atualizar esta amizade.');
+          if (!/^id:[a-f0-9-]{36}$/.test(key) || !state.accounts?.some(a => `id:${a.id}` === key)) fail(404, 'Esta pessoa não tem conta nesta prévia.');
           state.friends ||= {};
           state.friendRequests ||= {};
           const myFriends = Array.isArray(state.friends[myKey]) ? state.friends[myKey] : [];
@@ -417,7 +423,7 @@ export default async function handler(req, res) {
           if (myFriends.includes(key)) {
             state.friends[myKey] = myFriends.filter(k => k !== key);
             state.friends[key] = theirFriends.filter(k => k !== myKey);
-          } else if (incoming.includes(key) || key.startsWith('name:')) {
+          } else if (incoming.includes(key)) {
             state.friendRequests[myKey] = incoming.filter(k => k !== key);
             if (!myFriends.includes(key)) state.friends[myKey] = [...myFriends, key].slice(-200);
             if (!theirFriends.includes(myKey)) state.friends[key] = [...theirFriends, myKey].slice(-200);
@@ -487,7 +493,7 @@ export default async function handler(req, res) {
     fileUpload = null;
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return res.end(JSON.stringify(snapshot(data, me)));
+    return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, me, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, me)));
   } catch (error) {
     if (upload) await deleteMedia(upload.id).catch(() => {});
     if (fileUpload) await deleteMedia(fileUpload.id).catch(() => {});

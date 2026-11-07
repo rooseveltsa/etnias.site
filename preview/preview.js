@@ -168,7 +168,7 @@ function paintCommunity(){
   openBtn.append(info);
   const dmBtn=make('button','💬','community-dm-btn');dmBtn.type='button';dmBtn.title='Conversar em privado com '+person.name;dmBtn.setAttribute('aria-label','Conversar em privado com '+person.name);
   dmBtn.onclick=()=>openPrivateChat(person.key,person.name,person.avatar);
-  li.append(openBtn,dmBtn);return li;
+  if(!person.key.startsWith('id:')){dmBtn.disabled=true;dmBtn.title='Pessoa do acervo sem conta nesta prévia';}li.append(openBtn,dmBtn);return li;
  }));
  const status=$('#community-connection');if(status)status.textContent=people.length?'':'As pessoas das publicações aparecem aqui.';
 }
@@ -194,12 +194,13 @@ function renderProfile(){
  const actions=$('#profile-actions');actions.replaceChildren();
  if(!person.own){
   const friendBtn=button(friendLabel(person.friendStatus),()=>change({action:'friend',authorKey:person.key}),actions);
+  friendBtn.disabled=!person.key.startsWith('id:');
   friendBtn.className=person.friendStatus==='friends'?'preview-secondary':'opy-primary';
   friendBtn.setAttribute('aria-pressed',String(person.friendStatus==='friends'));
   const followBtn=button(person.following?'Seguindo ✓':'Seguir',()=>change({action:'follow',authorKey:person.key}),actions);
   followBtn.setAttribute('aria-pressed',String(!!person.following));
   const msgBtn=button('Mensagem privada',()=>{sheet.close();openPrivateChat(person.key,person.name,person.avatar);},actions);
-  msgBtn.className='preview-secondary';
+  msgBtn.className='preview-secondary';msgBtn.disabled=!person.key.startsWith('id:');if(msgBtn.disabled)msgBtn.textContent='Pessoa do acervo · sem conta nesta prévia';
  }
  all('[data-profile-tab]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.profileTab===profileTab));});
  const filtered=userPosts.filter(p=>profileTab==='all'||matchMediaKind(p,profileTab));
@@ -218,15 +219,9 @@ function openProfile(key, fallbackName='', fallbackAvatar=''){
  renderProfile();
  const sheet=$('#profile-sheet');if(sheet&&!sheet.open)sheet.showModal();
 }
-function openPrivateChat(key, name='', avatar=''){
- if(document.body.dataset.previewRoute==='messages'){
-  activeChatKey=key;render();$('#preview-message')?.focus();return;
- }
- dockChatKey=key;
- const dock=$('#chat-dock');if(!dock)return;
- dock.hidden=false;
- renderDockChat();
- $('#chat-dock-input')?.focus();
+function openPrivateChat(key){
+ if(!key?.startsWith('id:')){showError('Esta pessoa aparece no acervo e ainda não tem conta nesta prévia.');return;}
+ location.href='/chat/?p='+encodeURIComponent(key);
 }
 function renderDockChat(){
  const dock=$('#chat-dock');if(!dock||dock.hidden||!dockChatKey||!state)return;
@@ -482,7 +477,7 @@ if(etniaForm){
 $('#preview-logout')?.addEventListener('click',async()=>{const button=$('#preview-logout');button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}});
 if(document.body.dataset.previewRoute==='entrar')bindWelcome();
 refresh().then(()=>{if(location.hash.startsWith('#post-'))document.getElementById(location.hash.slice(1))?.scrollIntoView();});
-if(document.body.dataset.previewRoute!=='entrar')setInterval(()=>{if(!document.hidden&&!busy)refresh();},document.body.dataset.previewRoute==='messages'?4000:20000);
+if(!['entrar','messages'].includes(document.body.dataset.previewRoute))setInterval(()=>{if(!document.hidden&&!busy)refresh();},document.body.dataset.previewRoute==='messages'?4000:20000);
 document.addEventListener('pointerdown',event=>{all('.post-react.is-open').forEach(wrap=>{if(!wrap.contains(event.target))wrap.classList.remove('is-open');});});
 function offerInstall(){
   const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
