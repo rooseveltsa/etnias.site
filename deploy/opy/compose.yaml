@@ -1,0 +1,29 @@
+name: casa-opy
+services:
+  opy:
+    build:
+      context: ../..
+      dockerfile: deploy/opy/Dockerfile
+    image: casa-opy:local
+    restart: unless-stopped
+    ports:
+      # Só o proxy HTTPS do host acessa. Câmera e microfone exigem HTTPS no navegador.
+      - "127.0.0.1:${OPY_HTTP_PORT:-8101}:8101"
+    environment:
+      OPY_SESSION_SECRET: ${OPY_SESSION_SECRET:?Configure deploy/opy/.env}
+      OPY_TURN_URLS: ${OPY_TURN_URLS:-}
+      OPY_STUN_URLS: ${OPY_STUN_URLS:-}
+      OPY_TURN_SECRET: ${OPY_TURN_SECRET:-}
+    volumes:
+      - opy-data:/data
+  turn:
+    # TURN/STUN próprio para as chamadas atravessarem redes móveis (CGNAT). Rede do host: o TURN precisa do IP público e da faixa UDP.
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ${OPY_TURN_CERT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+    command: ["-c", "/etc/coturn/turnserver.conf", "--static-auth-secret=${OPY_TURN_SECRET:?Configure deploy/opy/.env}", "--external-ip=${OPY_PUBLIC_IP:?Configure deploy/opy/.env}", "--realm=${OPY_TURN_REALM:?Configure deploy/opy/.env}"]
+volumes:
+  opy-data:

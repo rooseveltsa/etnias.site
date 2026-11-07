@@ -1,0 +1,9 @@
+# Só o necessário entra na imagem: nada de public_html, dumps, uploads, logs ou dados locais.
+*
+!preview/package.json
+!preview/package-lock.json
+!preview/server
+!preview/middleware.js
+!preview/public-posts.json
+!preview/dist/public
+!scripts/opy-preview-server.mjs

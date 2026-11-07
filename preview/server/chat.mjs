@@ -53,7 +53,7 @@ function project(state, me, m) {
     media: !m.deleted && m.media ? { url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name } : null,
     reply: m.replyTo ? { text: reply && !reply.deleted ? reply.text.slice(0,160) : 'Mensagem apagada', name: reply?.fromName || '' } : null,
     reactions: m.deleted ? {} : Object.fromEntries(reactions.map(r => [r, Object.values(m.reactions || {}).filter(v => v === r).length]).filter(([,n])=>n)),
-    reaction: m.deleted ? '' : m.reactions?.[keyOf(me)] || '' };
+    reaction: m.deleted ? '' : m.reactions?.[keyOf(me)] || '', call: m.call ? { kind: m.call.kind, status: m.call.status, duration: m.call.duration } : null };
 }
 export function chatMedia(state, me, id) {
   return state.dms?.find(m => !m.deleted && m.media?.id === id && canRead(state, me, m))?.media || null;
@@ -85,7 +85,8 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
       .filter(Boolean);
     const sharedMedia = fullList.filter(m => !m.deleted && m.media).slice(-12).reverse().map(m => ({ id: m.media.id, url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name, at: m.createdAt }));
     selected = { key, name:t.name, username:otherAcc?.username || '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
-      description:t.group?.description || '', typing, sharedMedia, members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
+      description:t.group?.description || '', typing, sharedMedia,
+      canCall: !t.group && !t.members.some(k=>k!==mine && blocked(state,mine,k)) && fullList.some(m=>m.fromKey===key && !m.call && !m.deleted), members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
     list = fullList;
     const q = text(params.get('q') || '',100,false).toLocaleLowerCase('pt-BR');
     if(q)list=list.filter(m=>!m.deleted && m.text.toLocaleLowerCase('pt-BR').includes(q));
@@ -119,7 +120,7 @@ export function chatAction(state, me, body, upload) {
     const previous=body.clientId && state.dms.find(m=>m.fromKey===mine && m.clientId===body.clientId);
     if(previous){if(previous.digest!==digest)fail(409,'Este envio já foi usado. Abra um novo rascunho.');return {duplicate:true};}
     if(state.dms.length>=10000)fail(409,'A prévia atingiu o limite de mensagens. O histórico foi preservado.');
-    if(body.replyTo){const reply=messageOf(state,me,body.replyTo);if(reply.deleted || messageKey(me,reply)!==body.toKey)fail(400,'Escolha uma mensagem desta conversa para responder.');}
+    if(body.replyTo){const reply=messageOf(state,me,body.replyTo);if(reply.deleted || reply.call || messageKey(me,reply)!==body.toKey)fail(400,'Escolha uma mensagem desta conversa para responder.');}
     const bucket=typingBucketKey(mine,body.toKey);
     if(state.chatTyping?.[bucket]) delete state.chatTyping[bucket][mine];
     state.dms.push({id:randomUUID(),clientId:body.clientId || randomUUID(),digest,fromKey:mine,fromName:me.name,toKey:body.toKey,toName:t.name,text:copy,createdAt:Date.now(),replyTo:body.replyTo || null,...(upload ? {media:{id:upload.id,name:upload.name,kind:upload.kind}} : {})});
@@ -127,6 +128,7 @@ export function chatAction(state, me, body, upload) {
   }
   if(['chat_edit','chat_delete','chat_react','chat_report'].includes(body.action)) {
     const m=messageOf(state,me,body.messageId);
+    if(m.call && ['chat_edit','chat_react'].includes(body.action))fail(400,'Registros de chamada não podem ser editados.');
     if(body.action==='chat_report') {
       const reason=text(body.reason,500); state.chatReports ||= [];
       if(state.chatReports.filter(r=>r.authorKey===mine).length>=20)fail(409,'Limite de registros atingido.');

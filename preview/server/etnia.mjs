@@ -32,16 +32,16 @@ const sources = [
   {
     id: 'caminhos',
     title: 'Caminhos da Casa Opy',
-    revised,
+    revised: '2026-11-07',
     terms: ['barra inferior', 'maraca', 'menu lateral', 'onde fica o chat', 'notificacoes'],
-    answer: 'O feed é a casa. A barra de baixo traz Feed, Mercado, Postagem, Saberes e EtnIA. Opy abre o menu lateral. Chat e Maracá ficam no cabeçalho: o Chat é a sala pública e o Maracá mostra reações e comentários nas suas publicações.'
+    answer: 'O feed é a casa. A barra de baixo traz Feed, Mercado, Postagem, Saberes e EtnIA. Opy abre o menu lateral. Chat e Maracá ficam no cabeçalho: o Chat reúne suas conversas privadas e grupos por convite, e o Maracá mostra reações e comentários nas suas publicações.'
   },
   {
     id: 'chat',
     title: 'Chat e EtnIA',
-    revised,
+    revised: '2026-11-07',
     terms: ['sala publica', 'mensagem privada', 'conversa privada', 'o chat'],
-    answer: 'O Chat desta prévia é uma sala pública. Quem está no ambiente vê as mensagens; não é conversa com um destinatário. A EtnIA é outra conversa: só a sua conta vê o que você pergunta aqui, e eu respondo sobre o site e o projeto.'
+    answer: 'O Chat desta prévia não é uma sala pública. Ele tem conversas privadas entre contas criadas aqui e grupos de até 12 pessoas, que só se abrem para quem aceita o convite. As mensagens ficam guardadas na plataforma, sem criptografia de ponta a ponta. A EtnIA é outra conversa: só a sua conta vê o que você pergunta aqui, e eu respondo sobre o site e o projeto.'
   },
   {
     id: 'saberes',
@@ -88,9 +88,9 @@ const sources = [
   {
     id: 'previa',
     title: 'O que esta prévia faz',
-    revised,
+    revised: '2026-11-07',
     terms: ['etnias.site', 'site oficial', 'esta previa', 'homologacao', 'o que funciona', 'o que ja funciona'],
-    answer: 'Esta é a prévia de homologação da Casa Opy. Ela não altera o domínio etnias.site nem o banco antigo. Dá para criar uma conta daqui, ver o acervo autorizado, publicar, reagir, comentar, salvar e usar a sala pública. Saberes, Guardião, fotógrafos, música e doação são protótipos de tela, não serviços concluídos.'
+    answer: 'Esta é a prévia de homologação da Casa Opy. Ela não altera o domínio etnias.site nem o banco antigo. Dá para criar uma conta daqui, ver o acervo autorizado, publicar, reagir, comentar, salvar e conversar em privado pelo Chat. Saberes, Guardião, fotógrafos, música e doação são protótipos de tela, não serviços concluídos.'
   },
   {
     id: 'revisao',

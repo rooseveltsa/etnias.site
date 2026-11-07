@@ -44,9 +44,8 @@ function visitor() {
   assert.equal(current.poll.counts[1], 1);
   await bob({ action: 'save', postId: post.id });
   assert.equal((await bob()).data.posts.find(p => p.id === post.id).saved, true);
-  const message = `Mensagem recebida por outra sessão ${Date.now()}`;
-  assert.equal((await alice({ action: 'message', text: message })).status, 200);
-  assert.ok((await bob()).data.messages.some(m => m.text === message), 'Mensagem é entregue a outra sessão');
+  assert.equal((await alice({ action: 'message', text: 'Sala pública removida' })).status, 400, 'A antiga sala pública não aceita mensagens');
+  assert.equal((await bob()).data.messages, undefined, 'O snapshot não expõe a antiga sala pública');
   assert.equal((await alice({ action: 'delete', postId: post.id })).status, 200);
   assert.ok(!(await bob()).data.posts.some(p => p.id === post.id));
   const enrolled = await alice({ action: 'enroll_saber', trackId: 'saberes-comunicacao' });

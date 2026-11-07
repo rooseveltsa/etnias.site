@@ -6,7 +6,18 @@ import middleware from '../preview/middleware.js';
 const root = resolve('preview/dist/public');
 const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json' };
 const port = Number(process.env.PORT) || 8101;
+// Na VPS o container precisa ouvir 0.0.0.0; o proxy HTTPS do host fica na frente. Localmente segue em 127.0.0.1.
+const host = process.env.HOST || '127.0.0.1';
+// Mesmos cabeçalhos de preview/dist/vercel.json, mais câmera e microfone só para o próprio site (chamadas e gravação de áudio).
+const security = {
+  'X-Robots-Tag': 'noindex, nofollow',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()',
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'"
+};
 http.createServer(async (req, res) => {
+ for (const [name, value] of Object.entries(security)) res.setHeader(name, value);
  try {
   const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
   const pathname = url.pathname;
@@ -27,4 +38,4 @@ http.createServer(async (req, res) => {
 }).on('error', error => {
   console.error(error.code === 'EADDRINUSE' ? `A porta ${port} está ocupada. Feche a outra prévia ou use PORT=8102 node scripts/dev-opy.mjs.` : error.message);
   process.exitCode = 1;
-}).listen(port, '127.0.0.1', () => console.log('Abra http://127.0.0.1:' + port));
+}).listen(port, host, () => console.log(`Casa Opy ouvindo em http://${host}:${port}`));

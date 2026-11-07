@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 const snapshot=key=>({selected:{name:key,key,members:[]},people:[],conversations:[],messages:[],invitations:[],hasMore:false,me:{id:'A'}});
 function setup(){
  const elements=new Map(),requests=[],reads=[];
- const element=()=>({value:'',checked:false,dataset:{},scrollHeight:100,scrollTop:100,clientHeight:100,files:[],append(){},prepend(){},replaceChildren(){},setAttribute(){},addEventListener(){},focus(){},showModal(){this.open=true;},close(){this.open=false;}});
+ const element=()=>({value:'',checked:false,dataset:{},style:{},classList:{toggle(){},add(){},remove(){}},scrollHeight:100,scrollTop:100,clientHeight:100,files:[],append(){},prepend(){},replaceChildren(){},setAttribute(){},addEventListener(){},focus(){},showModal(){this.open=true;},close(){this.open=false;}});
  const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
  const runtime={Intl,Date,URLSearchParams,AbortController,Map,Set,JSON,Error,TypeError,setTimeout,clearTimeout,setInterval(){},crypto:{randomUUID:()=> '44444444-4444-4444-8444-444444444444'},location:{search:'?p=id:B',pathname:'/chat/'},history:{replaceState(){}},navigator:{onLine:true},document:{hidden:false,querySelector:get,querySelectorAll:()=>[],createElement:element,addEventListener(){}},window:{addEventListener(){}},fetch:()=>new Promise(resolve=>requests.push(resolve)),FileReader:class {readAsDataURL(){reads.push(()=>{this.result='data:text/plain;base64,b2k=';this.onload();});}}};
  const source=fs.readFileSync('preview/chat.js','utf8').replace(/\}\)\(\);\s*$/,'globalThis.check={choose,refresh,send,state:()=>({key,data,sending,attachment})};})();');

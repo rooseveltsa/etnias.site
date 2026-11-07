@@ -5,6 +5,7 @@ import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
 import { createSession, verifySession, sessionCookie, sessionAccount, addSession } from './session.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
+import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -154,7 +155,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, posts, stories, messages: state.messages, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, posts, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -222,6 +223,10 @@ export default async function handler(req, res) {
       if (path.searchParams.get('view') === 'chat' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(chatSnapshot(state, me, path.searchParams)));
+      }
+      if (path.searchParams.get('view') === 'calls' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');
@@ -305,7 +310,7 @@ export default async function handler(req, res) {
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'message', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -334,7 +339,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [];
+    let removedIds = [], callResult = null;
     const { data } = await transact(state => {
       removedIds = [];
       const currentAccount = sessionAccount(state, session);
@@ -346,6 +351,8 @@ export default async function handler(req, res) {
       if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
       state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
+      settleCalls(state);
+      if (callActions.includes(body.action)) { callResult = callAction(state, me, body); return; }
       if (chatActions.includes(body.action)) {
         const result = chatAction(state, me, body, upload);
         if (result.removedId) removedIds.push(result.removedId);
@@ -432,9 +439,6 @@ export default async function handler(req, res) {
           removedIds = [post.media?.id, post.file?.id].filter(mid => mid && !remaining.some(p => p.media?.id === mid || p.file?.id === mid || p.repostOf?.media?.id === mid || p.repostOf?.file?.id === mid));
           state.posts = remaining; break;
         }
-        case 'message':
-          state.messages.push({ id: randomUUID(), author: me.name, authorId: me.id, authorKey: `id:${me.id}`, text: text(body.text, 2000), createdAt: Date.now() });
-          state.messages = state.messages.slice(-100); break;
         case 'join': {
           ensureCommunities(state);
           communityAction(state, me, { action: 'community_join', communityId: 'avaliacao-casa-opy' });
@@ -533,6 +537,7 @@ export default async function handler(req, res) {
     fileUpload = null;
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, activeMe, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, activeMe)));
   } catch (error) {
     if (upload) await deleteMedia(upload.id).catch(() => {});

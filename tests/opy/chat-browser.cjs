@@ -17,7 +17,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   await pa.locator('#chat-text').fill('Mensagem de teste');await pa.locator('#chat-send').click();
   await pb.locator('#chat-log').getByText('Mensagem de teste',{exact:true}).waitFor();
   assert.equal(await pa.locator('#chat-log .chat-bubble').count(),1);
-  await pa.locator('#chat-log summary').first().click();await pa.getByRole('button',{name:'Editar',exact:true}).click();
+  await pa.locator('#chat-log .chat-bubble-more').first().click();await pa.getByRole('button',{name:'Editar',exact:true}).click();
   await pa.locator('#chat-dialog textarea').fill('Mensagem corrigida');await pa.locator('#chat-dialog').getByRole('button',{name:'Salvar',exact:true}).click();
   await pb.locator('#chat-log').getByText('Mensagem corrigida',{exact:true}).waitFor();
 
