@@ -26,6 +26,8 @@ Ordem ajustada às dependências reais encontradas na auditoria. Toda mudança: 
 
 Pendências que dependem de você: contas da Meta (WhatsApp) e do Brevo, DNS dos subdomínios do app e do TURN, e a liberação das portas no painel da Hostinger.
 
+> Prioridades de produto inspiradas no Facebook, com adaptação para os povos originários: [ETNIAS_REFERENCIA_FACEBOOK.md](ETNIAS_REFERENCIA_FACEBOOK.md).
+
 ## 2. Fases
 
 ### Fase 1 — Design system (sem mudar comportamento)

@@ -3,7 +3,7 @@
 $root = dirname(__DIR__);
 $project = $root . '/preview/dist';
 $destination = $project . '/public';
-$paths = array('home'=>'','entrar'=>'entrar','etnia'=>'etnia','iara'=>'iara','search'=>'search','suggested-groups'=>'grupos','suggested-pages'=>'paginas','blogs'=>'blogs','products'=>'mercado','events'=>'eventos','movies'=>'filmes','jobs'=>'empregos','funding'=>'coletas','terms'=>'sobre','messages'=>'chat','notifications'=>'notificacoes','account'=>'conta','help'=>'sobre-a-previa','saved-posts'=>'salvos','albums'=>'albuns','memories'=>'recordacoes','joined_groups'=>'meus-grupos','liked-pages'=>'minhas-paginas','setting'=>'configuracoes','saberes'=>'saberes','guardiao'=>'guardiao','fotografos'=>'fotografos','musica'=>'musica','doar'=>'doar');
+$paths = array('home'=>'','entrar'=>'entrar','etnia'=>'etnia','iara'=>'iara','search'=>'search','suggested-groups'=>'grupos','suggested-pages'=>'paginas','blogs'=>'blogs','products'=>'mercado','events'=>'eventos','movies'=>'filmes','jobs'=>'empregos','funding'=>'coletas','terms'=>'sobre','messages'=>'chat','notifications'=>'notificacoes','account'=>'conta','profile'=>'perfil','help'=>'sobre-a-previa','saved-posts'=>'salvos','albums'=>'albuns','memories'=>'recordacoes','joined_groups'=>'meus-grupos','liked-pages'=>'minhas-paginas','setting'=>'configuracoes','saberes'=>'saberes','guardiao'=>'guardiao','fotografos'=>'fotografos','musica'=>'musica','doar'=>'doar');
 if (!is_dir($destination)) mkdir($destination, 0755, true);
 function previewRewriteLink($match) {
     global $paths;

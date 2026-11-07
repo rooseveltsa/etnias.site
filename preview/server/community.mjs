@@ -72,8 +72,10 @@ function phoneOf(value) {
   if (!/^[1-9][0-9]9?[0-9]{8}$/.test(local)) fail(400, 'Informe o telefone com DDD, com 10 ou 11 dígitos.');
   return local;
 }
+const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
-  return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '' };
+  return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '',
+    avatar: profileUrl(account.avatarId), cover: profileUrl(account.coverId), joinedAt: account.createdAt || 0 };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
@@ -96,11 +98,12 @@ function snapshot(state, me) {
   const communityNames = new Map(communities.map(c => [c.id, c.name]));
   const followed = new Set(Array.isArray(state.follows?.[me.id]) ? state.follows[me.id] : []);
   const mapMedia = m => m ? { url: `/api/media?id=${m.id}`, kind: m.kind, name: m.name } : null;
+  const accountsById = new Map((state.accounts || []).map(a => [a.id, a]));
   const posts = state.posts.filter(p => visible(p, me, state)).map(p => {
     const aKey = authorKeyOf(p);
     return {
       id: p.id, text: p.text, author: p.author, authorKey: aKey, following: followed.has(aKey), friendStatus: friendStatusOf(state, myKey, aKey),
-      origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', avatar: archiveAvatar(p), attachmentMissing: !!p.attachmentMissing,
+      origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', avatar: archiveAvatar(p) || profileUrl(accountsById.get(p.authorId)?.avatarId), attachmentMissing: !!p.attachmentMissing,
       media: mapMedia(p.media), file: mapMedia(p.file), location: p.location || '',
       communityId: p.communityId || '', communityName: p.communityId ? (communityNames.get(p.communityId) || p.communityName || '') : '',
       audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
@@ -114,7 +117,7 @@ function snapshot(state, me) {
   const peopleMap = new Map();
   for (const acc of (state.accounts || [])) {
     const key = `id:${acc.id}`;
-    peopleMap.set(key, { key, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', avatar: '', own: acc.id === me.id });
+    peopleMap.set(key, { key, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', avatar: profileUrl(acc.avatarId), cover: profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, own: acc.id === me.id });
   }
   for (const p of state.posts) {
     if (!visible(p, me, state)) continue;
@@ -232,7 +235,9 @@ export default async function handler(req, res) {
         const id = path.searchParams.get('id');
         const post = state.posts.find(p => visible(p, me, state) && (p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
-        const named = (post?.media?.id === id ? post.media : post?.file?.id === id ? post.file : post?.repostOf?.media?.id === id ? post.repostOf.media : post?.repostOf?.file) || story?.media || chatMedia(state, me, id);
+        // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
+        const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
+        const named = profileOwner ? { kind: 'image', name: 'perfil' } : ((post?.media?.id === id ? post.media : post?.file?.id === id ? post.file : post?.repostOf?.media?.id === id ? post.repostOf.media : post?.repostOf?.file) || story?.media || chatMedia(state, me, id));
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
@@ -310,7 +315,7 @@ export default async function handler(req, res) {
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -331,6 +336,14 @@ export default async function handler(req, res) {
     if (body.action === 'dm') {
       upload = mediaInput(body.media);
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
+    }
+    if (body.action === 'profile_media') {
+      if (!['avatar', 'cover'].includes(body.kind)) fail(400, 'Escolha foto de perfil ou capa.');
+      if (body.media !== null) {
+        upload = mediaInput(body.media);
+        if (!upload || upload.kind !== 'image') fail(400, 'Escolha uma imagem PNG, JPG ou WebP de até 2 MB.');
+        await saveMedia(upload.id, upload.bytes, upload.type);
+      }
     }
     if (body.action === 'story_create') {
       body.text = text(body.text ?? '', 280, false);
@@ -377,6 +390,13 @@ export default async function handler(req, res) {
           for (const p of state.posts || []) {
             if (p.authorId === me.id) p.author = nextName;
           }
+          activeMe = member(currentAccount);
+          break;
+        }
+        case 'profile_media': {
+          const field = body.kind === 'avatar' ? 'avatarId' : 'coverId';
+          if (currentAccount[field]) removedIds.push(currentAccount[field]);
+          if (upload) currentAccount[field] = upload.id; else delete currentAccount[field];
           activeMe = member(currentAccount);
           break;
         }

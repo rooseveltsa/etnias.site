@@ -90,12 +90,23 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   await pa.locator('#opy-compose button[type="submit"]').click();
   await pa.locator('#preview-feed .community-post').filter({hasText:'Publicação com foto do novo composer'}).waitFor();
 
-  // 4. Edição de perfil em /conta/
+  // 4. Perfil em /conta/: página com capa e abas, edição em painel, foto de perfil enviada de verdade
   await pa.goto(base+'/conta/');
+  await pa.locator('#profile-page .pf-id h1').filter({hasText:'Ana QA'}).waitFor();
+  await pa.getByRole('button',{name:'Editar perfil',exact:true}).click();
   await pa.locator('#profile-edit-affiliation').fill('Rede de Comunicadores');
   await pa.locator('#profile-edit-bio').fill('Engenheira de QA e guardiã da memória digital.');
   await pa.locator('#profile-edit-form button[type="submit"]').click();
   await pa.locator('#profile-edit-status').filter({hasText:'sucesso'}).waitFor();
+  await pa.locator('#profile-avatar-input').setInputFiles({name:'rosto.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6UVsAAAAASUVORK5CYII=','base64')});
+  await pa.locator('#profile-edit-status').filter({hasText:'Foto do perfil atualizada'}).waitFor();
+  await pa.locator('[data-close-edit]').click();
+  await pa.locator('#profile-page .pf-avatar img[src^="/api/media?id="]').waitFor();
+  await pa.locator('#profile-page .pf-bio').filter({hasText:'guardiã da memória digital'}).waitFor();
+  // Beto vê o perfil de Ana com a foto, a apresentação e as ações de seguir e mensagem
+  await pb.goto(base+'/perfil/?u='+encodeURIComponent('id:'+aa.id));
+  await pb.locator('#profile-page .pf-avatar img[src^="/api/media?id="]').waitFor();
+  await pb.getByRole('button',{name:'Mensagem',exact:true}).waitFor();
 
   assert.deepEqual(errors,[]);
   console.log('PASS E2E navegador: chat 2 usuários (envio, edição, contexto, offline/retry, mobile master-detail), comunidades (criação privada, aprovação, postagem), composer (foto + diagnóstico honesto de Live) e edição de perfil.');
