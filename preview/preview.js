@@ -161,28 +161,31 @@ function renderPost(post, communityContext=null){
  card.append(form);return card;
 }
 function paintCommunity(){
+ // Coluna lateral: comunidades por tema. Pessoas aparecem no contexto delas (comunidade, publicação, busca), não numa lista solta.
  const list=$('#community-people');if(!list)return;
- const seen=new Set();const people=[];
- for(const person of (state.directory||[])){
-  const key=(person.name||'').trim().toLocaleLowerCase('pt-BR');
-  if(!key||seen.has(key)||person.own)continue;
-  seen.add(key);people.push(person);if(people.length===8)break;
- }
- list.replaceChildren(...people.map(person=>{
-  const li=document.createElement('li');li.className='community-person-row';
-  const openBtn=make('button',undefined,'community-person');openBtn.type='button';
-  openBtn.onclick=()=>openProfile(person.key,person.name,person.avatar);
-  openBtn.append(avatarNode(person.name,person.avatar,36));
-  const info=make('span',undefined,'community-person-info');
-  info.append(make('strong',person.name));
-  if(person.friendStatus==='friends')info.append(make('small','Amigo ✓'));
-  else if(person.following)info.append(make('small','Seguindo'));
-  openBtn.append(info);
-  const dmBtn=make('button','💬','community-dm-btn');dmBtn.type='button';dmBtn.title='Conversar em privado com '+person.name;dmBtn.setAttribute('aria-label','Conversar em privado com '+person.name);
-  dmBtn.onclick=()=>openPrivateChat(person.key,person.name,person.avatar);
-  if(!person.key.startsWith('id:')){dmBtn.disabled=true;dmBtn.title='Pessoa do acervo sem conta nesta prévia';}li.append(openBtn,dmBtn);return li;
- }));
- const status=$('#community-connection');if(status)status.textContent=people.length?'':'As pessoas das publicações aparecem aqui.';
+ const all=Array.isArray(state.communities)?state.communities:[];
+ const open=all.filter(c=>!c.joined).sort((a,b)=>Number(!!a.pending)-Number(!!b.pending)||(b.membersCount||0)-(a.membersCount||0)).slice(0,4);
+ const joined=all.filter(c=>c.joined).slice(0,4);
+ const row=c=>{
+  const li=make('li',undefined,'rail-community');
+  const link=make('a',undefined,'rail-community-link');link.href='/grupos/?c='+encodeURIComponent(c.id);
+  link.append(make('span',(c.name||'C').slice(0,1).toLocaleUpperCase('pt-BR'),'rail-community-mark'));
+  const info=make('span',undefined,'rail-community-info');
+  const n=c.membersCount||0;info.append(make('strong',c.name),make('small',[c.category,n+(n===1?' participante':' participantes'),c.visibility==='private'?'privada':''].filter(Boolean).join(' · ')));
+  link.append(info);li.append(link);
+  if(!c.joined){
+   const join=make('button',c.pending?'Pedido enviado':c.visibility==='private'?'Pedir entrada':'Participar','rail-community-join');join.type='button';join.disabled=!!c.pending;
+   join.onclick=async()=>{join.disabled=true;try{await change({action:'community_join',communityId:c.id});}catch(e){join.disabled=false;const st=$('#community-connection');if(st)st.textContent=e.message;}};
+   li.append(join);
+  }
+  return li;
+ };
+ const items=[];
+ if(open.length){items.push(make('li','Para participar','rail-community-group'));items.push(...open.map(row));}
+ if(joined.length){items.push(make('li','Suas comunidades','rail-community-group'));items.push(...joined.map(row));}
+ const more=make('li',undefined,'rail-community-more');const a=make('a','Ver todas as comunidades');a.href='/grupos/';more.append(a);items.push(more);
+ list.replaceChildren(...items);
+ const status=$('#community-connection');if(status)status.textContent=all.length?'':'Ainda não há comunidades. Crie a primeira em Grupos.';
 }
 function matchMediaKind(p, kind){
  if(kind==='photos')return p.media?.kind==='image'||!!p.image||p.repostOf?.media?.kind==='image'||!!p.repostOf?.image;

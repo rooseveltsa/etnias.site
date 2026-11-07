@@ -51,7 +51,7 @@ test('fluxo completo: toca, atende, troca SDP só com a pessoa certa e registra 
 
 test('ocupado, recusa, cancelamento e chamada perdida por tempo', () => {
   const s = fresh();
-  dm(s, bob, caio);
+  dm(s, bob, caio); dm(s, caio, bob);
   const { callId } = start(s, alice, bob, 1000, 'audio');
   rejects(() => start(s, caio, bob, 2000), 409);
   rejects(() => start(s, alice, bob, 2000), 409);

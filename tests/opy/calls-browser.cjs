@@ -15,9 +15,8 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
     // Sem mensagem de Beto, Ana não consegue ligar (regra contra chamadas de desconhecidos).
     await say(a, beto, 'Oi Beto');
     await pa.goto(base + '/chat/?p=' + encodeURIComponent('id:' + beto.id));
-    await pa.locator('#chat-call-video').click();
-    await pa.locator('#chat-status').filter({ hasText: 'responder a uma mensagem sua' }).waitFor();
-    assert.equal(await pa.locator('#call-screen[open]').count(), 0);
+    await pa.locator('#chat-notice').filter({ hasText: 'Solicitação enviada' }).waitFor();
+    assert.equal(await pa.locator('#chat-call-video').isVisible(), false, 'sem conversa aceita não há botão de ligar');
 
     await say(b, ana, 'Oi Ana, pode ligar');
     await pa.reload();

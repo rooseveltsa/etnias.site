@@ -21,6 +21,12 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   await pa.locator('#chat-dialog textarea').fill('Mensagem corrigida');await pa.locator('#chat-dialog').getByRole('button',{name:'Salvar',exact:true}).click();
   await pb.locator('#chat-log').getByText('Mensagem corrigida',{exact:true}).waitFor();
 
+  // Direct: sem vínculo, a mensagem de Ana chega a Beto como solicitação; Ana espera o aceite
+  await pa.locator('#chat-notice').filter({hasText:'Solicitação enviada'}).waitFor();
+  assert.equal(await pa.locator('#chat-form').isVisible(),false);
+  await pb.locator('#chat-notice').getByRole('button',{name:'Aceitar',exact:true}).click();
+  await pa.locator('#chat-form').waitFor({state:'visible',timeout:15000});
+
   // Painel contextual de detalhes do contato
   await pa.locator('#chat-info-toggle').click();
   await pa.locator('#chat-context').waitFor({state:'visible'});

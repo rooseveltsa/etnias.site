@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 
-export const chatActions = ['dm', 'chat_typing', 'chat_edit', 'chat_delete', 'chat_react', 'chat_read', 'chat_preferences', 'chat_block', 'chat_report', 'chat_group_create', 'chat_group_accept', 'chat_group_decline', 'chat_group_update', 'chat_group_invite', 'chat_group_remove', 'chat_group_admin', 'chat_group_leave'];
+export const chatActions = ['dm', 'chat_typing', 'chat_edit', 'chat_delete', 'chat_react', 'chat_read', 'chat_preferences', 'chat_block', 'chat_report', 'chat_group_create', 'chat_group_accept', 'chat_group_decline', 'chat_group_update', 'chat_group_invite', 'chat_group_remove', 'chat_group_admin', 'chat_group_leave', 'chat_request_accept', 'chat_request_decline'];
 const keyOf = me => `id:${me.id}`;
 const typingBucketKey = (mine, key) => key.startsWith('group:') ? key : [mine, key].sort().join('|');
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -17,6 +17,23 @@ function person(state, key) {
 }
 function groupOf(state, key) { return state.chatGroups?.find(g => `group:${g.id}` === key); }
 function blocked(state, a, b) { return !!(state.chatBlocks?.[a]?.includes(b) || state.chatBlocks?.[b]?.includes(a)); }
+const pairKey = (a, b) => [a, b].sort().join('|');
+const follows = (state, who, target) => !!state.follows?.[who.slice(3)]?.includes(target);
+const friends = (state, a, b) => !!state.friends?.[a]?.includes(b);
+const sentTo = (state, from, to) => (state.dms || []).some(m => m.fromKey === from && m.toKey === to && !m.call && !m.deleted);
+// Modelo do Direct: amizade, seguir de volta ou aceite liberam a conversa; sem vínculo, a primeira mensagem vira solicitação.
+export function relationOf(state, mine, other) {
+  const consent = state.chatConsent?.[pairKey(mine, other)];
+  if (consent?.status === 'accepted') return 'accepted';
+  if (consent?.status === 'declined') return consent.by === mine ? 'declined_in' : 'declined_out';
+  if (friends(state, mine, other) || (follows(state, mine, other) && follows(state, other, mine))) return 'accepted';
+  const out = sentTo(state, mine, other), inc = sentTo(state, other, mine);
+  if (out && inc) return 'accepted';
+  if (inc) return follows(state, mine, other) ? 'accepted' : 'request_in';
+  if (out) return follows(state, other, mine) ? 'accepted' : 'request_out';
+  return follows(state, other, mine) ? 'accepted' : 'none';
+}
+function consent(state, mine, other, status) { state.chatConsent ||= {}; state.chatConsent[pairKey(mine, other)] = { status, by: mine, at: Date.now() }; }
 function thread(state, me, key) {
   const mine = keyOf(me);
   if (typeof key !== 'string') fail(400, 'Escolha uma conversa.');
@@ -60,17 +77,26 @@ export function chatMedia(state, me, id) {
 }
 export function chatSnapshot(state, me, params = new URLSearchParams()) {
   const mine = keyOf(me), key = params.get('key') || '';
-  const people = (state.accounts || []).filter(a => a.id !== me.id).map(a => ({ key:keyOf(a), name:a.name, username:a.username || '', blocked:!!state.chatBlocks?.[mine]?.includes(keyOf(a)) }));
+  const others = (state.accounts || []).filter(a => a.id !== me.id);
+  const card = a => ({ key:keyOf(a), name:a.name, username:a.username || '', blocked:!!state.chatBlocks?.[mine]?.includes(keyOf(a)), relation:relationOf(state, mine, keyOf(a)) });
+  // Só contatos com conversa liberada entram em grupos e encaminhamentos; desconhecidos aparecem apenas pela busca.
+  const contacts = others.map(card).filter(p => p.relation === 'accepted');
+  const term = text(params.get('find') || '', 60, false).toLocaleLowerCase('pt-BR').replace(/^@/, '');
+  const found = term.length >= 2 ? others.filter(a => (a.name + ' ' + (a.username || '')).toLocaleLowerCase('pt-BR').includes(term)).slice(0, 15).map(card) : [];
+  const requests = [];
   const keys = new Set((state.dms || []).filter(m => canRead(state, me, m)).map(m => messageKey(me, m)));
   for (const g of state.chatGroups || []) if (g.members.includes(mine)) keys.add(`group:${g.id}`);
   const conversations = [...keys].flatMap(k => {
     let t; try { t = thread(state, me, k); } catch { return []; }
     const list = messagesOf(state, me, k), last = list.at(-1), p = state.chatPreferences?.[mine]?.[k] || {};
+    const relation = t.group ? 'accepted' : relationOf(state, mine, k);
+    if (relation === 'declined_in') return [];
+    if (relation === 'request_in') { requests.push({ key:k, name:t.name, last: last ? (last.deleted ? 'Mensagem apagada' : last.text || 'Anexo') : '', at:last?.createdAt || 0 }); return []; }
     const readIndex = p.readId ? (state.dms || []).findIndex(m => m.id === p.readId) : -1;
     const unread = list.filter(m => m.fromKey !== mine && (state.dms || []).indexOf(m) > readIndex).length;
     return [{ key:k, name:t.name, group:!!t.group, last: last ? (last.deleted ? 'Mensagem apagada' : last.text || 'Anexo') : '', at:last?.createdAt || 0,
       unread:p.unread ? Math.max(1, unread) : unread,
-      pinned:!!p.pinned, muted:!!p.muted, archived:!!p.archived }];
+      pinned:!!p.pinned, muted:!!p.muted, archived:!!p.archived, pending: relation === 'request_out', declined: relation === 'declined_out' }];
   }).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||b.at-a.at);
   let list = [], selected = null, hasMore = false;
   if (key) {
@@ -86,7 +112,7 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
     const sharedMedia = fullList.filter(m => !m.deleted && m.media).slice(-12).reverse().map(m => ({ id: m.media.id, url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name, at: m.createdAt }));
     selected = { key, name:t.name, username:otherAcc?.username || '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
       description:t.group?.description || '', typing, sharedMedia,
-      canCall: !t.group && !t.members.some(k=>k!==mine && blocked(state,mine,k)) && fullList.some(m=>m.fromKey===key && !m.call && !m.deleted), members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
+      relation: t.group ? 'accepted' : relationOf(state, mine, key), blockedByMe: !t.group && !!state.chatBlocks?.[mine]?.includes(key), members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
     list = fullList;
     const q = text(params.get('q') || '',100,false).toLocaleLowerCase('pt-BR');
     if(q)list=list.filter(m=>!m.deleted && m.text.toLocaleLowerCase('pt-BR').includes(q));
@@ -94,7 +120,17 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
     if(before){ const i=list.findIndex(m=>m.id===before); if(i<0)fail(400,'Atualize a conversa para carregar o histórico.'); list=list.slice(0,i); }
     hasMore=list.length>30; list=list.slice(-30).map(m=>project(state,me,m));
   }
-  return { me:{id:me.id,name:me.name}, people, conversations, selected, messages:list, hasMore,
+  if (selected) {
+    const r = selected.relation, isBlocked = selected.blocked;
+    selected.canCall = !selected.group && !isBlocked && r === 'accepted';
+    selected.canSend = !isBlocked && !['request_out', 'declined_out'].includes(r);
+    selected.notice = isBlocked ? '' : r === 'request_in' ? `${selected.name} quer conversar com você. Aceite para responder e liberar chamadas.`
+      : r === 'request_out' ? `Solicitação enviada. A conversa continua quando ${selected.name} aceitar.`
+      : r === 'declined_out' ? `${selected.name} não aceitou a conversa.`
+      : r === 'none' ? `Vocês ainda não se conectaram. Sua primeira mensagem chega como solicitação e precisa ser só texto.` : '';
+  }
+  requests.sort((a, b) => b.at - a.at);
+  return { me:{id:me.id,name:me.name}, contacts, found, requests, conversations, selected, messages:list, hasMore,
     invitations:(state.chatGroups || []).filter(g=>g.invited.includes(mine)).map(g=>({key:`group:${g.id}`,name:g.name})),
     reports:(state.chatReports || []).filter(r=>r.authorKey===mine).map(r=>({id:r.id,createdAt:r.createdAt,status:'Registrada; revisão humana ainda não conectada'})) };
 }
@@ -104,6 +140,7 @@ export function chatAction(state, me, body, upload) {
   if(body.action==='chat_typing') {
     const t=thread(state,me,key);
     if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada.');
+    if(!t.group && relationOf(state,mine,key)!=='accepted')return {};
     const bucket=typingBucketKey(mine,key);
     state.chatTyping ||= {}; state.chatTyping[bucket] ||= {};
     if(body.typing===false) delete state.chatTyping[bucket][mine];
@@ -119,6 +156,14 @@ export function chatAction(state, me, body, upload) {
     const digest=createHash('sha256').update(JSON.stringify([body.toKey,copy,body.replyTo || '',upload?.name || '',upload?.bytes || null])).digest('hex');
     const previous=body.clientId && state.dms.find(m=>m.fromKey===mine && m.clientId===body.clientId);
     if(previous){if(previous.digest!==digest)fail(409,'Este envio já foi usado. Abra um novo rascunho.');return {duplicate:true};}
+    if(!t.group){
+      const relation=relationOf(state,mine,body.toKey);
+      if(relation==='declined_out')fail(403,'Esta pessoa não aceitou a conversa.');
+      if(relation==='request_out')fail(403,`Sua solicitação já foi enviada. Aguarde ${t.name} aceitar a conversa.`);
+      if(relation==='none'&&upload)fail(400,'A primeira mensagem para quem ainda não aceitou a conversa precisa ser só texto.');
+      // Responder a uma solicitação (ou reabrir uma recusada por você) aceita a conversa.
+      if(relation==='request_in'||relation==='declined_in')consent(state,mine,body.toKey,'accepted');
+    }
     if(state.dms.length>=10000)fail(409,'A prévia atingiu o limite de mensagens. O histórico foi preservado.');
     if(body.replyTo){const reply=messageOf(state,me,body.replyTo);if(reply.deleted || reply.call || messageKey(me,reply)!==body.toKey)fail(400,'Escolha uma mensagem desta conversa para responder.');}
     const bucket=typingBucketKey(mine,body.toKey);
@@ -149,6 +194,12 @@ export function chatAction(state, me, body, upload) {
     else {if(!reactions.includes(body.reaction) && body.reaction!=='')fail(400,'Escolha uma reação disponível.');m.reactions ||= {};m.reactions[mine]=body.reaction;}
     return {};
   }
+  if(body.action==='chat_request_accept'||body.action==='chat_request_decline') {
+    person(state,key);
+    if(relationOf(state,mine,key)!=='request_in')fail(409,'Não há solicitação desta pessoa.');
+    consent(state,mine,key,body.action==='chat_request_accept'?'accepted':'declined');
+    return {};
+  }
   if(body.action==='chat_block') {
     person(state,key);if(key===mine)fail(400,'Escolha outra pessoa.');if(typeof body.blocked!=='boolean')fail(400,'Escolha bloquear ou desbloquear.');
     state.chatBlocks ||= {};const set=new Set(state.chatBlocks[mine] || []);body.blocked?set.add(key):set.delete(key);state.chatBlocks[mine]=[...set];return {};
@@ -163,7 +214,7 @@ export function chatAction(state, me, body, upload) {
     const name=text(body.name,60);state.chatGroups ||= [];
     if(state.chatGroups.length>=100)fail(409,'Limite de grupos da prévia atingido.');
     if(!Array.isArray(body.members) || body.members.length<1 || body.members.length>11)fail(400,'Convide de 1 a 11 pessoas.');
-    const invited=[...new Set(body.members)];for(const k of invited){person(state,k);if(k===mine || blocked(state,mine,k))fail(403,'Não é possível convidar esta pessoa.');}
+    const invited=[...new Set(body.members)];for(const k of invited){person(state,k);if(k===mine || blocked(state,mine,k))fail(403,'Não é possível convidar esta pessoa.');if(relationOf(state,mine,k)!=='accepted')fail(403,'Convide só pessoas com quem você já conversa.');}
     state.chatGroups.push({id:randomUUID(),name,description:'',members:[mine],admins:[mine],invited,joinedAt:{[mine]:Date.now()}});return {};
   }
   const g=groupOf(state,key);
@@ -188,6 +239,7 @@ export function chatAction(state, me, body, upload) {
   if(body.action==='chat_group_invite'){
     if(g.members.length+g.invited.length>=12)fail(409,'Este grupo aceita até 12 pessoas nesta prévia.');
     if(g.members.some(k=>blocked(state,k,target)))fail(403,'Não é possível convidar esta pessoa.');
+    if(relationOf(state,mine,target)!=='accepted')fail(403,'Convide só pessoas com quem você já conversa.');
     if(!g.members.includes(target) && !g.invited.includes(target))g.invited.push(target);return {};
   }
   if(body.action==='chat_group_admin'){

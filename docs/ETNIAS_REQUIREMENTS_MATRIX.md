@@ -13,12 +13,12 @@ Itens do documento são requisitos, não defeitos confirmados.
 | Módulo | Itens | ✅ | 🟡 | ⛔ | 🔒 | ❔ |
 |---|---|---|---|---|---|---|
 | 01 Login e cadastro | 9 | 0 | 3 | 4 | 2 | 0 |
-| 02 Chat | 9 | 0 | 7 | 2 | 0 | 0 |
+| 02 Chat | 9 | 1 | 7 | 1 | 0 | 0 |
 | 03 Notificações | 8 | 0 | 1 | 4 | 3 | 0 |
 | 04 Logo e menu | 2 | 0 | 2 | 0 | 0 | 0 |
 | 05 Stories | 6 | 0 | 2 | 4 | 0 | 0 |
 | 06 Feed e publicações | 13 | 0 | 7 | 5 | 1 | 0 |
-| **Total** | **47** | **0** | **22** | **19** | **6** | **0** |
+| **Total** | **47** | **1** | **22** | **18** | **6** | **0** |
 
 ## Módulo 01 — Login, autenticação e cadastro
 
@@ -39,14 +39,14 @@ Itens do documento são requisitos, não defeitos confirmados.
 | ID | Requisito | Estado | Evidência no código | Teste | Dependência | Critério de aceite |
 |---|---|---|---|---|---|---|
 | 2.1 | Conversas privadas: envio, histórico, data/hora, enviado/entregue/visto, tempo real | 🟡 | `server/chat.mjs` (`dm`, paginação, `chat_read`), `chat.js` | A (unit), A* (E2E 2 contas) | Eventos (WebSocket/SSE) para tempo real; decisão sobre recibo de leitura | Mensagem aparece na outra sessão em menos de 2 s; remetente vê entregue/visto se o destinatário permitir. **Hoje:** polling de 4 s, sem recibos para o remetente |
-| 2.2 | Solicitação de conversa (aceitar, recusar, bloquear, notificar) | ⛔ | Qualquer conta registrada envia DM. Só grupos têm convite. | — | Regra de “quem pode iniciar” (2.9) | Sem conexão, a 1ª mensagem vira solicitação; o servidor rejeita a 2ª até o aceite |
+| 2.2 | Solicitação de conversa (aceitar, recusar, bloquear, notificar) | ✅ | `relationOf()` em `preview/server/chat.mjs`: sem vínculo (amizade, seguir de volta ou aceite), a 1ª mensagem vira solicitação só de texto; caixas Principal/Solicitações; Aceitar/Recusar/Bloquear; contador no cabeçalho | A (2 testes “Direct” em `tests/opy/chat.mjs`), A (E2E `chat-browser.cjs` aceita pela interface) | — | Atendido |
 | 2.3 | Grupos: criar, nome e imagem, membros, admin/criador, sair, histórico | 🟡 | `chat_group_*` (criar, convite, aceitar, admin, remover, sair); sem leitura retroativa | A (unit “grupos exigem convite aceito…”) | Upload de imagem do grupo | Falta só a imagem do grupo |
 | 2.4 | Notificações do chat: mensagem, solicitação, aprovação, grupo, contador | 🟡 | Contador de não lidas por conversa e badge no cabeçalho (`preview.js:543`); convites de grupo no chat | A (unit “paginação… leitura”) | 3.1/3.8 para push | Badge correto entre sessões; push fora do app |
 | 2.5 | Presença online/ausente/offline com privacidade | ⛔ | Desligada de propósito (decisão CARE em `auditoria-comunitaria` §5) | — | Eventos + decisão de produto | Presença só visível com opt-in; atualiza em menos de 30 s |
 | 2.6 | Indicador de digitação em tempo real | 🟡 | `chat_typing` com expiração, sem persistência longa | A (unit “indicador de digitação…”) | Eventos para baixa latência | Aparece em menos de 2 s; hoje depende do polling de 4 s |
 | 2.7 | Arquivos: áudio, imagem, vídeo, documento, validação no back-end | 🟡 | Validação de tipo/tamanho em `mediaInput`; anexo privado em `/api/media`; gravação de voz | A (unit “anexos…”), A* (`media-private.cjs`) | Storage maior que 2 MB (limite atual) | Vídeo de 30 s envia; tipo forjado é rejeitado |
 | 2.8 | Denúncia e bloqueio; ferramentas de moderação | 🟡 | `chat_block` bilateral, `chat_report` gravado | A (unit “bloqueio bilateral…”) | Painel de moderação + protocolo comunitário | Moderador vê a denúncia, decide e o resultado fica registrado |
-| 2.9 | Privacidade: quem inicia conversa, status online, validação no back-end | 🟡 | Validação no servidor em todas as ações (`canRead`, `thread`, `person`). Faltam as preferências “quem pode iniciar” e “mostrar online”. | A (unit IDOR) | 2.2, 2.5 | Preferências respeitadas no servidor |
+| 2.9 | Privacidade: quem inicia conversa, status online, validação no back-end | 🟡 | Validação no servidor em todas as ações; quem inicia conversa é regido por vínculo (amizade/seguir/aceite) e desconhecidos só mandam solicitação. Falta a preferência explícita “quem pode me enviar mensagem” e o controle de status online. | A | 2.5 | Preferências respeitadas no servidor |
 
 > Nenhum item do Módulo 02 está completo de ponta a ponta. O núcleo da mensageria 1:1 (envio, recebimento, histórico e data entre duas sessões) está validado por E2E com duas contas (`chat-browser.cjs`), mas 2.1 continua 🟡 por causa dos recibos e do tempo real.
 
@@ -110,6 +110,7 @@ IDs próprios, para não alterar a contagem oficial.
 | CX-COM-03 | Entrada por solicitação, aprovação e convite | ✅ | Teste “criação de comunidade privada…” (A) |
 | CX-COM-04 | Moderação e denúncia | 🟡 | Denúncia gravada; falta a fila humana |
 | CX-COM-05 | Visibilidade para conhecimento tradicional restrito | ⛔ | Só público/privado; requer definição com as comunidades |
+| CX-NAV-02 | Coluna lateral com comunidades por tema em vez de lista de pessoas | ✅ | `paintCommunity()` em `preview/preview.js` |
 | CX-NAV-01 | Barra inferior com Criar central | 🟡 | Hoje: Feed, Mercado, Postagem, Saberes, EtnIA. Comunidades, Inbox e Maracá ficam fora da barra |
 | CX-DS-01 | Design system azul premium com tokens centralizados | ⛔ | Proposta em `ETNIAS_DESIGN_SYSTEM.md` |
 | CX-QA-01 | Textos de ajuda coerentes com o comportamento real | ✅ (corrigido nesta sessão) | D1/D2 em `ETNIAS_AUDIT.md` |

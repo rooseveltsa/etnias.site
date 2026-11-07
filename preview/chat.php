@@ -6,6 +6,7 @@ $chatIcon = function ($name) {
         'more' => '<path d="M5 12h.01M12 12h.01M19 12h.01"/>',
         'send' => '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>',
         'image' => '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+        'edit' => '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m14 6 4 4"/>',
         'headphones' => '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><rect x="3" y="15" width="4" height="6" rx="1.5"/><rect x="17" y="15" width="4" height="6" rx="1.5"/>',
     );
     if (!isset($own[$name])) { return Etnias_OpyIcon($name); }
@@ -14,10 +15,11 @@ $chatIcon = function ($name) {
 ?><section id="chat-workspace" class="chat-workspace" data-mobile-view="list" aria-labelledby="chat-title">
  <div class="chat-messenger">
   <aside class="chat-sidebar" aria-label="Conversas e pessoas">
-   <header class="chat-title-row"><h1 id="chat-title">Conversas</h1><button id="chat-new-group" type="button" class="chat-icon-btn" aria-label="Novo grupo" title="Novo grupo"><?php echo $chatIcon('group'); ?></button></header>
-   <label for="chat-find" class="opy-sr-only">Buscar pessoas e conversas</label>
-   <div class="chat-search-pill"><?php echo $chatIcon('search'); ?><input type="search" id="chat-find" placeholder="Buscar" maxlength="100"></div>
+   <header class="chat-title-row"><h1 id="chat-title">Mensagens</h1><span class="chat-title-actions"><button id="chat-new-group" type="button" class="chat-icon-btn" aria-label="Novo grupo" title="Novo grupo"><?php echo $chatIcon('group'); ?></button><button id="chat-new" type="button" class="chat-icon-btn" aria-label="Nova mensagem" title="Nova mensagem"><?php echo $chatIcon('edit'); ?></button></span></header>
+   <label for="chat-find" class="opy-sr-only">Buscar nas suas conversas</label>
+   <div class="chat-search-pill"><?php echo $chatIcon('search'); ?><input type="search" id="chat-find" placeholder="Buscar nas conversas" maxlength="100"></div>
    <p class="chat-privacy">Só participantes leem as conversas. A plataforma guarda as mensagens, sem criptografia de ponta a ponta.</p>
+   <div class="chat-tabs" role="group" aria-label="Caixas de mensagens"><button type="button" data-box="main" aria-pressed="true">Principal</button><button type="button" data-box="requests" aria-pressed="false">Solicitações <span id="chat-requests-count" class="chat-unread" hidden></span></button></div>
    <div id="chat-invitations"></div>
    <ul id="chat-list" class="chat-people"></ul>
    <label class="chat-archive-toggle"><input type="checkbox" id="chat-archives"> Mostrar arquivadas</label>
@@ -38,6 +40,7 @@ $chatIcon = function ($name) {
    <form id="chat-search-form" class="chat-search-bar" hidden><label for="chat-search" class="opy-sr-only">Buscar nesta conversa</label><input type="search" id="chat-search" maxlength="100" placeholder="Buscar nesta conversa"><button type="submit" class="preview-secondary">Buscar</button></form>
    <button type="button" id="chat-older" class="chat-older" hidden>Carregar mensagens anteriores</button>
    <div id="chat-log" role="log" aria-label="Mensagens" aria-live="polite" tabindex="0"><p class="chat-empty">Escolha uma pessoa ou crie um grupo.</p></div>
+   <div id="chat-notice" class="chat-notice" hidden><p id="chat-notice-text"></p><div id="chat-notice-actions"></div></div>
    <form id="chat-form" hidden>
     <div id="chat-reply"></div><p id="chat-attachment"></p>
     <div class="chat-compose-row">

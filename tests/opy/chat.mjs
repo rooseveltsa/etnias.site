@@ -6,7 +6,8 @@ const alice = { id: '11111111-1111-4111-8111-111111111111', name: 'Ana' };
 const bob = { id: '22222222-2222-4222-8222-222222222222', name: 'Beto' };
 const outsider = { id: '33333333-3333-4333-8333-333333333333', name: 'Caio' };
 const key = p => 'id:' + p.id;
-const fresh = () => ({ accounts: [alice, bob, outsider], dms: [] });
+// Estes testes cobrem a mecânica entre contatos já conectados (amizade); as regras de solicitação têm teste próprio no fim.
+const fresh = () => ({ accounts: [alice, bob, outsider], dms: [], friends: { [key(alice)]: [key(bob), key(outsider)], [key(bob)]: [key(alice), key(outsider)], [key(outsider)]: [key(alice), key(bob)] } });
 const act = (s, who, body, media) => chat.chatAction(s, who, body, media);
 const send = (s, who=alice, to=bob, extra={}) => act(s, who, { action:'dm', toKey:key(to), text:'Olá', clientId:randomUUID(), ...extra });
 const view = (s, who=alice, other=bob, extra={}) => chat.chatSnapshot(s, who, new URLSearchParams({ key:key(other), ...extra }));
@@ -110,4 +111,45 @@ test('indicador de digitação aparece para o destinatário e limpa ao enviar me
  assert.deepEqual(view(s,alice,bob).selected.typing,[]);
  send(s,alice,bob,{text:'Mensagem enviada'});
  assert.deepEqual(view(s,bob,alice).selected.typing,[]);
+});
+
+test('Direct: sem vínculo a primeira mensagem vira solicitação de texto que só o destinatário libera', () => {
+ const s={ accounts:[alice,bob,outsider], dms:[] };
+ rejects(()=>send(s,alice,outsider,{media:undefined,text:''}),400);
+ // anexo na primeira mensagem para desconhecido é recusado
+ rejects(()=>act(s,alice,{action:'dm',toKey:key(outsider),text:'foto',clientId:randomUUID()},{id:randomUUID(),name:'a.png',kind:'image',bytes:Buffer.from('x')}),400);
+ send(s,alice,outsider);
+ rejects(()=>send(s,alice,outsider),403);
+ const inbox=chat.chatSnapshot(s,outsider,new URLSearchParams({key:key(alice)}));
+ assert.deepEqual(inbox.requests.map(r=>r.key),[key(alice)]);
+ assert.equal(inbox.conversations.length,0,'solicitação não entra na caixa principal');
+ assert.equal(inbox.selected.relation,'request_in'); assert.equal(inbox.selected.canCall,false);
+ assert.equal(inbox.contacts.length,0,'desconhecidos não aparecem como contatos');
+ const sent=chat.chatSnapshot(s,alice,new URLSearchParams({key:key(outsider)}));
+ assert.equal(sent.conversations[0].pending,true); assert.equal(sent.selected.canSend,false);
+ // digitação de quem não foi aceito não chega
+ act(s,alice,{action:'chat_typing',key:key(outsider),typing:true});
+ assert.deepEqual(chat.chatSnapshot(s,outsider,new URLSearchParams({key:key(alice)})).selected.typing,[]);
+ // convite de grupo só para contatos
+ rejects(()=>act(s,alice,{action:'chat_group_create',name:'G',members:[key(outsider)]}),403);
+ // recusar: some da caixa de quem recusou e bloqueia novas mensagens de quem pediu
+ act(s,outsider,{action:'chat_request_decline',key:key(alice)});
+ assert.equal(chat.chatSnapshot(s,outsider).requests.length,0);
+ assert.equal(chat.chatSnapshot(s,alice,new URLSearchParams({key:key(outsider)})).selected.relation,'declined_out');
+ rejects(()=>send(s,alice,outsider),403);
+ rejects(()=>act(s,bob,{action:'chat_request_accept',key:key(alice)}),409);
+ // busca encontra a pessoa pelo nome ou @usuário
+ assert.deepEqual(chat.chatSnapshot(s,alice,new URLSearchParams({find:'cai'})).found.map(p=>p.key),[key(outsider)]);
+});
+
+test('Direct: aceitar, responder ou ser seguido libera a conversa', () => {
+ const s={ accounts:[alice,bob,outsider], dms:[] };
+ send(s,alice,bob); act(s,bob,{action:'chat_request_accept',key:key(alice)});
+ assert.doesNotThrow(()=>send(s,alice,bob));
+ assert.equal(chat.chatSnapshot(s,alice,new URLSearchParams({key:key(bob)})).selected.canCall,true);
+ send(s,outsider,bob); send(s,bob,outsider);
+ assert.equal(chat.chatSnapshot(s,outsider,new URLSearchParams({key:key(bob)})).selected.relation,'accepted','responder aceita');
+ const t={ accounts:[alice,bob,outsider], dms:[], follows:{ [bob.id]:[key(alice)] } };
+ send(t,alice,bob); assert.doesNotThrow(()=>send(t,alice,bob),'quem a pessoa segue fala direto');
+ assert.equal(chat.chatSnapshot(t,bob).requests.length,0);
 });

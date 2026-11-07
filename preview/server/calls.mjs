@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import { relationOf } from './chat.mjs';
 
 // Chamadas 1:1 por WebRTC. O servidor só troca a oferta e a resposta SDP (sem trickle ICE)
 // e registra o resultado na conversa; áudio e vídeo trafegam direto entre as pessoas ou pelo TURN próprio.
@@ -68,8 +69,8 @@ export function callAction(state, me, body, now = Date.now()) {
     if (body.toKey === mine) fail(400, 'Escolha outra pessoa para ligar.');
     const other = person(state, body.toKey);
     if (blocked(state, mine, body.toKey)) fail(403, 'Conversa bloqueada. Não é possível ligar.');
-    // Só liga para quem já escreveu para você: evita chamadas de desconhecidos.
-    if (!(state.dms || []).some(m => m.fromKey === body.toKey && m.toKey === mine && !m.call && !m.deleted)) fail(403, 'Você poderá ligar depois que esta pessoa responder a uma mensagem sua.');
+    // Só liga para quem tem conversa liberada (aceita, amizade ou seguir de volta): evita chamadas de desconhecidos.
+    if (relationOf(state, mine, body.toKey) !== 'accepted') fail(403, 'Você poderá ligar quando a conversa com esta pessoa estiver aceita.');
     if (inCall(state, mine, now)) fail(409, 'Você já está em uma chamada.');
     if (inCall(state, body.toKey, now)) fail(409, `${other.name} está em outra chamada. Tente mais tarde.`);
     const offer = description(body.offer, 'offer');
