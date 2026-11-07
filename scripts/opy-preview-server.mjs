@@ -19,7 +19,9 @@ const security = {
 http.createServer(async (req, res) => {
  for (const [name, value] of Object.entries(security)) res.setHeader(name, value);
  try {
-  const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+  // Atrás do Caddy o navegador usa HTTPS; sem isso os redirecionamentos voltariam para http://.
+  const proto = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const url = new URL(req.url, `${proto}://${req.headers.host || '127.0.0.1'}`);
   const pathname = url.pathname;
   const path = pathname.replace(/\/$/, '') || '/';
   if (path === '/api/community' || path === '/api/media') {
