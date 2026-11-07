@@ -6,6 +6,7 @@ import { createSession, verifySession, sessionCookie, sessionAccount, addSession
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
+import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -75,7 +76,7 @@ function phoneOf(value) {
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
   return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '',
-    avatar: profileUrl(account.avatarId), cover: profileUrl(account.coverId), joinedAt: account.createdAt || 0 };
+    avatar: profileUrl(account.avatarId), cover: profileUrl(account.coverId), joinedAt: account.createdAt || 0, role: roleOf(account) };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
@@ -160,7 +161,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, posts, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, announcements: announcementsFor(state, me), posts, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -223,8 +224,13 @@ export default async function handler(req, res) {
       const state = (await readState()).data;
       const account = sessionAccount(state, session);
       if (!account) fail(401, 'Entre para ver a Casa Opy.');
+      if (isSuspended(account)) fail(403, suspensionMessage(account));
       const me = member(account);
       const path = new URL(req.url, 'http://local');
+      if (path.searchParams.get('view') === 'admin' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(adminView(state, account, path.searchParams)));
+      }
       if (path.searchParams.get('view') === 'chat' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(chatSnapshot(state, me, path.searchParams)));
@@ -303,6 +309,7 @@ export default async function handler(req, res) {
         });
         fail(401, 'Usuário ou senha não conferem.');
       }
+      if (isSuspended(account)) fail(403, suspensionMessage(account));
       const issued = await createSession(account.id, secret);
       const { data } = await transact(state => {
         const stored = accountsOf(state).find(item => item.id === account.id);
@@ -316,8 +323,9 @@ export default async function handler(req, res) {
     }
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
+    if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !['announcement_dismiss', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -368,6 +376,12 @@ export default async function handler(req, res) {
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
       settleCalls(state);
       if (callActions.includes(body.action)) { callResult = callAction(state, me, body); return; }
+      if (adminActions.includes(body.action)) { const r = adminAction(state, currentAccount, body); if (r.removedIds) removedIds.push(...r.removedIds); return; }
+      if (body.action === 'announcement_dismiss') {
+        if (!(state.announcements || []).some(a => a.id === body.id)) fail(404, 'Comunicado não encontrado.');
+        state.announcementDismiss ||= {}; state.announcementDismiss[me.id] = [...new Set([...(state.announcementDismiss[me.id] || []), body.id])].slice(-100);
+        return;
+      }
       if (chatActions.includes(body.action)) {
         const result = chatAction(state, me, body, upload);
         if (result.removedId) removedIds.push(result.removedId);
@@ -583,6 +597,7 @@ export default async function handler(req, res) {
     fileUpload = null;
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    if (adminActions.includes(body.action)) return res.end(JSON.stringify(adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams())));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, activeMe, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, activeMe)));
   } catch (error) {

@@ -3,7 +3,7 @@
 $root = dirname(__DIR__);
 $project = $root . '/preview/dist';
 $destination = $project . '/public';
-$paths = array('home'=>'','entrar'=>'entrar','etnia'=>'etnia','iara'=>'iara','search'=>'search','suggested-groups'=>'grupos','suggested-pages'=>'paginas','blogs'=>'blogs','products'=>'mercado','events'=>'eventos','movies'=>'filmes','jobs'=>'empregos','funding'=>'coletas','terms'=>'sobre','messages'=>'chat','notifications'=>'notificacoes','account'=>'conta','profile'=>'perfil','help'=>'sobre-a-previa','saved-posts'=>'salvos','albums'=>'albuns','memories'=>'recordacoes','joined_groups'=>'meus-grupos','liked-pages'=>'minhas-paginas','setting'=>'configuracoes','saberes'=>'saberes','guardiao'=>'guardiao','fotografos'=>'fotografos','musica'=>'musica','doar'=>'doar');
+$paths = array('home'=>'','entrar'=>'entrar','etnia'=>'etnia','iara'=>'iara','search'=>'search','suggested-groups'=>'grupos','suggested-pages'=>'paginas','blogs'=>'blogs','products'=>'mercado','events'=>'eventos','movies'=>'filmes','jobs'=>'empregos','funding'=>'coletas','terms'=>'sobre','messages'=>'chat','notifications'=>'notificacoes','account'=>'conta','profile'=>'perfil','admin'=>'admin','help'=>'sobre-a-previa','saved-posts'=>'salvos','albums'=>'albuns','memories'=>'recordacoes','joined_groups'=>'meus-grupos','liked-pages'=>'minhas-paginas','setting'=>'configuracoes','saberes'=>'saberes','guardiao'=>'guardiao','fotografos'=>'fotografos','musica'=>'musica','doar'=>'doar');
 if (!is_dir($destination)) mkdir($destination, 0755, true);
 function previewRewriteLink($match) {
     global $paths;
@@ -36,7 +36,7 @@ foreach (glob($root . '/public_html/assets/opy/icons/*.png') as $file) {
     if (strpos($base, 'cluster-') === 0) continue;
     copy($file, $iconDest . '/' . $base);
 }
-foreach (array('preview.css','preview.js','chat.js','calls.js') as $file) copy($root . '/preview/' . $file, $destination . '/assets/' . $file);
+foreach (array('preview.css','preview.js','chat.js','calls.js','admin.js','admin.css') as $file) copy($root . '/preview/' . $file, $destination . '/assets/' . $file);
 $folder = $destination . '/assets/fonts'; if (!is_dir($folder)) mkdir($folder, 0755, true);
 foreach (array('krub-400.ttf','krub-600.ttf') as $font) {
     if (!is_file($root . '/preview/fonts/' . $font)) throw new RuntimeException('Missing bundled font');

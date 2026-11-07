@@ -14,6 +14,8 @@ services:
       OPY_TURN_URLS: ${OPY_TURN_URLS:-}
       OPY_STUN_URLS: ${OPY_STUN_URLS:-}
       OPY_TURN_SECRET: ${OPY_TURN_SECRET:-}
+      # Usuários com papel de administração definido no servidor (separados por vírgula). Moderadores são nomeados pelo painel.
+      OPY_ADMIN_USERNAMES: ${OPY_ADMIN_USERNAMES:-}
     volumes:
       - opy-data:/data
   turn:
