@@ -3,6 +3,7 @@
 !preview/package.json
 !preview/package-lock.json
 !preview/server
+!preview/i18n
 !preview/middleware.js
 !preview/public-posts.json
 !preview/dist/public
