@@ -505,3 +505,34 @@ body[data-preview-route=messages] .preview-page>h1{display:none}
 .rail-community-join:disabled{border-color:#c4cdca;color:#52656c;cursor:default}
 .rail-community-more{margin-top:10px}
 .rail-community-more a{color:#991116;font-size:14px;font-weight:600}
+
+/* Compositor no padrão de rede social: fechado é uma linha, aberto mostra ferramentas e destino */
+#opy-compose .compose-head{display:flex;align-items:flex-start;gap:12px}
+#opy-compose .compose-head .preview-avatar{flex:0 0 44px;width:44px;height:44px;font-size:17px}
+#opy-compose textarea.postText{flex:1;min-width:0;height:44px!important;min-height:44px!important;max-height:240px;margin:0;padding:10px 18px;border:0;border-radius:22px;background:#f1f3f0;color:#182c34;font-size:16px;line-height:1.5;resize:none;overflow:hidden;cursor:text;box-shadow:none}
+#opy-compose textarea.postText:hover{background:#ebeee9}
+#opy-compose textarea.postText::placeholder{color:#52656c}
+#opy-compose.is-open textarea.postText{height:auto!important;min-height:96px!important;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px #dde2df;overflow:auto;cursor:auto}
+#opy-compose.is-open textarea.postText:focus-visible{outline:none;box-shadow:inset 0 0 0 2px #176b87}
+#opy-compose .compose-bar{display:flex;align-items:center;gap:2px;margin:10px 0 0;padding:6px 0 0;border-top:1px solid #eef0ec}
+#opy-compose .compose-tools{display:flex;flex-wrap:wrap;gap:2px;margin:0}
+#opy-compose .compose-tools button,#opy-compose .compose-story-shortcut,#opy-compose .compose-camera-open{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto;min-width:40px;min-height:40px;margin:0;padding:6px 10px;border:0;border-radius:10px;background:transparent;color:#52656c;font-size:14px;font-weight:600;line-height:1}
+#opy-compose .compose-tools button:hover,#opy-compose .compose-story-shortcut:hover,#opy-compose .compose-camera-open:hover{background:#f1f3f0;color:#182c34}
+#opy-compose .compose-tools button[aria-selected=true]{background:#fbefec;color:#991116}
+#opy-compose .compose-tools button svg,#opy-compose .compose-story-shortcut svg,#opy-compose .compose-camera-open svg{flex:0 0 20px;width:20px;height:20px}
+#opy-compose .compose-story-shortcut{margin-left:auto}
+#opy-compose .compose-camera-open{flex:0 0 40px;padding:0}
+#compose-tab-text{display:none!important}
+#opy-compose:not(.is-open) #compose-tab-file,#opy-compose:not(.is-open) #compose-tab-location,#opy-compose:not(.is-open) .compose-camera-open,#opy-compose:not(.is-open) .preview-publish-row{display:none}
+#opy-compose .preview-publish-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+#opy-compose .preview-publish-selectors{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+#opy-compose .preview-publish-selectors label{display:block;margin:0;max-width:100%}
+#opy-compose .preview-publish-row select{height:36px;min-height:36px;max-width:100%;padding:0 10px;border:1px solid #dde2df;border-radius:999px;background:#fff;color:#182c34;font-size:16px;font-weight:600}
+#opy-compose .preview-publish-row select:hover{background:#f7f8f6}
+#opy-compose .preview-publish-row .opy-primary{flex:0 0 auto;min-height:40px;margin:0;padding:8px 24px;border-radius:999px}
+@media(max-width:520px){
+ #opy-compose .compose-tool-label{display:none}
+ #opy-compose .compose-tools button,#opy-compose .compose-story-shortcut{padding:6px 9px}
+ #opy-compose .preview-publish-row{flex-wrap:wrap}
+ #opy-compose .preview-publish-row .opy-primary{width:100%}
+}

@@ -858,7 +858,16 @@ if(publisher){
  if($('#publisher-photo'))$('#publisher-photo').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-photo').files[0]);if(!next)return;if(!/^data:image\/(png|jpeg|gif|webp);/.test(next.data))throw Error('A imagem precisa ser PNG, JPG, GIF ou WebP.');photoAttachment=next;paintSlot('photo-slot',next,'Remover foto',()=>{photoAttachment=null;$('#publisher-photo').value='';if($('#photo-status')){$('#photo-status').textContent='';$('#photo-status').hidden=true;}});if($('#photo-status')){$('#photo-status').hidden=false;$('#photo-status').textContent='Foto pronta para publicação.';}}catch(e){showError(e.message);$('#publisher-photo').value='';}finally{busy=false;}};
  $('#publisher-video').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-video').files[0]);if(!next)return;if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4 ou WebM.');const replaced=!!videoAttachment;videoAttachment=next;paintSlot('video-slot',next,'Remover vídeo',()=>{videoAttachment=null;$('#publisher-video').value='';$('#video-status').textContent='';$('#video-status').hidden=true;});const videoStatus=$('#video-status');videoStatus.hidden=false;videoStatus.textContent=replaced?'O vídeo anterior foi trocado. A publicação leva um único vídeo.':'Vídeo pronto. A publicação leva um único vídeo.';}catch(e){showError(e.message);$('#publisher-video').value='';}finally{busy=false;}};
  $('#publisher-document').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-document').files[0]);if(!next)return;if(!/\.(pdf|txt|docx|doc)$/i.test(next.name))throw Error('O arquivo precisa ser PDF, TXT, DOC ou DOCX.');const replaced=!!fileAttachment;fileAttachment=next;paintSlot('file-slot',next,'Remover arquivo',()=>{fileAttachment=null;$('#publisher-document').value='';$('#file-status').textContent='';$('#file-status').hidden=true;});const fileStatus=$('#file-status');fileStatus.hidden=false;fileStatus.textContent=replaced?'O arquivo anterior foi trocado. A publicação leva um único arquivo.':'Arquivo pronto. A publicação leva um único arquivo.';}catch(e){showError(e.message);$('#file-status').textContent=e.message;$('#publisher-document').value='';}finally{busy=false;}};
- selectFormat('text');all('[data-compose-tool]').forEach(b=>b.onclick=()=>selectFormat(b.dataset.composeTool));$('.compose-tools',publisher)?.addEventListener('keydown',event=>{const tabs=all('[data-compose-tool]',publisher);const index=tabs.indexOf(document.activeElement);if(index<0||(event.key!=='ArrowRight'&&event.key!=='ArrowLeft'))return;event.preventDefault();const next=tabs[(index+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];selectFormat(next.dataset.composeTool);next.focus();});
+ selectFormat('text');all('[data-compose-tool]').forEach(b=>b.onclick=()=>selectFormat(b.getAttribute('aria-selected')==='true'&&b.dataset.composeTool!=='text'?'text':b.dataset.composeTool));
+ // Compositor fechado mostra só a linha de entrada; abre ao focar ou escolher um formato e fecha vazio ao sair.
+ const composeText=$('#preview-text');
+ const growCompose=()=>{if(!publisher.classList.contains('is-open'))return;composeText.style.height='auto';composeText.style.height=Math.min(240,Math.max(96,composeText.scrollHeight))+'px';};
+ const openComposer=()=>{publisher.classList.add('is-open');growCompose();};
+ // Só o campo de texto abre no foco; botões abrem no clique, para a fileira não se mover sob o dedo.
+ publisher.addEventListener('focusin',e=>{if(e.target===composeText)openComposer();});
+ all('[data-compose-tool]').forEach(b=>b.addEventListener('click',openComposer));
+ composeText?.addEventListener('input',growCompose);
+ publisher.addEventListener('focusout',()=>setTimeout(()=>{if(!publisher.contains(document.activeElement)&&!composeText.value.trim()&&selectedFormat()==='text'&&!photoAttachment&&!videoAttachment&&!fileAttachment){publisher.classList.remove('is-open');composeText.style.height='';}},200));$('.compose-tools',publisher)?.addEventListener('keydown',event=>{const tabs=all('[data-compose-tool]',publisher);const index=tabs.indexOf(document.activeElement);if(index<0||(event.key!=='ArrowRight'&&event.key!=='ArrowLeft'))return;event.preventDefault();const next=tabs[(index+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];selectFormat(next.dataset.composeTool);next.focus();});
  $('#choose-photo')?.addEventListener('click',()=>$('#publisher-photo')?.click());
  $('#choose-photo-camera')?.addEventListener('click',()=>$('#compose-camera-open')?.click());
  $('#choose-video').onclick=()=>$('#publisher-video').click();
@@ -913,7 +922,7 @@ if(publisher){
    paintSlot('video-slot',null);paintSlot('file-slot',null);paintSlot('photo-slot',null);
    if($('#photo-status')){$('#photo-status').textContent='';$('#photo-status').hidden=true;}
    $('#video-status').textContent='';$('#video-status').hidden=true;$('#file-status').textContent='';$('#file-status').hidden=true;
-   selectFormat('text');
+   selectFormat('text');publisher.classList.remove('is-open');$('#preview-text').style.height='';
    status.textContent='Publicação compartilhada. O texto fica visível para quem vê.';
   }catch(err){status.textContent=err.message;}
   finally{if(progress){progress.classList.remove('is-busy');progress.hidden=true;}submit.disabled=false;}
