@@ -4,6 +4,16 @@ Sobe a Casa Opy (app Node com dados em disco) e o coturn (TURN/STUN para as cham
 
 Validado localmente em 2026-11-07: imagem construída, container servindo com CSP, E2E de chat e de chamadas (`tests/opy/chat-browser.cjs`, `tests/opy/calls-browser.cjs`) passando contra o container, coturn lendo `turnserver.conf`. **Nada foi publicado na VPS.**
 
+## Instalação atual (2026-11-07)
+
+- **Endereço:** https://opy.179-66-136-125.sslip.io (nome automático que aponta para o IP; trocar quando houver subdomínio próprio).
+- **VPS:** `srv2135798.hstgr.cloud` (179.66.136.125), Ubuntu 26.04, Docker 29. O sistema antigo continua em `/srv/etnias` (Caddy + WoWonder + MariaDB) e responde em https://srv2135798.hstgr.cloud.
+- **Casa Opy:** `/srv/casa-opy`, subida com `docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d --build` em `deploy/opy`. O `.env` foi gerado na própria VPS (permissão 600) e não sai de lá.
+- **HTTPS:** bloco `opy.179-66-136-125.sslip.io` acrescentado a `/srv/etnias/deploy/Caddyfile` (cópia anterior em `Caddyfile.bak-20261107-201940`), apontando para `casa-opy-opy-1:8101` pela rede `etnias_frontend`.
+- **TURN:** coturn em rede do host, 3478 UDP/TCP e 49160–49260 UDP, sem TLS. Testado com `turnutils_uclient` (12 pacotes retransmitidos, 0 perdidos).
+- **Acesso:** chave `~/.ssh/casa_opy_deploy` (comentário `casa-opy-deploy`) em `/root/.ssh/authorized_keys`. Para revogar: `sed -i '/casa-opy-deploy/d' /root/.ssh/authorized_keys`.
+- **Desfazer:** restaurar o `Caddyfile.bak-*`, rodar `docker exec etnias-caddy-1 caddy reload --config /etc/caddy/Caddyfile` e `docker compose ... down` em `/srv/casa-opy/deploy/opy`.
+
 ## Pré-requisitos
 
 - Docker com o plugin compose na VPS.

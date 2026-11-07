@@ -1,0 +1,14 @@
+# Complemento para VPS que já tem o Caddy do stack /srv/etnias nas portas 80/443.
+# Uso: docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d --build
+# O app entra na rede do Caddy (sem porta pública própria) e o TURN roda sem TLS (porta 3478 UDP/TCP).
+services:
+  opy:
+    ports: !reset []
+    networks: [default, caddy]
+  turn:
+    volumes: !reset
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+networks:
+  caddy:
+    external: true
+    name: etnias_frontend
