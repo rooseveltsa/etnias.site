@@ -5,6 +5,7 @@ import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
 import { createSession, verifySession, sessionCookie, sessionAccount, addSession } from './session.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
+import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
 const feelings = ['feliz', 'agradecido', 'pensativo', 'animado'];
@@ -71,12 +72,16 @@ function phoneOf(value) {
   return local;
 }
 function member(account) {
-  return { id: account.id, name: account.name, username: account.username, phone: account.phone || '', googleKey: account.googleKey || '' };
+  return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '' };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
 }
-function visible(post, me) { return post.audience !== 'private' || post.authorId === me.id; }
+function visible(post, me, state) {
+  if (post.audience === 'private' && post.authorId !== me.id) return false;
+  if (post.communityId && state && !canViewCommunityContent(state, me, post.communityId)) return false;
+  return true;
+}
 function friendStatusOf(state, myKey, targetKey) {
   if (!targetKey || targetKey === myKey) return 'self';
   if ((state.friends?.[myKey] || []).includes(targetKey)) return 'friends';
@@ -86,14 +91,17 @@ function friendStatusOf(state, myKey, targetKey) {
 }
 function snapshot(state, me) {
   const myKey = `id:${me.id}`;
+  const communities = projectCommunities(state, me);
+  const communityNames = new Map(communities.map(c => [c.id, c.name]));
   const followed = new Set(Array.isArray(state.follows?.[me.id]) ? state.follows[me.id] : []);
   const mapMedia = m => m ? { url: `/api/media?id=${m.id}`, kind: m.kind, name: m.name } : null;
-  const posts = state.posts.filter(p => visible(p, me)).map(p => {
+  const posts = state.posts.filter(p => visible(p, me, state)).map(p => {
     const aKey = authorKeyOf(p);
     return {
       id: p.id, text: p.text, author: p.author, authorKey: aKey, following: followed.has(aKey), friendStatus: friendStatusOf(state, myKey, aKey),
       origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', avatar: archiveAvatar(p), attachmentMissing: !!p.attachmentMissing,
       media: mapMedia(p.media), file: mapMedia(p.file), location: p.location || '',
+      communityId: p.communityId || '', communityName: p.communityId ? (communityNames.get(p.communityId) || p.communityName || '') : '',
       audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
       shares: p.shares || 0,
       repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file) } : null,
@@ -105,13 +113,13 @@ function snapshot(state, me) {
   const peopleMap = new Map();
   for (const acc of (state.accounts || [])) {
     const key = `id:${acc.id}`;
-    peopleMap.set(key, { key, name: acc.name, username: acc.username || '', avatar: '', own: acc.id === me.id });
+    peopleMap.set(key, { key, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', avatar: '', own: acc.id === me.id });
   }
   for (const p of state.posts) {
-    if (!visible(p, me)) continue;
+    if (!visible(p, me, state)) continue;
     const key = authorKeyOf(p);
     const av = archiveAvatar(p);
-    if (!peopleMap.has(key)) peopleMap.set(key, { key, name: p.author, username: '', avatar: av, own: p.authorId === me.id });
+    if (!peopleMap.has(key)) peopleMap.set(key, { key, name: p.author, username: '', bio: '', affiliation: '', avatar: av, own: p.authorId === me.id });
     else if (av && !peopleMap.get(key).avatar) peopleMap.get(key).avatar = av;
   }
   const allFollowLists = Object.values(state.follows || {});
@@ -143,7 +151,10 @@ function snapshot(state, me) {
     role: item.role, text: item.text, sourceTitle: item.sourceTitle || '', revised: item.revised || '', at: item.createdAt
   }));
   const stories = (state.stories || []).filter(item => item.expiresAt > Date.now()).map(item => ({ id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own: item.authorId === me.id, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null }));
-  return { me, posts, stories, messages: state.messages, dms, directory, group: { joined: !!state.interests[me.id], count: Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  const chatView = chatSnapshot(state, me);
+  const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length;
+  const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
+  return { me, posts, stories, messages: state.messages, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -214,7 +225,7 @@ export default async function handler(req, res) {
       }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');
-        const post = state.posts.find(p => visible(p, me) && (p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
+        const post = state.posts.find(p => visible(p, me, state) && (p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
         const named = (post?.media?.id === id ? post.media : post?.file?.id === id ? post.file : post?.repostOf?.media?.id === id ? post.repostOf.media : post?.repostOf?.file) || story?.media || chatMedia(state, me, id);
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
@@ -293,8 +304,8 @@ export default async function handler(req, res) {
     }
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
-    const me = member(signedIn);
-    if (!chatActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'message', 'dm', 'join', 'follow', 'friend', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    let activeMe = member(signedIn);
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !['publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'message', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -326,7 +337,10 @@ export default async function handler(req, res) {
     let removedIds = [];
     const { data } = await transact(state => {
       removedIds = [];
-      if (!sessionAccount(state, session)) fail(401, 'Entre novamente para continuar.');
+      const currentAccount = sessionAccount(state, session);
+      if (!currentAccount) fail(401, 'Entre novamente para continuar.');
+      const me = member(currentAccount);
+      activeMe = me;
       const minute = Math.floor(Date.now() / 60000);
       const limit = state.limits[me.id];
       if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
@@ -338,9 +352,27 @@ export default async function handler(req, res) {
         if (result.duplicate && upload) removedIds.push(upload.id);
         return;
       }
+      if (communityActions.includes(body.action)) {
+        const result = communityAction(state, me, body);
+        if (result.removedIds) removedIds.push(...result.removedIds);
+        return;
+      }
       const post = state.posts.find(p => p.id === body.postId);
-      if (['repost', 'react', 'comment', 'vote', 'save', 'delete'].includes(body.action) && (!post || !visible(post, me))) fail(404, 'Publicação não encontrada.');
+      if (['repost', 'react', 'comment', 'vote', 'save', 'delete'].includes(body.action) && (!post || !visible(post, me, state))) fail(404, 'Publicação não encontrada.');
       switch (body.action) {
+        case 'profile_update': {
+          const nextName = personName(body.name);
+          const nextBio = text(String(body.bio ?? ''), 280, false);
+          const nextAffiliation = text(String(body.affiliation ?? ''), 80, false);
+          currentAccount.name = nextName;
+          currentAccount.bio = nextBio;
+          currentAccount.affiliation = nextAffiliation;
+          for (const p of state.posts || []) {
+            if (p.authorId === me.id) p.author = nextName;
+          }
+          activeMe = member(currentAccount);
+          break;
+        }
         case 'story_create': {
           // shortcut: limpeza física ocorre ao criar outro story; usar coleta agendada em produção.
           removedIds = (state.stories || []).filter(item => item.expiresAt <= Date.now()).map(item => item.media?.id).filter(Boolean);
@@ -360,10 +392,14 @@ export default async function handler(req, res) {
         }
         case 'publish': {
           if (state.posts.filter(p => p.origin !== 'legacy').length >= 100) fail(409, 'A homologação atingiu o limite de publicações. Remova uma publicação sua para continuar.');
-          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: body.audience, feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) }); break;
+          let targetCommunity = null;
+          if (typeof body.communityId === 'string' && body.communityId.trim()) {
+            targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
+          }
+          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) }); break;
         }
         case 'repost': {
-          if (post.audience === 'private') fail(400, 'Publicações privadas não podem ser repostadas.');
+          if (post.audience === 'private' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
           if (state.posts.filter(p => p.origin !== 'legacy').length >= 100) fail(409, 'A homologação atingiu o limite de publicações. Remova uma publicação sua para continuar.');
           const note = text(body.text || '', 1000, false);
           const source = post.repostOf || {
@@ -399,7 +435,11 @@ export default async function handler(req, res) {
         case 'message':
           state.messages.push({ id: randomUUID(), author: me.name, authorId: me.id, authorKey: `id:${me.id}`, text: text(body.text, 2000), createdAt: Date.now() });
           state.messages = state.messages.slice(-100); break;
-        case 'join': state.interests[me.id] = !state.interests[me.id]; break;
+        case 'join': {
+          ensureCommunities(state);
+          communityAction(state, me, { action: 'community_join', communityId: 'avaliacao-casa-opy' });
+          break;
+        }
         case 'follow': {
           const key = text(body.authorKey, 90);
           if (!/^(id:[a-f0-9-]{36}|name:.+)$/.test(key)) fail(400, 'Não foi possível seguir esta pessoa.');
@@ -493,7 +533,7 @@ export default async function handler(req, res) {
     fileUpload = null;
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, me, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, me)));
+    return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, activeMe, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, activeMe)));
   } catch (error) {
     if (upload) await deleteMedia(upload.id).catch(() => {});
     if (fileUpload) await deleteMedia(fileUpload.id).catch(() => {});

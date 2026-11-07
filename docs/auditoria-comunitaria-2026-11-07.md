@@ -89,8 +89,77 @@ O código legado (`public_html/xhr/agora.php`, `twilio.php`, `nodejs/`) possui i
 
 ---
 
-## 6. Limites Conhecidos e Backlog para Produção
+## 6. Reestruturação do Módulo de Comunidades (`/grupos/` e `/meus-grupos/`)
 
-- **Persistência e Tempo Real:** O storage da prévia (Vercel Blob / JSON transacional local com limite de 10.000 mensagens e polling de 5s quando visível) atende à homologação funcional, mas deve ser migrado para banco relacional indexado (PostgreSQL/MariaDB) e transporte por eventos (WebSocket/SSE) na VPS antes de abertura ampla.
-- **Fila de Moderação Humana:** Conectar `state.chatReports` a um painel administrativo com protocolo comunitário definido pelas lideranças.
+### Arquitetura e Governança Cultural (`preview/server/communities.mjs`)
+- **Sem comunidades fictícias nem identidades indígenas inventadas:** As comunidades iniciais de homologação refletem frentes reais da plataforma (`Avaliação da Casa Opy`, `Rede de Saberes e Educação`, `Articulação e Governança Comunitária`, `Comunicação, Fotografia e Audiovisual`). Nenhuma etnia ou povo real foi inventado ou atribuído artificialmente a contas de teste.
+- **Níveis de visibilidade e isolamento de conteúdo:**
+  - **Pública (`privacy: 'public'`):** Qualquer conta autenticada pode ingressar imediatamente (`community_join`), visualizar e publicar no feed da comunidade. As publicações também podem ser vistas no feed geral com selo da comunidade.
+  - **Privada (`privacy: 'private'`):** Entrada mediante solicitação (`community_join` -> `requested: true`) e aprovação por administrador ou moderador (`community_approve` / `community_reject`), ou por convite direto (`community_invite` -> `community_accept_invite`). O feed de comunidades privadas é estritamente isolado no servidor (`canViewCommunityContent`): contas que não são membros não recebem publicações de comunidades privadas em `GET /api/community`.
+- **Papéis, Moderação e Regras:**
+  - Papéis: `admin` (criador ou promovido), `moderator` e `member`.
+  - Administradores podem editar regras, descrição, categoria e privacidade (`community_update`), gerir papéis (`community_role`) e remover membros (`community_remove_member`).
+  - Administradores e moderadores podem remover publicações inadequadas do espaço comunitário (`community_moderate_post`) e aprovar/recusar solicitações pendentes.
+  - Qualquer membro pode registrar denúncia contextualizada (`community_report`).
+
+---
+
+## 7. Reconstrução do Composer (`#opy-compose`) e Arquitetura Técnica para Transmissão ao Vivo (Live)
+
+### Novo Fluxo de Publicação
+- O composer na página inicial foi reconstruído com abas rotuladas e acessíveis (`role="tablist"`):
+  - **Texto (`#compose-tab-text`)**
+  - **Foto (`#compose-tab-photo`)**: seleção de imagem da galeria (`#publisher-photo`: PNG, JPG, GIF, WebP até 2 MB) ou captura direta via câmera (`#compose-camera-open`), com miniatura de pré-visualização em `#photo-slot`.
+  - **Vídeo (`#compose-tab-video`)**: upload de MP4/WebM até 2 MB com reprodutor de pré-visualização `<video>` em `#video-slot`.
+  - **Arquivo (`#compose-tab-file`)**: upload de PDF, TXT, DOC ou DOCX até 2 MB.
+  - **Local (`#compose-tab-location`)**: indicação de aldeia, rio ou cidade.
+  - **Ao vivo (`#compose-tab-live`)**: estúdio de preparação e diagnóstico local transparente.
+  - **Atalho `+ Story 24h` (`#compose-story-open`)**: acesso rápido ao estúdio de Stories efêmeros.
+  - **Seletor de destino (`#preview-community-target`)**: permite publicar no feed geral da aldeia ou diretamente em qualquer comunidade da qual a pessoa participa, com barra de progresso (`#compose-upload-progress`).
+
+### Auditoria de Live Streaming e Proposta de Arquitetura Técnica
+1. **Resultado da Auditoria:**
+   - Na aplicação legada (`public_html/xhr/live.php`), existia apenas esqueleto dependente de chaves Agora.io / Millicast e tabelas MySQL (`Wo_Posts` com `stream_name`), sem servidor de mídia provisionado.
+   - Na prévia (`preview/`), **não há servidor de ingestão RTMP/WHIP nem distribuição HLS/DASH/WebRTC ativo**.
+   - **Regra cumprida rigorosamente:** O botão **Ao vivo** jamais inicia uma transmissão simulada ou falsa. Em vez disso, oferece um **Estúdio de Preparação Local** claramente identificado como `PRÉVIA LOCAL · FORA DO AR`, permitindo validar permissões reais de câmera e microfone no navegador (`getUserMedia`) e oferecendo atalhos diretos para publicar vídeo gravado ou gravar Story 24h.
+
+2. **Arquitetura Técnica Proposta para Transmissão ao Vivo Real:**
+   - **Ingestão (Broadcaster):**
+     - **Web (Mobile/Desktop Browser):** Protocolo **WHIP (WebRTC-HTTP Ingestion Protocol)** direto do navegador via `RTCPeerConnection`, eliminando necessidade de aplicativos externos.
+     - **OBS / Codificadores Externos:** Ingestão **RTMPS** (`rtmps://live.etnias.site/app/<streamKey>`).
+   - **Autenticação e Autorização:**
+     - Endpoint `POST /api/live/session` valida sessão assinada, verifica se o usuário tem permissão para transmitir no perfil ou na comunidade alvo (respeitando `canPostInCommunity` e `privacy`), e emite um token efêmero de ingestão (JWT/HMAC com TTL de 4h).
+   - **Processamento e Distribuição:**
+     - Transmuxing/ABR para **LL-HLS (Low-Latency HLS)** ou distribuição WebRTC via SFU para espectadores autorizados.
+     - Para comunidades privadas (`privacy: 'private'`), as playlists `.m3u8` e segmentos `.ts`/`.m4s` exigem cookie/token assinado validado pelo middleware/CDN.
+   - **Moderação e Governança Cultural:**
+     - Botão de encerramento imediato (`kill-switch`) para administradores da comunidade e moderadores da plataforma (`POST /api/live/terminate`), revogando a chave de ingestão e removendo a gravação (VOD) se houver exposição indevida de ritos ou conhecimentos restritos.
+
+3. **Comparativo de Provedores, Custos e Dependências:**
+
+| Provedor / Solução | Ingestão / Saída | Custo Estimado | Riscos e Dependências |
+|---|---|---|---|
+| **MediaMTX / OwnCast (Self-Hosted na VPS Hostinger)** | WHIP + RTMPS → LL-HLS / WebRTC | **R$ 0 de licença** (consome CPU/banda da VPS) | Ideal para até ~50–150 espectadores simultâneos sem transcodificação pesada; exige monitoramento de banda de saída da VPS. |
+| **Cloudflare Stream (Live)** | WHIP + RTMPS → LL-HLS global | ~US$ 1 / 1.000 min entregues + US$ 5 / 1.000 min armazenados | Baixa manutenção e excelente entrega em conexões móveis instáveis; exige cartão internacional e webhook de autenticação para comunidades privadas. |
+| **Mux Live / AWS IVS** | RTMPS → HLS | Custo mais elevado por minuto de entrada + minuto assistido | Latência baixa, porém custo pode escalar rapidamente em transmissões longas de assembleias ou encontros comunitários. |
+
+---
+
+## 8. Tokens de Design (`DESIGN.md`), Chat Mobile Master-Detail e Usabilidade
+
+- **Design Tokens (`preview/preview.css`):** Definidos em `:root` preservando a identidade oficial Casa Opy (`--color-canvas: #f5f5f1`, `--color-terracotta: #bd171c`, `--color-crimson: #991116`, `--color-forest: #2d6a4f`, `--color-river-teal: #176b87`, tipografia `Krub`, raios e espaçamentos consistentes).
+- **Inbox Desktop e Mobile (`/chat/`):**
+  - Desktop: Lista lateral de conversas + painel principal de mensagens + cabeçalho com avatar e status (incluindo indicador de digitação `Digitando…` em tempo real via `chat_typing`) + painel contextual sob demanda (`#chat-context` com informações do contato/grupo e mídias compartilhadas).
+  - Mobile (`<= 700px`): Fluxo master-detail (`#chat-workspace[data-mobile-view="list" | "thread"]`) onde a lista é a tela principal e selecionar uma conversa abre a thread em tela cheia com botão consistente `← Conversas` (`#chat-back`) e respeito a `safe-area-inset-bottom`.
+- **Fluxos Essenciais de Ponta a Ponta:**
+  - Busca unificada (`/search/`): pesquisa comunidades, pessoas e publicações.
+  - Maracá (`/notificacoes/`): exibe solicitações de amizade com botão `Aceitar amizade`, convites de comunidades com `Aceitar convite` / `Recusar`, solicitações pendentes de moderação e interações em publicações, além de badges numéricos no cabeçalho.
+  - Edição de Perfil (`/conta/` e `/configuracoes/`): formulário `#profile-edit-form` persistindo nome, organização/referência territorial (`affiliation`) e apresentação (`bio`) via `action: 'profile_update'`.
+
+---
+
+## 9. Limites Conhecidos e Backlog para Produção
+
+- **Persistência e Tempo Real:** O storage da prévia (Vercel Blob / JSON transacional local com limite de 10.000 mensagens e polling de 4s–5s quando visível) atende à homologação funcional, mas deve ser migrado para banco relacional indexado (PostgreSQL/MariaDB) e transporte por eventos (WebSocket/SSE) na VPS antes de abertura ampla.
+- **Fila de Moderação Humana:** Conectar `state.chatReports` e `state.communityReports` a um painel administrativo com protocolo comunitário definido pelas lideranças.
 - **Vinculação de Contas do Acervo:** Definir processo seguro para que titulares das 7.418 contas históricas reivindiquem seus perfis no novo ambiente.

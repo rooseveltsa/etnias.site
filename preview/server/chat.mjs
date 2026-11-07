@@ -1,7 +1,8 @@
 import { randomUUID, createHash } from 'node:crypto';
 
-export const chatActions = ['dm', 'chat_edit', 'chat_delete', 'chat_react', 'chat_read', 'chat_preferences', 'chat_block', 'chat_report', 'chat_group_create', 'chat_group_accept', 'chat_group_decline', 'chat_group_update', 'chat_group_invite', 'chat_group_remove', 'chat_group_admin', 'chat_group_leave'];
+export const chatActions = ['dm', 'chat_typing', 'chat_edit', 'chat_delete', 'chat_react', 'chat_read', 'chat_preferences', 'chat_block', 'chat_report', 'chat_group_create', 'chat_group_accept', 'chat_group_decline', 'chat_group_update', 'chat_group_invite', 'chat_group_remove', 'chat_group_admin', 'chat_group_leave'];
 const keyOf = me => `id:${me.id}`;
+const typingBucketKey = (mine, key) => key.startsWith('group:') ? key : [mine, key].sort().join('|');
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const reactions = ['👍', '❤️', '👏', '😂', '😢'];
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
@@ -74,9 +75,18 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
   let list = [], selected = null, hasMore = false;
   if (key) {
     const t = thread(state, me, key);
-    selected = { key, name:t.name, group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
-      description:t.group?.description || '', members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,admin:t.group.admins.includes(k)}; }) : [] };
-    list = messagesOf(state,me,key);
+    const fullList = messagesOf(state, me, key);
+    const otherAcc = !t.group ? person(state, key) : null;
+    const now = Date.now();
+    const bucket = typingBucketKey(mine, key);
+    const typing = Object.entries(state.chatTyping?.[bucket] || {})
+      .filter(([k, ts]) => k !== mine && now - ts < 6500 && t.members.includes(k) && !blocked(state, mine, k))
+      .map(([k]) => { try { return person(state, k).name; } catch { return ''; } })
+      .filter(Boolean);
+    const sharedMedia = fullList.filter(m => !m.deleted && m.media).slice(-12).reverse().map(m => ({ id: m.media.id, url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name, at: m.createdAt }));
+    selected = { key, name:t.name, username:otherAcc?.username || '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
+      description:t.group?.description || '', typing, sharedMedia, members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
+    list = fullList;
     const q = text(params.get('q') || '',100,false).toLocaleLowerCase('pt-BR');
     if(q)list=list.filter(m=>!m.deleted && m.text.toLocaleLowerCase('pt-BR').includes(q));
     const before=params.get('before');
@@ -90,6 +100,15 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
 export function chatAction(state, me, body, upload) {
   const mine=keyOf(me), key=body.key || body.toKey;
   state.dms ||= [];
+  if(body.action==='chat_typing') {
+    const t=thread(state,me,key);
+    if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada.');
+    const bucket=typingBucketKey(mine,key);
+    state.chatTyping ||= {}; state.chatTyping[bucket] ||= {};
+    if(body.typing===false) delete state.chatTyping[bucket][mine];
+    else state.chatTyping[bucket][mine]=Date.now();
+    return {};
+  }
   if(body.action==='dm') {
     const t=thread(state,me,body.toKey);
     if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada. Não é possível enviar mensagens.');
@@ -101,6 +120,8 @@ export function chatAction(state, me, body, upload) {
     if(previous){if(previous.digest!==digest)fail(409,'Este envio já foi usado. Abra um novo rascunho.');return {duplicate:true};}
     if(state.dms.length>=10000)fail(409,'A prévia atingiu o limite de mensagens. O histórico foi preservado.');
     if(body.replyTo){const reply=messageOf(state,me,body.replyTo);if(reply.deleted || messageKey(me,reply)!==body.toKey)fail(400,'Escolha uma mensagem desta conversa para responder.');}
+    const bucket=typingBucketKey(mine,body.toKey);
+    if(state.chatTyping?.[bucket]) delete state.chatTyping[bucket][mine];
     state.dms.push({id:randomUUID(),clientId:body.clientId || randomUUID(),digest,fromKey:mine,fromName:me.name,toKey:body.toKey,toName:t.name,text:copy,createdAt:Date.now(),replyTo:body.replyTo || null,...(upload ? {media:{id:upload.id,name:upload.name,kind:upload.kind}} : {})});
     return {};
   }

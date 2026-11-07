@@ -4,9 +4,14 @@ const $ = selector => document.querySelector(selector);
 const node = (tag, value, cls) => { const el=document.createElement(tag); if(value!==undefined)el.textContent=value; if(cls)el.className=cls; return el; };
 const status = message => { $('#chat-status').textContent=message; };
 const date = value => new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
-let data, key=new URLSearchParams(location.search).get('p') || '', query='', loading=false, sending=false, older=false, reply=null, attachment=null, recorder=null, stream=null, timer;
+let data, key=new URLSearchParams(location.search).get('p') || '', query='', loading=false, sending=false, older=false, reply=null, attachment=null, recorder=null, stream=null, timer, showContext=false, lastTypingSent=0;
 const drafts=new Map(), pending=new Map();
 let generation=0, reading=false, recordingGeneration=0, fileGeneration=0;
+function syncMobileView() {
+ const ws=$('#chat-workspace');
+ if(ws&&ws.dataset)ws.dataset.mobileView=key?'thread':'list';
+}
+syncMobileView();
 function button(label, fn, parent) { const b=node('button',label,'preview-secondary');b.type='button';b.onclick=async()=>{b.disabled=true;try{await fn();}catch(e){status(e.message);}finally{b.disabled=false;}};parent.append(b);return b; }
 async function request(body, params={}) {
  const url='/api/community?'+new URLSearchParams({view:'chat',key,...params});
@@ -28,10 +33,11 @@ function stopRecording() { recordingGeneration++; if(recorder?.state==='recordin
 function stash() { if(key)drafts.set(key,{text:$('#chat-text').value,reply,attachment}); }
 async function choose(next) {
  if(sending)return;stopRecording();fileGeneration++;stash();key=next;query='';$('#chat-search').value='';older=false;reply=null;attachment=null;
+ syncMobileView();
  const saved=drafts.get(key);$('#chat-text').value=saved?.text || '';reply=saved?.reply || null;attachment=saved?.attachment || null;
  history.replaceState(null,'','/chat/'+(key?'?p='+encodeURIComponent(key):''));
- $('#chat-form').hidden=true;$('#chat-send').disabled=true;$('#chat-name').textContent='Carregando conversa…';$('#chat-log').replaceChildren();$('#chat-log').dataset.signature='';
- await refresh(true);$('#chat-text').focus();
+ $('#chat-form').hidden=true;$('#chat-send').disabled=true;$('#chat-name').textContent=key?'Carregando conversa…':'Escolha uma conversa';$('#chat-log').replaceChildren();$('#chat-log').dataset.signature='';
+ await refresh(true);if(key)$('#chat-text').focus();
 }
 function media(item,parent) {
  if(!item)return;
@@ -61,6 +67,41 @@ function message(m) {
  if(!m.own)button('Registrar denúncia',()=>dialog('Registrar denúncia',box=>{box.append(node('p','O registro fica salvo, mas a equipe de revisão ainda não está conectada nesta prévia. Bloqueie a pessoa para impedir novas mensagens. Não use este canal para emergências.'));const input=field(box,'Motivo','',true);input.maxLength=500;button('Registrar',async()=>{await action({action:'chat_report',messageId:m.id,reason:input.value});$('#chat-dialog').close();status('Registro salvo. Revisão humana ainda não conectada.');},box);}),actions);
  return article;
 }
+function paintContext() {
+ const panel=$('#chat-context'),toggle=$('#chat-info-toggle');
+ if(!panel||!toggle)return;
+ const selected=data?.selected;
+ toggle.hidden=!selected;
+ toggle.setAttribute('aria-expanded',String(!!(selected&&showContext)));
+ if(!selected||!showContext){panel.hidden=true;panel.replaceChildren();return;}
+ panel.hidden=false;panel.replaceChildren();
+ const head=node('div',undefined,'chat-context-head');
+ const titleWrap=node('div');
+ titleWrap.append(node('h3',selected.name));
+ if(selected.username)titleWrap.append(node('small','@'+selected.username));
+ if(selected.affiliation)titleWrap.append(node('small',selected.affiliation));
+ head.append(titleWrap);
+ const closeBtn=button('Fechar',()=>{showContext=false;paintContext();},head);
+ closeBtn.id='chat-context-close';
+ panel.append(head);
+ if(selected.bio||selected.description)panel.append(node('p',selected.bio||selected.description,'chat-context-bio'));
+ panel.append(node('p',selected.group?'Grupo privado com convite. Mensagens anteriores à sua entrada não são exibidas.':'Conversa direta privada entre contas autenticadas da Casa Opy.','chat-context-note'));
+ if(selected.group&&selected.members?.length){
+  const sec=node('section',undefined,'chat-context-section');
+  sec.append(node('h4','Participantes ('+selected.members.length+')'));
+  for(const m of selected.members)sec.append(node('small',m.name+(m.admin?' · administração':'')));
+  panel.append(sec);
+ }
+ if(selected.sharedMedia?.length){
+  const sec=node('section',undefined,'chat-context-section');
+  sec.append(node('h4','Anexos compartilhados ('+selected.sharedMedia.length+')'));
+  for(const item of selected.sharedMedia){
+   const a=node('a',item.name,'preview-text-link');a.href=item.url;if(item.kind==='file')a.download=item.name;
+   sec.append(a);
+  }
+  panel.append(sec);
+ }
+}
 function paintDraft() {
  const area=$('#chat-reply');area.replaceChildren();if(reply){area.append(node('p','Respondendo: '+reply.text.slice(0,100)));button('Cancelar resposta',()=>{reply=null;paintDraft();},area);}
  const slot=$('#chat-attachment');slot.replaceChildren();if(attachment){slot.append(node('span',attachment.name));button('Remover anexo',()=>{attachment=null;$('#chat-file').value='';paintDraft();},slot);}
@@ -69,6 +110,7 @@ function paintDraft() {
 }
 function render() {
  if(!data)return;
+ syncMobileView();
  const filter=$('#chat-find').value.trim().toLocaleLowerCase('pt-BR'),showArchived=$('#chat-archives').checked;
  const list=$('#chat-list');list.replaceChildren();
  const conversations=new Map(data.conversations.map(c=>[c.key,c]));
@@ -77,7 +119,9 @@ function render() {
  if(!entries.length)list.append(node('li','Nenhuma pessoa ou conversa encontrada.'));
  const invites=$('#chat-invitations');invites.replaceChildren();for(const invite of data.invitations){const card=node('div',undefined,'chat-invite');card.append(node('p','Convite: '+invite.name));button('Aceitar',()=>action({action:'chat_group_accept',key:invite.key}),card);button('Recusar',()=>action({action:'chat_group_decline',key:invite.key}),card);invites.append(card);}
  const selected=data.selected;$('#chat-name').textContent=selected?.name || 'Escolha uma conversa';
- $('#chat-subtitle').textContent=selected ? (selected.blocked?'Envio bloqueado.':selected.group?selected.members.length+' participantes · você vê mensagens desde sua entrada':'Conversa privada · presença e leitura não são divulgadas') : 'Encontre alguém pelo nome ou crie um grupo.';
+ const avEl=$('#chat-avatar');if(avEl)avEl.textContent=(selected?.name||'C').slice(0,1).toLocaleUpperCase('pt-BR');
+ const typingNames=selected?.typing||[];
+ $('#chat-subtitle').textContent=selected ? (selected.blocked?'Envio bloqueado.':typingNames.length?typingNames.join(', ')+' está digitando…':selected.group?selected.members.length+' participantes · você vê mensagens desde sua entrada':'Conversa privada'+(selected.username?' · @'+selected.username:'')) : 'Encontre alguém pelo nome ou crie um grupo.';
  $('#chat-form').hidden=!selected;$('#chat-options').hidden=!selected;$('#chat-search-form').hidden=!selected;$('#chat-older').hidden=!data.hasMore;
  const log=$('#chat-log');const signature=JSON.stringify(data.messages);
  if(log.dataset.signature!==signature){const nearBottom=log.scrollHeight-log.scrollTop-log.clientHeight<60;const scroll=log.scrollTop,height=log.scrollHeight;log.dataset.signature=signature;const existing=new Map([...document.querySelectorAll('#chat-log [data-message]')].map(el=>[el.dataset.message,el]));
@@ -85,6 +129,7 @@ function render() {
  for(const empty of document.querySelectorAll('#chat-log .chat-empty'))empty.remove();
  data.messages.forEach((m,index)=>{let el=existing.get(m.id);const value=JSON.stringify(m);if(!el||el.dataset.value!==value){const next=message(m);next.dataset.value=value;if(el){const playing=el.querySelector('audio,video'),replacement=next.querySelector('audio,video');if(playing&&replacement&&playing.src===replacement.src)replacement.replaceWith(playing);el.replaceWith(next);}el=next;}if(log.children[index]!==el)log.insertBefore(el,log.children[index]||null);});
  if(!data.messages.length)log.append(node('p',query?'Nenhuma mensagem encontrada.':'A conversa começa com sua primeira mensagem.','chat-empty'));if(older)log.scrollTop=scroll+log.scrollHeight-height;else if(nearBottom)log.scrollTop=log.scrollHeight;}
+ paintContext();
  paintDraft();
 }
 async function markRead(){
@@ -102,6 +147,15 @@ async function send(job){
  catch(e){status(e.message);}finally{sending=false;paintDraft();}
 }
 async function fileData(file){if(file.size>2*1024*1024)throw Error('Escolha um anexo de até 2 MB.');const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o anexo.'));reader.readAsDataURL(file);});return {name:file.name,data:content.replace(/^data:[^;]+(?:;codecs=[^;]+)?;base64,/, 'data:'+file.type.split(';')[0]+';base64,')};}
+$('#chat-back').onclick=()=>choose('');
+$('#chat-info-toggle').onclick=()=>{showContext=!showContext;paintContext();};
+$('#chat-text').addEventListener('input',()=>{
+ const now=Date.now();
+ if(key&&data?.selected?.key===key&&!data.selected.blocked&&$('#chat-text').value.trim()&&now-lastTypingSent>2500){
+  lastTypingSent=now;
+  request({action:'chat_typing',key,typing:true}).catch(()=>{});
+ }
+});
 $('#chat-form').onsubmit=e=>{e.preventDefault();send();};
 $('#chat-find').oninput=render;$('#chat-archives').onchange=render;
 $('#chat-search-form').onsubmit=async e=>{e.preventDefault();query=$('#chat-search').value;older=false;await refresh();};
@@ -142,6 +196,6 @@ window.addEventListener('pagehide',stopRecording);document.addEventListener('vis
 window.addEventListener('offline',()=>status('Sem conexão. Escreva e tente enviar quando a internet voltar.'));
 window.addEventListener('online',refresh);
 // shortcut: polling com a tela visível serve à homologação; migrar para eventos e banco indexado antes de ampliar o público.
-setInterval(()=>{if(!document.hidden&&!$('#chat-dialog').open&&!older&&!$('#chat-log details[open]'))refresh();},5000);
+setInterval(()=>{if(!document.hidden&&!$('#chat-dialog').open&&!older&&!$('#chat-log details[open]'))refresh();},4000);
 refresh();
 })();

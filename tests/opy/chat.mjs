@@ -103,3 +103,11 @@ test('apagar marcador para mim não torna mensagens antigas não lidas',()=>{
  act(s,bob,{action:'chat_delete',messageId:last,scope:'me'});
  assert.equal(view(s,bob,alice).conversations[0].unread,0);
 });
+test('indicador de digitação aparece para o destinatário e limpa ao enviar mensagem',()=>{
+ const s=fresh();
+ act(s,alice,{action:'chat_typing',key:key(bob),typing:true});
+ assert.deepEqual(view(s,bob,alice).selected.typing,['Ana']);
+ assert.deepEqual(view(s,alice,bob).selected.typing,[]);
+ send(s,alice,bob,{text:'Mensagem enviada'});
+ assert.deepEqual(view(s,bob,alice).selected.typing,[]);
+});
