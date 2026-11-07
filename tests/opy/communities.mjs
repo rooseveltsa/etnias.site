@@ -89,3 +89,21 @@ test('convites e denúncias em comunidades funcionam com validação', () => {
   communityAction(s, caio, { action: 'community_report', communityId: createdId, reason: 'Conteúdo fora das regras' });
   assert.equal(s.communityReports.length, 1);
 });
+
+test('perguntas de entrada: obrigatórias no pedido, visíveis só para a administração e apagadas na decisão', () => {
+  const s = fresh();
+  const { createdId } = communityAction(s, alice, { action: 'community_create', name: 'Guardiões do Rio', description: 'Saberes do território', visibility: 'private', entryQuestions: ['De qual povo ou comunidade você é?', 'Quem indicou você?'] });
+  rejects(() => communityAction(s, bob, { action: 'community_join', communityId: createdId }), 400);
+  rejects(() => communityAction(s, bob, { action: 'community_join', communityId: createdId, answers: ['só uma'] }), 400);
+  communityAction(s, bob, { action: 'community_join', communityId: createdId, answers: ['Povo do rio', 'A Ana'] });
+  const forAdmin = projectCommunities(s, alice).find(c => c.id === createdId);
+  assert.deepEqual(forAdmin.pendingRequests[0].answers, ['Povo do rio', 'A Ana']);
+  assert.deepEqual(forAdmin.entryQuestions.length, 2);
+  assert.deepEqual(projectCommunities(s, caio).find(c => c.id === createdId).pendingRequests, [], 'respostas não vazam para outros membros');
+  communityAction(s, alice, { action: 'community_approve', communityId: createdId, memberKey: 'id:' + bob.id });
+  const c = s.communities.find(x => x.id === createdId);
+  assert.equal(c.requestAnswers['id:' + bob.id], undefined, 'respostas apagadas após a decisão');
+  rejects(() => communityAction(s, alice, { action: 'community_update', communityId: createdId, name: 'Guardiões do Rio', description: 'x', entryQuestions: ['a', 'b', 'c', 'd'] }), 400);
+  communityAction(s, alice, { action: 'community_update', communityId: createdId, name: 'Guardiões do Rio', description: 'x', visibility: 'public' });
+  assert.deepEqual(s.communities.find(x => x.id === createdId).entryQuestions, [], 'comunidade pública não tem perguntas');
+});

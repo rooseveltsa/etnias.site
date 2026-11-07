@@ -25,6 +25,12 @@ export const communityCategories = [
 ];
 
 const keyOf = me => `id:${me.id}`;
+// Perguntas de entrada: até 3, definidas pela administração; respostas só valem enquanto o pedido está pendente.
+function questionsOf(value) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 3) fail(400, 'Use até 3 perguntas de entrada.');
+  return value.map(q => text(String(q ?? ''), 200, false)).filter(Boolean);
+}
 const slugify = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'comunidade';
 
 function fail(status, message) {
@@ -213,7 +219,8 @@ export function projectCommunities(state, me) {
       members,
       admins: c.admins.map(k => accountSummary(state, k, c)),
       moderators: (c.moderators || []).map(k => accountSummary(state, k, c)),
-      pendingRequests: staff ? (c.pendingRequests || []).map(k => accountSummary(state, k, c)) : []
+      entryQuestions: c.entryQuestions || [],
+      pendingRequests: staff ? (c.pendingRequests || []).map(k => ({ ...accountSummary(state, k, c), answers: c.requestAnswers?.[k]?.answers || [] })) : []
     };
   });
 }
@@ -246,6 +253,7 @@ export function communityAction(state, me, body) {
       description,
       rules,
       governanceNote,
+      entryQuestions: visibility === 'private' ? (questionsOf(body.entryQuestions) || []) : [],
       createdAt: Date.now(),
       members: [mine],
       admins: [mine],
@@ -276,9 +284,16 @@ export function communityAction(state, me, body) {
       return {};
     }
     if (c.visibility === 'private' && !c.invited.includes(mine)) {
+      c.requestAnswers ||= {};
       if (c.pendingRequests.includes(mine)) {
         c.pendingRequests = c.pendingRequests.filter(k => k !== mine);
+        delete c.requestAnswers[mine];
       } else {
+        const questions = c.entryQuestions || [];
+        if (questions.length) {
+          if (!Array.isArray(body.answers) || body.answers.length !== questions.length) fail(400, 'Responda às perguntas de entrada da comunidade.');
+          c.requestAnswers[mine] = { answers: body.answers.map(a => text(String(a ?? ''), 500)), at: Date.now() };
+        }
         c.pendingRequests.push(mine);
       }
       return {};
@@ -335,6 +350,7 @@ export function communityAction(state, me, body) {
     personAccount(state, target);
     if (!c.pendingRequests.includes(target)) fail(404, 'Solicitação não encontrada.');
     c.pendingRequests = c.pendingRequests.filter(k => k !== target);
+    if (c.requestAnswers) delete c.requestAnswers[target];
     if (body.action === 'community_approve' && !c.members.includes(target)) {
       c.members.push(target);
       syncLegacyInterest(state, c, target, true);
@@ -382,6 +398,9 @@ export function communityAction(state, me, body) {
     c.rules = text(body.rules || '', 600, false);
     c.governanceNote = text(body.governanceNote || '', 300, false);
     if (body.coverTone && ['terracotta', 'forest', 'slate', 'ochre'].includes(body.coverTone)) c.coverTone = body.coverTone;
+    const questions = questionsOf(body.entryQuestions);
+    if (questions !== undefined) c.entryQuestions = questions;
+    if (c.visibility === 'public') c.entryQuestions = [];
     return {};
   }
 

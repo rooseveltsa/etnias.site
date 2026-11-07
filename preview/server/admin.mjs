@@ -98,7 +98,7 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
     .sort((a, b) => b.reports - a.reports || b.lastActivity - a.lastActivity).slice(0, 60);
   const reportedPosts = new Set(alerts.filter(a => a.postId).map(a => a.postId));
   // "Somente eu" fica fora da moderação, a não ser que tenha sido denunciada.
-  const content = newPosts.filter(p => p.audience !== 'private' || reportedPosts.has(p.id))
+  const content = newPosts.filter(p => !['private', 'friends'].includes(p.audience) || reportedPosts.has(p.id))
     .sort((a, b) => Number(reportedPosts.has(b.id)) - Number(reportedPosts.has(a.id)) || b.createdAt - a.createdAt).slice(0, 40)
     .map(p => ({ id: p.id, author: p.author, authorKey: 'id:' + p.authorId, text: (p.text || '').slice(0, 400), createdAt: p.createdAt, community: p.communityName || '', media: p.media?.kind || p.file?.kind || '', comments: (p.comments || []).length, reported: reportedPosts.has(p.id) }));
   const communities = (state.communities || []).map(c => ({ id: c.id, name: c.name, category: c.category, visibility: c.visibility, members: c.members?.length || 0, pending: (c.pendingRequests || []).length,

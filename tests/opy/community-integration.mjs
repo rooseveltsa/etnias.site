@@ -196,6 +196,18 @@ try {
   assert.ok(state.posts.find(p => p.id === cPost.id).editedAt > 0);
   assert.equal((await api({ action:'comment_delete', postId:cPost.id, commentId:top.id }, login.cookie)).status, 200);
   assert.equal(state.posts.find(p => p.id === cPost.id).comments.length, 0, 'apagar o principal leva as respostas');
+  // Público "Amigos": só o autor e amizades confirmadas veem; não pode ser repostado
+  const meId = (await api(null, login.cookie)).data.me.id, secondId = (await api(null, second.cookie)).data.me.id;
+  if ((await api(null, login.cookie)).data.directory.find(p => p.key === 'id:' + secondId)?.friendStatus !== 'friends') {
+    await api({ action:'friend', authorKey:'id:' + secondId }, login.cookie);
+    await api({ action:'friend', authorKey:'id:' + meId }, second.cookie);
+  }
+  assert.equal((await api(null, login.cookie)).data.directory.find(p => p.key === 'id:' + secondId)?.friendStatus, 'friends');
+  assert.equal((await api({ action:'publish', text:'Só para amigos', audience:'friends' }, login.cookie)).status, 200);
+  const fPost = state.posts.find(p => p.text === 'Só para amigos');
+  assert.ok((await api(null, second.cookie)).data.posts.some(p => p.id === fPost.id), 'amigo vê');
+  assert.ok(!(await api(null, third.cookie)).data.posts.some(p => p.id === fPost.id), 'quem não é amigo não vê');
+  assert.equal((await api({ action:'repost', postId:fPost.id }, second.cookie)).status, 400, 'não pode ser repostado');
   // Foto de perfil: envio, visibilidade na rede e remoção da anterior
   assert.equal((await api({ action:'profile_media', kind:'avatar', media:png }, login.cookie)).status, 200);
   const firstAvatar = (await api(null, login.cookie)).data.me.avatar;

@@ -83,6 +83,8 @@ function authorKeyOf(post) {
 }
 function visible(post, me, state) {
   if (post.audience === 'private' && post.authorId !== me.id) return false;
+  // "Amigos": só o autor e quem tem amizade confirmada com ele.
+  if (post.audience === 'friends' && post.authorId !== me.id && !(state?.friends?.['id:' + post.authorId] || []).includes('id:' + me.id)) return false;
   if (post.communityId && state && !canViewCommunityContent(state, me, post.communityId)) return false;
   return true;
 }
@@ -328,7 +330,7 @@ export default async function handler(req, res) {
     if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !['announcement_dismiss', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
-      if (!['public', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
+      if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
       if (body.feeling && !feelings.includes(body.feeling)) fail(400, 'Sentimento inválido.');
       if (body.poll && (!Array.isArray(body.poll) || body.poll.length < 2 || body.poll.length > 4 || body.poll.some(v => typeof v !== 'string' || !v.trim() || v.length > 100))) fail(400, 'Preencha de duas a quatro opções da enquete.');
       if (typeof body.location === 'string' && body.location.trim()) {
@@ -442,7 +444,7 @@ export default async function handler(req, res) {
           state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) }); break;
         }
         case 'repost': {
-          if (post.audience === 'private' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
+          if (post.audience === 'private' || post.audience === 'friends' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
           if (state.posts.filter(p => p.origin !== 'legacy').length >= 100) fail(409, 'A homologação atingiu o limite de publicações. Remova uma publicação sua para continuar.');
           const note = text(body.text || '', 1000, false);
           const source = post.repostOf || {
