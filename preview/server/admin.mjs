@@ -1,5 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import { hashPassword } from './session.mjs';
+// Prestação de contas do desenvolvimento (contrato × entregas). Só administradores veem; atualizado a cada entrega.
+import development from './desenvolvimento.json' with { type: 'json' };
 
 // Centro de gestão da Casa Opy: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
 // comunicados e registro de transparência. Toda ação fica no adminLog com autor, alvo e motivo.
@@ -112,7 +114,7 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
     posts: posts.filter(p => p.communityId === c.id).length, reports: (state.communityReports || []).filter(r => r.communityId === c.id).length }));
   const announcements = (state.announcements || []).slice().sort((a, b) => b.createdAt - a.createdAt).map(a => ({ ...a, active: !a.endedAt && (!a.until || a.until > now) }));
   const health = { accounts: accounts.length, posts: posts.length, messages: dms.length, media: new Set([...posts.flatMap(p => [p.media?.id, p.file?.id]), ...dms.map(m => m.media?.id), ...accounts.flatMap(a => [a.avatarId, a.coverId])].filter(Boolean)).size, dataKb: Math.round(JSON.stringify(state).length / 1024) };
-  return { role, viewer: { key: keyOf(viewer), name: viewer.name }, kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, announcements, log: (state.adminLog || []).slice(-150).reverse(), health };
+  return { role, viewer: { key: keyOf(viewer), name: viewer.name }, ...(role === 'admin' ? { development } : {}), kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, announcements, log: (state.adminLog || []).slice(-150).reverse(), health };
 }
 
 export function adminAction(state, actor, body, env = process.env, now = Date.now()) {

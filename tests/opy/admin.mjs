@@ -22,6 +22,10 @@ test('só quem tem papel acessa o painel; administradores do servidor não depen
   rejects(() => act(s, ana, { action: 'admin_suspend', userKey: key(beto), days: 1, reason: 'x' }), 403);
   const v = admin.adminView(s, acc(s, mod), undefined, env, 1000);
   assert.equal(v.role, 'moderator'); assert.equal(v.kpis.members.total, 4);
+  // Prestação de contas do contrato: só administração vê.
+  assert.equal(v.development, undefined);
+  const dev = admin.adminView(s, acc(s, boss), undefined, env, 1000).development;
+  assert.ok(dev.contrato.assinatura && dev.escopo.length >= 8 && dev.entregas.length && dev.pendencias.length && dev.lgpd.length && dev.acessos.length);
 });
 
 test('moderação tem limites: prazo obrigatório, sem papéis, sem comunicados, sem agir sobre administradores', () => {

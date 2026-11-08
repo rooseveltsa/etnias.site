@@ -8,7 +8,7 @@ const fmtDate = t => t ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', 
 const fmtDay = t => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(t));
 const rel = t => { if (!t) return 'sem atividade'; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`; };
 let data = null, tab = location.hash.replace('#', '') || 'visao', query = '', busy = false;
-const tabs = [['visao', 'Visão geral'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções']];
+const tabs = [['visao', 'Visão geral'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções'], ['desenvolvimento', 'Desenvolvimento']];
 // Painel de traduções (GET /api/community?view=i18n). Quem só traduz entra direto nele.
 let idata = null, ilang = '', ifilter = 'faltando', iquery = '', ipage = 0, translatorOnly = false;
 async function api18(body) {
@@ -235,6 +235,33 @@ const views = {
     box.append(nav);
     return box;
   },
+  desenvolvimento() {
+    const d = data.development; if (!d) return views.visao();
+    const box = el('div'), card = (title, ...kids) => { const c = el('section', undefined, 'adm-card adm-dev'); c.append(el('h3', title), ...kids); box.append(c); return c; };
+    const status = { entregue: ['Entregue', 'is-ok'], parcial: ['Parcial', 'is-warn'], andamento: ['Em andamento', 'is-warn'], pendente: ['Pendente', 'is-danger'], 'nao-iniciado': ['Não iniciado', 'is-danger'], ok: ['Em ordem', 'is-ok'], atenção: ['Atenção', 'is-danger'], confirmar: ['Confirmar', 'is-warn'], agendar: ['A agendar', 'is-warn'], prazo: ['Prazo', 'is-muted'] };
+    const pillOf = s => pill(...(status[s] || [s, 'is-muted']));
+    const day = iso => iso ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date(iso + 'T12:00:00')) : '—';
+    box.append(el('p', `${d.nota} Atualizado em ${day(d.atualizadoEm)}.`, 'adm-muted'));
+    const c = d.contrato, summary = el('div', undefined, 'adm-kpis');
+    const done = d.escopo.filter(x => x.status === 'entregue').length;
+    summary.append(kpiCard('Escopo contratado', `${done}/${d.escopo.length}`, undefined, undefined, 'frentes entregues por completo'), kpiCard('Entregas publicadas', d.entregas.length, undefined, undefined, `desde ${day(d.entregas[0].data)}`), kpiCard('Em andamento', d.andamento.length), kpiCard('Decisões pendentes', d.pendencias.length, undefined, undefined, `${d.pendencias.filter(p => p.depende === 'contratante').length} dependem da contratante`));
+    box.append(summary);
+    card('Contrato', el('p', c.titulo), table(['Item', 'Valor'], [['Contratante', c.contratante], ['Contratada', c.contratada], ['Assinatura', day(c.assinatura)], ['Vigência até', day(c.vigenciaAte)], ['Remuneração', c.remuneracao]]), el('p', c.anexo, 'adm-muted'),
+      el('h4', 'Marcos e prazos'), table(['Marco', 'Data', 'Relatório até', 'Estado'], c.marcos.map(m => [m.titulo, day(m.data), m.prazoRelatorio ? day(m.prazoRelatorio) : '—', pillOf(m.estado)])),
+      el('h4', 'Compromissos do contrato e como estão'), table(['Cláusula', 'O que o contrato exige', 'Situação'], c.compromissos.map(x => [x.clausula, x.texto, x.estado])));
+    card('Escopo contratado × entregue', el('p', 'Cada frente da cláusula primeira, com evidência verificável e o que ainda falta.', 'adm-muted'), table(['Frente', 'Estado', 'Evidência', 'O que falta'], d.escopo.map(x => [x.item, pillOf(x.status), x.evidencia, x.falta || '—'])));
+    const tl = el('ol', undefined, 'adm-log'); d.entregas.forEach(e => { const li = el('li'); li.append(el('strong', e.titulo), document.createTextNode(' · ' + day(e.data)), el('small', e.detalhe)); tl.append(li); });
+    card('Linha do tempo das entregas', tl);
+    card('Em andamento', table(['Item', 'Detalhe'], d.andamento.map(x => [x.item, x.detalhe])));
+    card('Pendências e decisões', el('p', 'O que trava ou depende de decisão. "Contratante" = precisa de resposta, acesso ou contratação da ETNIAS.SITE.', 'adm-muted'), table(['Item', 'Depende de', 'Detalhe'], d.pendencias.map(x => [x.item, pill(x.depende, x.depende === 'contratante' ? 'is-warn' : 'is-muted'), x.detalhe])));
+    card('LGPD e dados (cláusula 8)', table(['Ponto', 'Estado', 'Detalhe'], d.lgpd.map(x => [x.item, pillOf(x.estado), x.detalhe])));
+    card('Infraestrutura e custos', table(['Recurso', 'Uso', 'Custo'], d.infra.map(x => [x.item, x.detalhe, x.custo])));
+    card('Documentação (no repositório)', table(['Arquivo', 'O que contém'], d.documentos.map(x => [el('code', x.arquivo), x.descricao])));
+    const cmds = el('ul', undefined, 'adm-dev-list'); d.testes.comandos.forEach(x => cmds.append(el('li', x)));
+    card('Testes e validação', el('p', d.testes.resumo, 'adm-muted'), cmds);
+    card('Acessos e titularidade (cláusula 5.2)', table(['Recurso', 'Situação'], d.acessos.map(x => [x.item, x.estado])));
+    return box;
+  },
   registro() {
     const box = el('div'); box.append(el('p', 'Tudo o que a administração e a moderação fizeram, com motivo. Transparência para a comunidade.', 'adm-muted'));
     if (!data.log.length) box.append(el('p', 'Nenhuma ação registrada ainda.', 'adm-empty'));
@@ -247,7 +274,8 @@ function render() {
   const head = el('header', undefined, 'adm-head'); const t = el('div'); t.append(el('h1', translatorOnly ? 'Traduções' : 'Centro de gestão'), el('p', translatorOnly ? 'Ajude a levar a Casa Opy para a sua língua.' : `${data.viewer.name} · ${data.role === 'admin' ? 'Administração' : 'Moderação'} · atualizado ${fmtDate(Date.now())}`, 'adm-muted'));
   head.append(t, btn('Atualizar', load));
   const nav = el('nav', undefined, 'adm-tabs'); nav.setAttribute('aria-label', 'Áreas do centro de gestão');
-  (translatorOnly ? tabs.filter(x => x[0] === 'traducoes') : tabs).forEach(([id, label]) => { const b = btn(label, () => go(id), 'adm-tab'); b.setAttribute('aria-current', String(tab === id)); if (id === 'alertas' && data.openAlerts) b.append(el('span', String(data.openAlerts), 'adm-count')); nav.append(b); });
+  // "Desenvolvimento" é a prestação de contas do contrato: só a administração vê.
+  (translatorOnly ? tabs.filter(x => x[0] === 'traducoes') : tabs.filter(x => x[0] !== 'desenvolvimento' || data.development)).forEach(([id, label]) => { const b = btn(label, () => go(id), 'adm-tab'); b.setAttribute('aria-current', String(tab === id)); if (id === 'alertas' && data.openAlerts) b.append(el('span', String(data.openAlerts), 'adm-count')); nav.append(b); });
   const main = el('section', undefined, 'adm-main'); main.tabIndex = -1; main.setAttribute('aria-label', tabs.find(x => x[0] === tab)?.[1] || ''); main.append((views[tab] || views.visao)());
   root.replaceChildren(head, nav, main);
 }

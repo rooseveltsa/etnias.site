@@ -1,0 +1,107 @@
+{
+ "atualizadoEm": "2026-11-08",
+ "nota": "Prestação de contas do desenvolvimento da plataforma Etnias (Casa Opy). Mantido no código (preview/server/desenvolvimento.json) e atualizado a cada entrega. Visível só para quem administra.",
+ "contrato": {
+  "titulo": "Contrato de Prestação de Serviços Técnicos Especializados de Engenharia de Software",
+  "contratante": "ETNIAS.SITE LTDA (CNPJ 62.583.352/0001-74), por Eliaquim Camilo Francisco",
+  "contratada": "Roosevelt Miranda Correa Junior (CNPJ 45.187.690/0001-78)",
+  "assinatura": "2026-10-29",
+  "vigenciaAte": "2027-10-29",
+  "remuneracao": "R$ 35.000,00 à vista, contra nota fiscal (cláusula 3.1)",
+  "anexo": "O contrato remete ao Anexo I (documento de requisitos/termo de escopo e cronograma aprovado). Esse anexo não está no repositório: precisa ser entregue pela contratante para fechar a matriz de escopo e os marcos com data.",
+  "marcos": [
+   { "titulo": "1ª manutenção semestral (cláusula 4)", "data": "2027-04-29", "prazoRelatorio": "2027-05-09", "estado": "agendar" },
+   { "titulo": "2ª manutenção semestral (cláusula 4)", "data": "2027-10-29", "prazoRelatorio": "2027-11-08", "estado": "agendar" },
+   { "titulo": "Fim da vigência (cláusula 2.1)", "data": "2027-10-29", "prazoRelatorio": "", "estado": "prazo" }
+  ],
+  "compromissos": [
+   { "clausula": "4", "texto": "A cada 6 meses: revisar e atualizar dependências e bibliotecas, verificar segurança e corrigir vulnerabilidades, ajustar desempenho e compatibilidade, e entregar relatório técnico escrito em até 10 dias após cada ciclo. Intervenções agendadas com a contratante.", "estado": "Rotina a cumprir. A base já tem a lista de dependências fixada (preview/package-lock.json) e testes automáticos para validar cada atualização." },
+   { "clausula": "5.2", "texto": "Entregar código-fonte completo, atualizado e comentado e a documentação técnica ao final de cada marco e ao término; contas, repositórios, credenciais e recursos em nome da contratante.", "estado": "Código e documentação no GitHub (rooseveltsa/etnias.site). Pendente: transferir o repositório para uma organização da contratante e registrar quem detém VPS, domínio, Vercel e chaves (ver Acessos e titularidade)." },
+   { "clausula": "7", "texto": "Garantia de 90 dias por entrega. Falhas críticas (indisponibilidade, segurança, perda de dados) iniciadas na hora e concluídas no menor prazo; não críticas em até 48 h. Suporte em dias úteis, 9h às 18h (Brasília), por WhatsApp.", "estado": "Em vigor para cada entrega publicada (datas na linha do tempo). Canal: WhatsApp da contratada." },
+   { "clausula": "8", "texto": "LGPD: a contratada é operadora; segue as instruções da contratante; medidas de segurança; notificação imediata de incidentes; sem transferir dados a terceiros ou para o exterior sem anuência prévia e formal; apoio a solicitações de titulares e à ANPD.", "estado": "Ver seção LGPD e dados: há um ponto que exige anuência formal (cópia de segurança fora do Brasil)." },
+   { "clausula": "9.1", "texto": "Prestar contas quando solicitado; comunicar impedimentos e riscos; não subcontratar sem anuência.", "estado": "Este painel é a prestação de contas contínua. Riscos abertos estão em Pendências e decisões." },
+   { "clausula": "12", "texto": "Multas por atraso de marco (2% por semana, até 20%), por manutenção semestral não realizada (5%), por violação de propriedade intelectual, garantia/suporte e LGPD.", "estado": "Sem marco com data pactuada no repositório (depende do Anexo I). Registrar as datas assim que o anexo chegar." }
+  ]
+ },
+ "escopo": [
+  { "item": "Plataforma Etnias: arquitetura, backend e frontend, autenticação, usuários, perfis, publicação e feed interativo", "status": "entregue", "evidencia": "Casa Opy em produção em https://etnias.site desde 2026-11-07, com o acervo e as contas do Etnias antigo integrados em 2026-11-08 (7.418 contas, 6.647 publicações, 13 GB de mídia). Feed paginado, perfis com foto e capa, reações, comentários em conversa, repost, enquetes, stories.", "falta": "" },
+  { "item": "Backend: APIs, modelagem e estruturação do banco, autenticação, controle de acesso, integridade e integração com as interfaces", "status": "entregue", "evidencia": "API única /api/community (sessões assinadas, verificação de origem, limites por conta), módulos por domínio em preview/server/*.mjs, dados em arquivo JSON com escrita atômica e backup diário criptografado.", "falta": "Migração para banco relacional/SQLite planejada quando o estado passar de ~30 MB ou 200 ms por escrita (hoje 8 MB e 55 ms). Decisão técnica medida, registrada em plans/casa-opy-rede-viva.md." },
+  { "item": "Interfaces para dispositivos móveis Android e iOS: responsividade, usabilidade, interatividade, UX/UI, acessibilidade", "status": "parcial", "evidencia": "Aplicativo web instalável (PWA: manifesto, ícones, service worker, avisos no aparelho via Web Push). Auditoria automática em 375/768/1440 px: 0 estouros de tela, 0 falhas sérias de acessibilidade, alvos de toque ≥ 44 px.", "falta": "Aplicativos nativos publicados nas lojas (Google Play / App Store) não foram contratados em detalhe nem iniciados. Se o Anexo I os exigir, é uma fase própria (empacotamento do PWA ou app nativo) com custo de contas de desenvolvedor." },
+  { "item": "Funcionalidades essenciais: cadastro e autenticação, recuperação de acesso, perfis, feed, criação/visualização/compartilhamento de texto, imagem e vídeo", "status": "entregue", "evidencia": "Cadastro com perguntas de entrada, login (inclusive com a senha antiga do Etnias), troca de senha, senha provisória pelo Centro de gestão, perfis editáveis, publicações com foto, vídeo, arquivo, local e enquete, repost.", "falta": "Recuperação de senha por e-mail e confirmação de e-mail dependem de um provedor SMTP (decisão da contratante). Verificação por WhatsApp (OTP) depende de provedor WhatsApp Business." },
+  { "item": "Funcionalidades avançadas: mensagens e chat, grupos e comunidades, participantes, moderação, denúncia e controle de conteúdo", "status": "entregue", "evidencia": "Direct com solicitações, bloqueio e denúncia; chamadas de voz e vídeo 1:1 (WebRTC + TURN próprio); comunidades com criação, coordenação, convites, pedidos de entrada e perguntas; Centro de gestão com alertas, suspensão, remoção, papéis, comunicados e registro público de transparência.", "falta": "Pedido da contratante em 2026-11-08: chat no formato caixa de entrada (inbox) das grandes redes. Em análise de desenho." },
+  { "item": "Pagamento eletrônico (quando previsto nos requisitos) e otimização para conectividade limitada", "status": "parcial", "evidencia": "Conectividade: miniaturas das fotos do acervo (de 2,8 MB para 0,8 MB em média), vídeos recodificados, paginação, cache do service worker, carregamento com esqueleto.", "falta": "Pagamentos não iniciados: 'Doe para o Instituto Etnias' é protótipo sem gateway. Depende do Anexo I dizer se está no escopo e de conta em provedor (custo da contratante)." },
+  { "item": "Integração, testes e validação técnica", "status": "entregue", "evidencia": "47 testes de regras (node --test), integração da API, 12 testes de navegador (chat, chamadas, mídia, stories, comunidades, traduções, live), auditoria de telas e relatórios em docs/ETNIAS_QA_REPORT.md e docs/ETNIAS_UX_AUDIT.md. Testes rodam antes de cada publicação.", "falta": "Teste com 5 pessoas reais da comunidade (planejado, depende de convidados)." },
+  { "item": "Segurança, estabilidade e escalabilidade: proteção de dados, permissões, segurança das APIs, tratamento de erros, monitoramento, estrutura para crescer", "status": "parcial", "evidencia": "CSP estrita, cookies HttpOnly, verificação de origem em toda escrita, limites por conta, papéis (admin/moderação/tradução), backup diário criptografado com restauração testada, snapshot da VPS, TURN próprio.", "falta": "Monitoramento técnico com alerta (disponibilidade e erros) não existe; TLS do TURN (porta 5349) opcional; backups automáticos no painel da Hostinger a ativar pela contratante." }
+ ],
+ "entregas": [
+  { "data": "2026-11-06", "titulo": "Recuperação do servidor e do banco", "detalhe": "Banco MariaDB do Etnias antigo recuperado e isolado (deploy/compose.yaml); diagnóstico em docs/diagnostico-backup-migracao.md e docs/recuperacao-servidor.md." },
+  { "data": "2026-11-07", "titulo": "Casa Opy: rede social completa", "detalhe": "Feed, perfis, compositor, comentários, comunidades, chat privado (Direct com solicitações), chamadas WebRTC com TURN próprio, stories, Centro de gestão, traduções (en/es e línguas indígenas pela comunidade), revisão de design e auditoria de usabilidade." },
+  { "data": "2026-11-07", "titulo": "Produção na VPS e domínio", "detalhe": "Publicação em Docker na VPS Hostinger ao lado do sistema antigo, HTTPS pelo Caddy, etnias.site apontado (DNS) e no ar; backup diário criptografado com restauração testada; prévia de reserva na Vercel." },
+  { "data": "2026-11-08", "titulo": "Rede viva — Fase 1: legado dentro da Casa Opy", "detalhe": "Importação idempotente do Etnias antigo: contas (com senha original), publicações, comentários, reações, grupos, relações; mídia referenciada copiada para a VPS (13 GB). Contas em conflito vinculadas por decisão da contratante." },
+  { "data": "2026-11-08", "titulo": "Rede viva — Fase 2: experiência de app", "detalhe": "Mídia borda a borda, carrossel, duplo toque, visualizador, stories em anel, notificações agregadas, sugestões, explorar, permalink, pull-to-refresh, pílula de novas publicações." },
+  { "data": "2026-11-08", "titulo": "Rede viva — Fase 3: base para crescer", "detalhe": "Miniaturas e vídeos leves do acervo (13 GB → 9 GB na VPS), senha provisória pelo Centro de gestão, troca de senha obrigatória, avisos no aparelho (Web Push)." },
+  { "data": "2026-11-08", "titulo": "Ajustes pedidos pela contratante", "detalhe": "Saberes e Catálogo Musical anunciados como 'Em breve'; visualizador de stories com quadro constante 9:16 (aguarda publicação)." },
+  { "data": "2026-11-08", "titulo": "Fase 4: transmissão ao vivo", "detalhe": "Live pelo navegador com servidor de vídeo próprio (MediaMTX) na VPS, aviso a quem segue, gravação vira vídeo da publicação. Testada de ponta a ponta localmente; aguarda publicação na VPS." }
+ ],
+ "andamento": [
+  { "item": "Publicar na VPS as entregas de 2026-11-08 (stories, live, este painel)", "detalhe": "Comandos de publicação prontos; a contratante executa (a automação não tem permissão de publicar em produção)." },
+  { "item": "Acesso ao Centro de gestão para os administradores principais", "detalhe": "Roosevelt, @karuan (Karuantantaneady) e @eliaquimterena. Depende de um comando no .env da VPS que a contratante roda." },
+  { "item": "Menu da foto do perfil (Configurações e Grupos dos quais participo) e chat no formato inbox", "detalhe": "Pedidos de 2026-11-08. Em desenho." },
+  { "item": "Emojis completos do Etnias antigo", "detalhe": "Pedido de 2026-11-08. A base de 1.570 emojis em 8 categorias existe no código legado e será trazida para publicações, comentários e chat." }
+ ],
+ "pendencias": [
+  { "item": "Anexo I (requisitos e cronograma)", "depende": "contratante", "detalhe": "Sem ele não há marcos com data para a cláusula 12 nem definição formal de apps nativos e pagamentos." },
+  { "item": "Provedor de e-mail (SMTP) para recuperação de senha e avisos", "depende": "contratante", "detalhe": "Serviço com custo (ex.: Brevo, Resend, Amazon SES). Hoje a recuperação é pela gestão (senha provisória)." },
+  { "item": "GitHub: convite ao colaborador Ramon e organização em nome da contratante", "depende": "contratante", "detalhe": "Precisa do usuário GitHub do Ramon; o convite por e-mail não encontrou conta." },
+  { "item": "Línguas indígenas a cadastrar no painel de traduções", "depende": "contratante", "detalhe": "Decisão cultural: quais línguas e quem traduz." },
+  { "item": "Apagar contas de teste em produção (Ana Chamada, Beto Chamada, opy.auditoria)", "depende": "contratante", "detalhe": "Exclusão de dados só com autorização." },
+  { "item": "Monitoramento com alerta (disponibilidade e erros)", "depende": "contratada", "detalhe": "Previsto na cláusula 1 (monitoramento técnico). Proposta: verificação externa gratuita (ex.: UptimeRobot) + alerta no WhatsApp." },
+  { "item": "Teste com 5 pessoas reais da comunidade", "depende": "ambos", "detalhe": "Roteiro pronto (plans/etnias-qualidade-usabilidade.md); faltam convidados." },
+  { "item": "Backups automáticos no painel da Hostinger", "depende": "contratante", "detalhe": "Recurso pago do provedor; hoje há snapshot manual de 2026-11-07 e backup diário próprio." }
+ ],
+ "lgpd": [
+  { "item": "Cópia de segurança diária criptografada no Blob da Vercel", "estado": "atenção", "detalhe": "O arquivo sai da VPS cifrado (AES-256) e a chave fica só com a contratante e na VPS, mas o armazenamento da Vercel fica fora do Brasil. A cláusula 8.2 exige anuência prévia e formal da contratante para transferência ao exterior. Opções: registrar a anuência por escrito ou mover a cópia para armazenamento no Brasil (ex.: Object Storage da Hostinger)." },
+  { "item": "Avisos no aparelho (Web Push)", "estado": "ok", "detalhe": "Os serviços de push do Google, Apple e Mozilla recebem apenas o pacote cifrado; o conteúdo só é lido no aparelho. É o padrão da web." },
+  { "item": "Região da VPS de produção", "estado": "confirmar", "detalhe": "Confirmar no painel da Hostinger em que país o servidor srv2135798 está. Se for fora do Brasil, vale a mesma anuência da cláusula 8.2." },
+  { "item": "Mensagens privadas do Etnias antigo", "estado": "ok", "detalhe": "Não foram importadas (2.925 mensagens), por privacidade. Decisão registrada em plans/casa-opy-rede-viva.md." },
+  { "item": "Mídia e dados do acervo", "estado": "ok", "detalhe": "Só quem tem conta vê a mídia (sessão obrigatória em /legado/*). Publicações privadas do sistema antigo não entraram." },
+  { "item": "Registro de ações da gestão", "estado": "ok", "detalhe": "Toda suspensão, remoção, papel e comunicado fica no registro de transparência com autor e motivo." }
+ ],
+ "infra": [
+  { "item": "VPS Hostinger srv2135798 (179.66.136.125), 4 CPU, 16 GB, 193 GB", "detalhe": "Produção: Casa Opy (Docker), TURN, servidor de live, e o sistema antigo ao lado. Uso atual: ~1,4 GB de memória e 14 GB de disco.", "custo": "Já contratada pela contratante" },
+  { "item": "Domínio etnias.site (DNS na HostGator)", "detalhe": "Aponta para a VPS; HTTPS automático pelo Caddy.", "custo": "Da contratante" },
+  { "item": "Vercel (plano gratuito)", "detalhe": "Reserva de emergência (casa-opy-preview.vercel.app) e cópia de segurança diária.", "custo": "R$ 0" },
+  { "item": "GitHub rooseveltsa/etnias.site", "detalhe": "Código, histórico e documentação. 37 commits de 2026-11-06 a 2026-11-08.", "custo": "R$ 0" },
+  { "item": "Servidor de live (MediaMTX) e TURN (coturn)", "detalhe": "Software livre dentro da própria VPS; sem serviço pago de vídeo.", "custo": "R$ 0" }
+ ],
+ "documentos": [
+  { "arquivo": "PRODUCT.md, DESIGN.md, AGENTS.md", "descricao": "Produto, contrato visual (tokens, componentes) e regras de atuação do time e da automação." },
+  { "arquivo": "docs/ETNIAS_REQUIREMENTS_MATRIX.md", "descricao": "Matriz de homologação dos 47 itens do documento 'Etnias 2.0' (estado de 2026-11-06; muitos itens avançaram desde então e a matriz será reconciliada com este painel)." },
+  { "arquivo": "docs/ETNIAS_QA_REPORT.md, docs/ETNIAS_UX_AUDIT.md, docs/ETNIAS_AUDIT.md", "descricao": "Relatórios de testes, auditoria de usabilidade e auditoria técnica." },
+  { "arquivo": "docs/ETNIAS_DESIGN_SYSTEM.md, docs/ETNIAS_UX_ARCHITECTURE.md, docs/ETNIAS_REFERENCIA_FACEBOOK.md", "descricao": "Sistema de design, arquitetura de experiência e análise de referência das grandes redes." },
+  { "arquivo": "docs/ETNIAS_LEGADO_APROVEITAMENTO.md, docs/diagnostico-backup-migracao.md, docs/recuperacao-servidor.md", "descricao": "O que foi aproveitado do Etnias antigo, diagnóstico do backup e passo a passo da recuperação do servidor." },
+  { "arquivo": "plans/casa-opy-rede-viva.md, plans/casa-opy-fase4-live.md, plans/etnias-qualidade-usabilidade.md", "descricao": "Planos por fase com diagnóstico medido, decisões e o que ficou aberto." },
+  { "arquivo": "deploy/opy/README.md", "descricao": "Como publicar, atualizar, importar o legado, fazer e restaurar backup, e a emergência de VPS fora do ar." },
+  { "arquivo": "docs/atualizacao-opy.md, docs/previa-vercel.md", "descricao": "Como rodar e testar localmente e como funciona a prévia na Vercel." },
+  { "arquivo": "docs/etnia-requisitos.md, docs/iara-implantacao.md", "descricao": "EtnIA (assistente) e IAra (pedidos de arte)." }
+ ],
+ "testes": {
+  "resumo": "Gate antes de cada publicação: testes de regras, integração da API, navegador (duas pessoas reais em Chromium), exportação PHP e auditoria de telas.",
+  "comandos": [
+   "node --test tests/opy/*.mjs (47 testes de regras: comunidades, chat, chamadas, gestão, traduções, push, live, importação)",
+   "node tests/opy/community-integration.mjs (API de ponta a ponta contra um servidor local)",
+   "node tests/opy/*-browser.cjs (Playwright: chat, chamadas, mídia, stories, entrada em comunidades, traduções, live)",
+   "docker run … php tests/opy/navigation.php (menu e páginas exportadas)",
+   "node tests/opy/audit-screens.cjs (31 páginas × 3 larguras: estouros, acessibilidade, alvos de toque)"
+  ]
+ },
+ "acessos": [
+  { "item": "Código (GitHub)", "estado": "Repositório rooseveltsa/etnias.site, em nome da contratada. Transferir para organização da contratante (cláusula 5.2) quando ela indicar o usuário/organização." },
+  { "item": "VPS (root por chave SSH)", "estado": "Chave casa-opy-deploy no Mac da contratada; a VPS é da contratante (conta Hostinger)." },
+  { "item": "Variáveis secretas da produção (.env na VPS)", "estado": "Só na VPS, permissão 600: segredo de sessão, TURN, chaves do Web Push, administradores. Nunca copiadas para o repositório." },
+  { "item": "Chave do backup", "estado": "Na VPS (/root/.casa-opy) e nas Senhas do Mac da contratada ('Casa Opy - chave do backup'). Recomendado: cópia em cofre da contratante." },
+  { "item": "Vercel", "estado": "Projeto casa-opy-preview na conta da contratada. Transferir ou recriar na conta da contratante." },
+  { "item": "Domínio e DNS", "estado": "HostGator, em nome da contratante." },
+  { "item": "Administradores da plataforma", "estado": "Definidos no servidor (OPY_ADMIN_USERNAMES): etnias.site; em inclusão: Roosevelt, karuan, eliaquimterena. Demais papéis pelo próprio painel." }
+ ]
+}
