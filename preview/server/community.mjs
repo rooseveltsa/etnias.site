@@ -10,7 +10,7 @@ import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
-import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile } from './live.mjs';
+import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
 import { sendFile } from './files.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
@@ -223,6 +223,7 @@ function notificationItems(state, me, ctx) {
   }
   for (const ev of (state.followEvents || [])) if (ev.to === ctx.myKey) items.push({ id: `follow:${ev.from}:${ev.at}`, kind: 'follow', key: `id:${ev.from}`, text: `${nameOf(`id:${ev.from}`)} começou a seguir você.`, avatar: avatarOfKey(ctx, `id:${ev.from}`), href: `/perfil/?u=${encodeURIComponent(`id:${ev.from}`)}`, createdAt: ev.at });
   for (const p of state.posts) if (p.live && !p.live.endedAt && p.authorId !== me.id && ctx.followed.has(authorKeyOf(p))) items.push({ id: `live:${p.id}`, kind: 'live', text: `${p.author} está ao vivo agora.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.startedAt });
+  for (const p of state.posts) if (p.live && !p.live.endedAt && p.live.invites?.[me.id]?.status === 'pending') items.push({ id: `live-invite:${p.id}`, kind: 'live_invite', text: `${p.author} convidou você para participar da live.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.invites[me.id].at, actionable: true });
   for (const p of state.posts) {
     if (p.authorId !== me.id && !(p.comments || []).some(c => c.authorKey === ctx.myKey)) continue;
     if (!visible(p, me, state)) continue;
@@ -295,7 +296,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -385,6 +386,10 @@ export default async function handler(req, res) {
       if (path.searchParams.get('view') === 'chat' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(chatSnapshot(state, me, path.searchParams)));
+      }
+      if (path.searchParams.get('view') === 'live' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(liveView(state, me, path.searchParams)));
       }
       if (path.searchParams.get('view') === 'calls' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -533,8 +538,11 @@ export default async function handler(req, res) {
       activeMe = me;
       const minute = Math.floor(Date.now() / 60000);
       const limit = state.limits[me.id];
-      if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
-      state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
+      // Batimento de audiência e reações rápidas da live não contam no limite por minuto (são frequentes por natureza).
+      if (!['live_watch', 'live_react', 'live_signal'].includes(body.action)) {
+        if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
+        state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
+      }
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
       settleCalls(state);
       settleLives(state);
@@ -813,9 +821,10 @@ export default async function handler(req, res) {
     if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URL(req.url, 'http://local').searchParams), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));
+    if (liveResult?.silent) return res.end(JSON.stringify({ ok: true, live: { postId: liveResult.postId, guestToken: liveResult.guestToken || '' } }));
     const fresh = body.action === 'live_stop' ? (await readState()).data : data;
     const out = snapshot(fresh, activeMe);
-    if (liveResult) out.live = { postId: liveResult.postId, key: liveResult.key || '' };
+    if (liveResult) out.live = { postId: liveResult.postId, key: liveResult.key || '', guestToken: liveResult.guestToken || '' };
     // A publicação alterada pode estar fora da primeira página do feed: devolvê-la mantém a tela do cliente atualizada.
     const touched = typeof body.postId === 'string' ? fresh.posts.find(p => p.id === body.postId) : null;
     if (touched && visible(touched, activeMe, fresh)) out.touched = projectPost(touched, activeMe, fresh, feedContext(fresh, activeMe));
