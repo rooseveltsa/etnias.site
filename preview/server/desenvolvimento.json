@@ -213,6 +213,11 @@
    "item": "Backups automáticos no painel da Hostinger",
    "depende": "contratante",
    "detalhe": "Recurso pago do provedor; hoje há snapshot manual de 2026-11-07 e backup diário próprio."
+  },
+  {
+   "item": "Migrar a VPS para o datacenter de Campinas (Brasil) e tirar backup e reserva da Vercel",
+   "depende": "contratante",
+   "detalhe": "A conta da Vercel pausou por limite do plano gratuito em 2026-11-08; o Pro foi assinado provisoriamente. Plano proposto: 1) novo VPS KVM 4 em Campinas e migração com janela combinada; 2) backup diário cifrado para armazenamento da Hostinger na mesma região (ou backups automáticos da Hostinger); 3) cancelar a Vercel. Custos: no hPanel da Hostinger."
   }
  ],
  "lgpd": [
@@ -228,8 +233,8 @@
   },
   {
    "item": "Região da VPS de produção",
-   "estado": "confirmar",
-   "detalhe": "Confirmar no painel da Hostinger em que país o servidor srv2135798 está. Se for fora do Brasil, vale a mesma anuência da cláusula 8.2."
+   "estado": "atenção",
+   "detalhe": "Confirmado pela API da Hostinger em 2026-11-08: o servidor srv2135798 está no datacenter Boston 2 (Estados Unidos). Todos os dados da plataforma estão hospedados fora do Brasil, o que pede anuência formal da contratante (cláusula 8.2) ou migração para o datacenter de Campinas (SP) da própria Hostinger, que já existe no mesmo plano. Recomendação: migrar para Campinas e levar o backup para a mesma região."
   },
   {
    "item": "Mensagens privadas do Etnias antigo",
