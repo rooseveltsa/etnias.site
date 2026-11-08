@@ -68,6 +68,7 @@
 .opy-nav-item:hover, .opy-nav-item:focus-visible { background: #e9eeea; color: var(--opy-ink); text-decoration: none; }
 .opy-nav-item[aria-current="page"] { color: #fff; background: var(--opy-red); font-weight: 600; }
 .opy-pending { width: 6px; height: 6px; border-radius: 50%; background: #7c6451; margin-left: auto; flex-shrink: 0; }
+.opy-soon { margin-left: auto; flex-shrink: 0; padding: 2px 7px; border-radius: 999px; background: #fbefec; color: #991116; font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
 .opy-support { padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--opy-line); }
 .opy-support .opy-nav-item { align-items: flex-start; color: var(--opy-red); font-weight: 600; }
 .opy-personal { margin-top: 14px; padding: 12px; border-top: 1px solid var(--opy-line); }
@@ -93,6 +94,7 @@
 .opy-bottom .opy-nav-item { flex: 1 1 0; width: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px 2px; min-height: 56px; font-size: 11px; position: relative; text-align: center; }
 .opy-bottom .opy-nav-item[aria-current="page"] { background: #fbefec; color: var(--opy-red); }
 .opy-bottom .opy-pending { position: absolute; top: 4px; right: 14px; width: 5px; height: 5px; }
+.opy-bottom .opy-soon { position: absolute; top: 2px; right: 4px; margin: 0; padding: 1px 5px; font-size: 9px; }
 .opy-bottom .opy-nav-item img.opy-picture { width: 36px; height: 36px; flex: 0 0 36px; }
 .opy-bottom .opy-create img.opy-picture { width: 40px; height: 40px; flex-basis: 40px; padding: 0; margin: 0; border-radius: 0; background: transparent; color: inherit; }
 .opy-dialog { color: var(--opy-ink); background: var(--opy-paper); width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); padding: 28px; border: 0; border-radius: 16px; box-shadow: 0 12px 60px #142a3433; overscroll-behavior: contain; font: inherit; }
@@ -402,3 +404,5 @@ body.opy-preview .chat-dock-log{max-height:240px;min-height:140px;overflow-y:aut
 body.opy-preview .chat-dock-form{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px;border-top:1px solid var(--opy-line);background:#fff}
 body.opy-preview .chat-dock-form input{min-height:36px;border:1px solid var(--opy-line);border-radius:999px;padding:0 12px;font:600 13px/1.2 var(--opy-font)}
 @media (max-width:760px){body.opy-preview .chat-messenger{grid-template-columns:1fr}body.opy-preview .preview-post-actions{grid-template-columns:repeat(3,minmax(0,1fr))}body.opy-preview .preview-repost-form{grid-template-columns:1fr}}
+
+.opy-soon-page .opy-primary { display: inline-flex; align-items: center; text-decoration: none; }

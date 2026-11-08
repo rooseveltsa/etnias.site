@@ -103,6 +103,7 @@
         if (info) {
             document.getElementById('opy-info-title').textContent = info.getAttribute('data-opy-info');
             document.getElementById('opy-info-description').textContent = info.getAttribute('data-opy-description');
+            document.querySelector('#opy-info .opy-info-state').textContent = info.getAttribute('data-opy-state') || 'Ainda não disponível';
             openDialog('opy-info', info);
             return;
         }

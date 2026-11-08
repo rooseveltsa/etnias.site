@@ -16,6 +16,10 @@ services:
       OPY_TURN_SECRET: ${OPY_TURN_SECRET:-}
       # Usuários com papel de administração definido no servidor (separados por vírgula). Moderadores são nomeados pelo painel.
       OPY_ADMIN_USERNAMES: ${OPY_ADMIN_USERNAMES:-}
+      # Web Push (Fase 3): sem as chaves o recurso fica oculto. Gerar com `npx web-push generate-vapid-keys`.
+      OPY_VAPID_PUBLIC_KEY: ${OPY_VAPID_PUBLIC_KEY:-}
+      OPY_VAPID_PRIVATE_KEY: ${OPY_VAPID_PRIVATE_KEY:-}
+      OPY_VAPID_SUBJECT: ${OPY_VAPID_SUBJECT:-https://etnias.site}
     volumes:
       - opy-data:/data
   turn:

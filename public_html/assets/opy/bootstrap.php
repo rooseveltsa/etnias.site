@@ -26,14 +26,14 @@ function Etnias_OpyUrl($route, $params = array()) {
 }
 function Etnias_OpyAsset($file) {
     global $wo;
-    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261105.3';
+    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261108.6';
 }
 function Etnias_OpyItems() {
     global $wo;
     $config = Etnias_OpyConfig();
     $items = array(
         'opy' => array('Opy', 'home', 'opy-symbol', '', 'Sua casa de entrada para a comunidade.'),
-        'saberes' => array('Saberes', 'saberes', 'saberes', '', 'Cursos, Área do Aluno e conteúdos OnDemand ainda não estão disponíveis nesta atualização.'),
+        'saberes' => array('Saberes', 'saberes', 'saberes', '', 'Cursos comunitários, oficinas e Área do Aluno estão sendo preparados e chegam em uma próxima atualização.'),
         'conexoes' => array('Conexões', 'search', 'conexoes', '', 'Encontre pessoas e fortaleça suas relações na comunidade.'),
         'grupos' => array('Grupos', 'suggested-groups', 'grupos', 'groups', 'As comunidades estão desativadas neste ambiente.'),
         'paginas' => array('Páginas', 'suggested-pages', 'paginas', 'pages', 'As páginas estão desativadas neste ambiente.'),
@@ -41,7 +41,7 @@ function Etnias_OpyItems() {
         'mercado' => array('Mercado', 'products', 'mercado', 'classified', 'O mercado está desativado neste ambiente.'),
         'eventos' => array('Eventos', 'events', 'eventos', 'events', 'Os eventos estão desativados neste ambiente.'),
         'filmes' => array('Filmes', 'movies', 'filmes', 'movies', 'O catálogo de filmes está desativado neste ambiente.'),
-        'musica' => array('Música', 'musica', 'musica', '', 'O espaço de artistas e faixas ainda não está disponível. Você pode compartilhar áudio em uma publicação.'),
+        'musica' => array('Música', 'musica', 'musica', '', 'O catálogo de artistas, cantos e faixas está sendo preparado e chega em uma próxima atualização. Por enquanto, você pode compartilhar áudio em uma publicação.'),
         'empregos' => array('Empregos', 'jobs', 'empregos', 'job_system', 'As vagas estão desativadas neste ambiente.'),
         'coletas' => array('Coletas', 'funding', 'coletas', 'funding_system', 'As campanhas de arrecadação estão desativadas neste ambiente.'),
         'sobre' => array('Sobre', 'terms', 'sobre', '', 'Conheça o Etnias e o Instituto Etnias.'),
@@ -54,11 +54,15 @@ function Etnias_OpyItems() {
     }
     $urlKeys = array('saberes' => 'saberes_url', 'etnia' => 'etnia_url', 'doar' => 'donation_url', 'musica' => 'music_url');
     $modulesEnabled = !isset($wo['config']['opy_modules']) || (string) $wo['config']['opy_modules'] !== '0';
+    // Itens anunciados para uma próxima atualização: ficam no menu com o selo "Em breve" e abrem o aviso em vez da tela.
+    $soon = isset($wo['config']['opy_soon']) ? (array) $wo['config']['opy_soon'] : array();
     $result = array();
     foreach ($items as $id => $item) {
         $enabled = $item[3] === '' || (isset($wo['config'][$item[3]]) && (string) $wo['config'][$item[3]] === '1');
         if ($id === 'filmes') { $enabled = $enabled && !empty($wo['config']['can_use_movies']); }
         if (in_array($id, array('saberes', 'musica', 'doar'), true) && !$modulesEnabled) { $enabled = false; }
+        $isSoon = in_array($id, $soon, true);
+        if ($isSoon) { $enabled = false; }
         $params = $id === 'sobre' ? array('type' => 'about-us') : array();
         $url = $enabled && $item[1] !== '' ? Etnias_OpyUrl($item[1], $params) : '';
         if (isset($urlKeys[$id])) {
@@ -67,7 +71,7 @@ function Etnias_OpyItems() {
                 $url = $configuredUrl;
             }
         }
-        $result[$id] = array('label' => $item[0], 'route' => $item[1], 'icon' => $item[2], 'url' => $url, 'description' => $item[4]);
+        $result[$id] = array('label' => $item[0], 'route' => $item[1], 'icon' => $item[2], 'url' => $isSoon ? '' : $url, 'description' => $item[4], 'state' => $isSoon ? 'Em breve' : 'Ainda não disponível');
     }
     return $result;
 }
@@ -152,7 +156,9 @@ function Etnias_OpyItem($id, $item, $class = '') {
     if ($item['url'] !== '') {
         return '<a' . $attrs . ' href="' . Etnias_OpyEscape($item['url']) . '"' . ($active ? ' aria-current="page"' : '') . '>' . $content . '</a>';
     }
-    return '<button type="button"' . $attrs . ' data-opy-info="' . Etnias_OpyEscape($item['label']) . '" data-opy-description="' . Etnias_OpyEscape($item['description']) . '">' . $content . '<span class="opy-pending" aria-label="Ainda não disponível"></span></button>';
+    $state = isset($item['state']) ? $item['state'] : 'Ainda não disponível';
+    $mark = $state === 'Em breve' ? '<span class="opy-soon">Em breve</span>' : '<span class="opy-pending" aria-label="Ainda não disponível"></span>';
+    return '<button type="button"' . $attrs . ' data-opy-info="' . Etnias_OpyEscape($item['label']) . '" data-opy-state="' . Etnias_OpyEscape($state) . '" data-opy-description="' . Etnias_OpyEscape($item['description']) . '">' . $content . $mark . '</button>';
 }
 function Etnias_OpyNavigation() {
     $items = Etnias_OpyItems();
