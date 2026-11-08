@@ -269,6 +269,7 @@ function appendPostBody(item, parent){
 }
 function renderPost(post, communityContext=null){
  const card=make('article',undefined,'preview-post community-post');card.dataset.origin=post.origin;card.id='post-'+post.id;
+ if(post.sponsored){const tag=make('p',post.sponsored.label+(post.sponsored.test?' · teste':''),'post-sponsored');card.dataset.boost=post.sponsored.boostId;card.classList.add('is-sponsored');card.append(tag);}
  const head=make('div',undefined,'preview-author');
  const pKey=post.authorKey||`name:${post.author}`;
  const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42));avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
@@ -370,6 +371,7 @@ function renderPost(post, communityContext=null){
    f.addEventListener('submit',async ev=>{ev.preventDefault();save.disabled=true;try{await change({action:'post_edit',postId:post.id,text:ta.value});}catch(err){showError(err.message);save.disabled=false;}});
    actions.before(f);ta.focus();
   }]);
+  if(post.audience==='public'&&!post.communityId&&!post.live)menuItems.push(['Impulsionar publicação',()=>openBoostDialog(post)]);
   menuItems.push(['Excluir publicação',async()=>{if(!confirm('Excluir esta publicação?'))return;try{await change({action:'delete',postId:post.id});}catch(e){showError(e.message);}}]);
  }else if(communityContext?.canModerate&&post.communityId===communityContext.id){
   menuItems.push(['Remover da comunidade (moderação)',async()=>{if(!confirm('Remover esta publicação da comunidade?'))return;try{await change({action:'community_moderate_post',communityId:communityContext.id,postId:post.id});}catch(e){showError(e.message);}}]);
@@ -559,8 +561,77 @@ let profileSignature='';
 let settingsData=null,settingsLoading=false;
 function prefGet(k,d){try{return localStorage.getItem(k)||d;}catch{return d;}}
 function applyA11y(){const r=document.documentElement;r.dataset.text=prefGet('opy-text','normal');r.dataset.motion=prefGet('opy-motion','auto');}
-async function loadSettings(){settingsLoading=true;try{settingsData=await apiGet({view:'account'});}catch(e){showError(e.message);}finally{settingsLoading=false;renderSettings();}}
-async function accountChange(body,ok){try{const next=await change(body);if(next?.account)settingsData=next.account;else await loadSettings();if(ok)toast(ok);renderSettings();}catch(e){showError(e.message);}}
+let plansData=null;
+async function loadSettings(){settingsLoading=true;try{const [a,p]=await Promise.all([apiGet({view:'account'}),apiGet({view:'plans'})]);settingsData=a;plansData=p;}catch(e){showError(e.message);}finally{settingsLoading=false;renderSettings();}}
+async function accountChange(body,ok){try{const next=await change(body);if(next?.account)settingsData=next.account;if(next?.plans)plansData=next.plans;if(!next?.account&&!next?.plans)await loadSettings();if(ok)toast(ok);renderSettings();}catch(e){showError(e.message);}}
+// Planos, verificação e impulsionamentos (P2/P3/P4): textos e formatos usados nas configurações e no diálogo de impulsionar.
+const money=(cents,cur)=>{try{return new Intl.NumberFormat('pt-BR',{style:'currency',currency:cur||'BRL'}).format((cents||0)/100);}catch{return ((cents||0)/100).toFixed(2)+' '+(cur||'');}};
+const dayBR=ts=>ts?new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(new Date(ts)):'';
+const STATUS_PT={ativo:'Ativo',aguardando_pagamento:'Aguardando pagamento',encerrado:'Encerrado',cancelado:'Cancelado',recusado:'Recusado',pendente:'Em análise',aprovado:'Aprovado',rejeitado:'Rejeitado'};
+const BENEFIT_PT={ativo:'Disponível',bloqueado:'Indisponível na 2.0',pendente:'Em preparação',decisao:'Aguardando decisão',nao_se_aplica:'Não se aplica'};
+function planCard(card,p){
+ const c=card('Plano',undefined,'plano');const cur=p.current;
+ const now=make('div',undefined,'set-plan-now');
+ if(cur.id==='gratuito')now.append(make('strong','Conta gratuita'),make('small','Tudo o que a rede oferece hoje continua disponível sem custo.'));
+ else{const chip=make('span',cur.nome,'pf-plan-chip');chip.style.setProperty('--plan',cur.cor||'#bd171c');now.append(chip);now.append(make('small',[cur.ativo?'Ativo':'Encerrado',cur.origem==='legado'?'herdado do Etnias 1.0':cur.origem==='teste'?'ativado em teste':'',cur.until?(cur.ativo?'válido até ':'terminou em ')+dayBR(cur.until):'vitalício'].filter(Boolean).join(' · ')));}
+ c.append(now);
+ const ben=make('ul',undefined,'set-benefits');for(const b of p.beneficios){const li=make('li');li.append(make('span',b.texto),make('small',BENEFIT_PT[b.estado]||b.estado,'is-'+b.estado));if(b.motivo)li.title=b.motivo;ben.append(li);}
+ c.append(make('h3','Benefícios dos planos na 2.0'),ben);
+ const list=make('div',undefined,'set-plans');
+ for(const pl of p.planos){const box=make('div',undefined,'set-plan');box.style.setProperty('--plan',pl.cor);box.append(make('strong',pl.nome),make('small',(pl.impulsosPublicacoes?plural(pl.impulsosPublicacoes,'publicação impulsionada','publicações impulsionadas')+' ao mesmo tempo':'Sem impulsionamento de publicações')+' · '+(pl.periodo==='vitalicio'?'vitalício':'mensal')));
+  if(p.contratacaoAberta){box.append(make('p',(pl.preco!=null?pl.moeda+' '+pl.preco:'')+(p.pagamentoTeste?' (ambiente de teste)':''),'set-plan-price'));const b=button('Contratar',()=>accountChange({action:'plan_request',planId:pl.id},'Pedido registrado. O plano é ativado quando o pagamento for confirmado.'),box);b.className='opy-primary';b.disabled=cur.ativo&&cur.id===pl.id||p.pedidos.some(r=>r.status==='aguardando_pagamento');}
+  list.append(box);}
+ c.append(make('h3','Planos do Etnias'),list);
+ if(!p.contratacaoAberta)c.append(make('p','A contratação de planos está em definição: valores, moeda e forma de pagamento ainda vão ser aprovados. Nenhuma cobrança é feita pela rede neste momento.','set-desc'));
+ if(p.pedidos.length){const ul=make('ul',undefined,'set-people');for(const r of p.pedidos){const li=make('li');const t=make('div');t.append(make('strong',r.nome+' · '+(STATUS_PT[r.status]||r.status)),make('small','Pedido em '+dayBR(r.createdAt)+(r.teste?' · teste':'')+(r.note?' · '+r.note:'')));li.append(t);if(r.status==='aguardando_pagamento'){const x=button('Cancelar pedido',()=>accountChange({action:'plan_request_cancel',requestId:r.id},'Pedido cancelado.'),li);x.className='preview-secondary';}ul.append(li);}c.append(make('h3','Seus pedidos'),ul);}
+}
+function verificationBlock(c,v){
+ c.append(make('p',v.verificado?'✓ Perfil verificado pela equipe do Etnias.':'Perfil ainda não verificado.',v.verificado?'set-verified':'set-desc'));
+ c.append(make('p',v.celularVerificado?'✓ Celular verificado.':'Celular não verificado. A confirmação por SMS ainda não está disponível; seu número nunca aparece no perfil.','set-desc'));
+ if(v.verificado)return;
+ const last=v.pedidos[0];
+ if(last?.status==='pendente'){const row=make('div',undefined,'set-actions');row.append(make('p','Pedido de verificação em análise desde '+dayBR(last.createdAt)+'.','set-desc'));const x=button('Cancelar pedido',()=>accountChange({action:'verification_cancel'},'Pedido cancelado.'),row);x.className='preview-secondary';c.append(row);return;}
+ if(last?.status==='rejeitado')c.append(make('p','Seu último pedido não foi aprovado: '+last.motivo,'set-desc'));
+ const f=make('form',undefined,'set-verify');const l1=make('label','Por que seu perfil deve ser verificado?');const ta=make('textarea');ta.rows=3;ta.maxLength=600;ta.required=true;ta.placeholder='Ex.: sou liderança, artista ou comunicador(a) do meu povo e…';l1.append(ta);
+ const l2=make('label','Link que confirme quem você é (opcional)');const li=make('input');li.type='url';li.maxLength=300;li.placeholder='https://';l2.append(li);
+ const send=make('button','Pedir verificação','opy-primary');send.type='submit';f.append(l1,l2,send);
+ f.onsubmit=async e=>{e.preventDefault();send.disabled=true;await accountChange({action:'verification_request',message:ta.value,link:li.value},'Pedido enviado para análise.');send.disabled=false;};
+ c.append(f);
+}
+function boostsCard(card,fin){
+ const c=card('Impulsionamentos e histórico financeiro','Resultados vêm só do que aconteceu de verdade: pessoas que viram a publicação patrocinada e interagiram com ela.','impulsos');
+ const t=fin.totais;const sum=make('div',undefined,'set-money');
+ for(const [label,v] of [['Investido',t.investidoCents],['Aguardando pagamento',t.aguardandoCents],...(t.testeCents?[['Pagamentos de teste',t.testeCents]]:[])]){const b=make('div');b.append(make('small',label),make('strong',money(v,t.moeda)));sum.append(b);}
+ c.append(sum);
+ if(!fin.pagamentoOnline)c.append(make('p',fin.pagamentoTeste?'Ambiente de teste: a equipe pode confirmar pagamentos de teste para ativar campanhas.':'Pagamento online ainda não está disponível: campanhas ficam aguardando pagamento e não aparecem no feed até serem confirmadas.','set-desc'));
+ if(!fin.items.length)c.append(make('p','Você ainda não impulsionou publicações. Use o menu ⋯ de uma publicação sua.','pf-empty'));
+ const ul=make('ul',undefined,'set-boosts');
+ for(const b of fin.items){const li=make('li');const top=make('div',undefined,'set-boost-top');top.append(make('strong',b.excerpt),make('span',STATUS_PT[b.status]||b.status,'set-status is-'+b.status));li.append(top);
+  const meta=[b.kind==='plano'?'Crédito do plano':money(b.budgetCents,b.currency)+' · '+plural(b.days,'dia','dias'),b.startAt?'início '+dayBR(b.startAt):'pedido '+dayBR(b.createdAt),b.endAt?'fim '+dayBR(b.endAt):'',b.endReason,b.test?'teste':''].filter(Boolean).join(' · ');
+  li.append(make('small',meta));
+  const r=b.results;const res=make('div',undefined,'set-results');for(const [k,v] of [['Alcance',r.alcance],['Visualizações',r.visualizacoes],['Engajamento',r.engajamento]]){const x=make('span');x.append(make('strong',String(v)),make('small',k));res.append(x);}li.append(res);
+  if(b.status==='aguardando_pagamento'||(b.status==='ativo'&&b.kind==='plano')){const x=button(b.status==='ativo'?'Encerrar':'Cancelar',()=>accountChange({action:'boost_cancel',boostId:b.id},'Impulsionamento encerrado.'),li);x.className='preview-secondary';}
+  ul.append(li);}
+ c.append(ul);
+ c.append(make('p','Impulsionar páginas: '+fin.paginas.motivo,'set-desc'));
+}
+async function openBoostDialog(post){
+ let p;try{p=await apiGet({view:'plans'});}catch(e){showError(e.message);return;}
+ const dlg=make('dialog');dlg.className='opy-dialog live-dialog boost-dialog';dlg.setAttribute('aria-label','Impulsionar publicação');
+ dlg.append(make('h2','Impulsionar publicação'),make('p',(post.text||'Publicação com mídia').slice(0,120),'chat-hint'));
+ const used=p.finance.items.filter(b=>b.kind==='plano'&&b.status==='ativo').length;
+ const running=p.finance.items.find(b=>b.postId===post.id&&['ativo','aguardando_pagamento'].includes(b.status));
+ if(running){dlg.append(make('p','Esta publicação já está '+(running.status==='ativo'?'impulsionada':'com uma campanha aguardando pagamento')+'. Acompanhe ou encerre no histórico.','set-desc'));const row0=make('div',undefined,'adm-dialog-actions');const h0=make('a','Ver histórico e resultados','preview-text-link');h0.href='/configuracoes/#impulsos';const c0=make('button','Fechar','preview-secondary');c0.type='button';c0.onclick=()=>dlg.close();row0.append(h0,c0);dlg.append(row0);dlg.addEventListener('close',()=>dlg.remove());document.body.append(dlg);dlg.showModal();return;}
+ const go=async body=>{try{await change({...body,postId:post.id});dlg.close();toast(body.mode==='plano'?'Publicação impulsionada.':'Campanha criada. Ela aparece no feed quando o pagamento for confirmado.');}catch(e){showError(e.message);}};
+ if(p.current.ativo&&p.current.impulsosPublicacoes){const box=make('section',undefined,'boost-option');box.append(make('h3','Usar o seu plano '+p.current.nome),make('p',`Você usa ${used} de ${p.current.impulsosPublicacoes} publicações impulsionadas ao mesmo tempo. Fica no ar até você encerrar.`,'set-desc'));const b=button('Impulsionar com o plano',()=>go({action:'boost_create',mode:'plano'}),box);b.className='opy-primary';b.disabled=used>=p.current.impulsosPublicacoes;dlg.append(box);}
+ const camp=make('form',undefined,'boost-option');camp.append(make('h3','Campanha patrocinada'));
+ const cur=p.finance.totais.moeda;const l1=make('label','Orçamento ('+cur+')');const amount=make('input');amount.type='number';amount.min='1';amount.max='10000';amount.step='1';amount.required=true;amount.value='20';l1.append(amount);
+ const l2=make('label','Duração');const sel=make('select');for(const d of p.finance.duracoes)sel.append(new Option(plural(d,'dia','dias'),String(d)));sel.value='7';l2.append(sel);
+ camp.append(l1,l2,make('p',p.finance.pagamentoTeste?'Ambiente de teste: a campanha é ativada quando a equipe confirmar um pagamento de teste.':'O pagamento online ainda não está disponível. A campanha fica aguardando pagamento e só aparece no feed depois de confirmada. Nada é cobrado agora.','set-desc'));
+ const send=make('button','Criar campanha','opy-primary');send.type='submit';camp.append(send);camp.onsubmit=e=>{e.preventDefault();go({action:'boost_create',mode:'campanha',budget:Number(amount.value),days:Number(sel.value)});};
+ dlg.append(camp);const row=make('div',undefined,'adm-dialog-actions');const hist=make('a','Ver histórico e resultados','preview-text-link');hist.href='/configuracoes/#impulsos';const close=make('button','Fechar','preview-secondary');close.type='button';close.onclick=()=>dlg.close();row.append(hist,close);dlg.append(row);
+ dlg.addEventListener('close',()=>dlg.remove());document.body.append(dlg);dlg.showModal();
+}
 function radioGroup(name,legend,options,value,onPick){
  const fs=make('fieldset',undefined,'set-radios');fs.append(make('legend',legend));
  for(const [v,label,hint] of options){const l=make('label',undefined,'pf-radio');const r=make('input');r.type='radio';r.name=name;r.value=v;r.checked=v===value;r.onchange=()=>onPick(v);const t=make('span',label);if(hint)t.append(make('small',hint));l.append(r,t);fs.append(l);}
@@ -615,8 +686,9 @@ function renderSettings(){
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
+ if(plansData){planCard(card,plansData);boostsCard(card,plansData.finance);}
  const acc=card('Verificação e conta',undefined,'verificacao');
- acc.append(d.verified?make('p','✓ Conta verificada pela equipe do Etnias.','set-verified'):make('p','Sua conta ainda não tem o selo de verificação. O selo é concedido pela equipe do Etnias.','set-desc'));
+ if(plansData)verificationBlock(acc,plansData.verificacao);else acc.append(make('p',d.verified?'✓ Conta verificada pela equipe do Etnias.':'Perfil ainda não verificado.','set-desc'));
  const row=make('div',undefined,'set-actions');
  const off=button('Desativar conta',()=>confirmPasswordDialog('Desativar conta','Seu perfil, suas publicações e seus comentários somem da rede até você entrar de novo. Nada é apagado. Todos os aparelhos saem.','Desativar',p=>leaveAccount('account_deactivate',p,'Sua conta foi desativada. Para voltar, é só entrar de novo.')),row);off.className='preview-secondary';
  const del=button('Excluir conta',()=>confirmPasswordDialog('Excluir conta','A conta fica desativada agora e é excluída pela equipe depois de '+d.deletionGraceDays+' dias. Se mudar de ideia, entre de novo antes do prazo e o pedido é cancelado.','Pedir exclusão',p=>leaveAccount('account_delete_request',p,'Pedido de exclusão registrado. Se mudar de ideia, entre de novo em até '+d.deletionGraceDays+' dias.')),row);del.className='pf-danger';
@@ -651,7 +723,7 @@ function renderProfile(){
  const head=make('div',undefined,'pf-head');
  const av=make('div',undefined,'pf-avatar');av.append(avatarNode(person.name,person.avatar,168));
  if(own){const b=button('',()=>$('#profile-avatar-input').click(),av);b.className='pf-avatar-btn';b.setAttribute('aria-label','Trocar foto do perfil');b.title='Trocar foto do perfil';}
- const id=make('div',undefined,'pf-id');const h1=make('h1',person.name);if(person.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');h1.append(' ',v);}id.append(h1);
+ const id=make('div',undefined,'pf-id');const h1=make('h1',person.name);if(person.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');h1.append(' ',v);}id.append(h1);if(person.plan){const chip=make('span',person.plan.nome,'pf-plan-chip');chip.style.setProperty('--plan',person.plan.cor);chip.title='Plano '+person.plan.nome;id.append(chip);}
  const meta=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.affiliation].filter(Boolean).join(' · ');
  if(meta)id.append(make('p',meta,'pf-meta'));
  const counts=make('p',undefined,'pf-counts');
@@ -1111,7 +1183,11 @@ function paintRequests(){
  const all_=make('a','Encontrar mais pessoas','opy-req-more');all_.href='/search/';nodes.push(all_);
  box.replaceChildren(...nodes);
 }
-function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
+const boostSeen=new Set();
+const boostObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const en of entries){const id=en.target.dataset.boost;if(!id||boostSeen.has(id))continue;
+ if(en.isIntersecting){en.target._boostTimer=setTimeout(()=>{if(boostSeen.has(id))return;boostSeen.add(id);boostObserver.unobserve(en.target);api({action:'boost_seen',boostId:id}).catch(()=>{});},1000);}else clearTimeout(en.target._boostTimer);}},{threshold:0.5}):null;
+function watchSponsored(){if(!boostObserver)return;all('[data-boost]').forEach(el=>{if(!boostSeen.has(el.dataset.boost)&&!el._boostWatched){el._boostWatched=true;boostObserver.observe(el);}});}
+function render(){if(!state)return;setTimeout(watchSponsored,0);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
  if(pForm&&!pForm.contains(document.activeElement)){
@@ -1181,8 +1257,9 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
   const welcome=!key&&!saved?welcomeCard():null;
-  const postSig=p=>JSON.stringify([p.reaction,p.comments?.length,p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
-  const frameSig=JSON.stringify([key,saved,suggestionsClosed,fs.loading,fs.hasMore,view,fs.pinned?.id,welcome?.dataset.sig||'',posts.map(p=>p.id)]);
+  const postSig=p=>JSON.stringify([p.sponsored?.boostId,p.reaction,p.comments?.length,p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
+  const sponsoredPost=!key&&!saved?state.sponsored:null;
+  const frameSig=JSON.stringify([key,saved,suggestionsClosed,fs.loading,fs.hasMore,view,fs.pinned?.id,welcome?.dataset.sig||'',posts.map(p=>p.id),sponsoredPost?.id||'']);
   const sugSig=JSON.stringify((state.directory||[]).map(p=>p.key+p.following));
   const feedSig=frameSig+sugSig+posts.map(postSig).join('');
   // Só a publicação que mudou (curtida, comentário, edição) é trocada no lugar: o resto do feed e a posição de leitura ficam como estão.
@@ -1196,6 +1273,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   const feed=feedEl;
   const cards=posts.map(p=>renderPost(p));
   if(!key&&!saved&&!suggestionsClosed){const sug=suggestionsRow();if(sug)cards.splice(Math.min(2,cards.length),0,sug);}
+  if(sponsoredPost&&!posts.some(p=>p.id===sponsoredPost.id)){const sp=renderPost(sponsoredPost);sp.id='sponsored-'+sponsoredPost.id;cards.splice(Math.min(4,cards.length),0,sp);}
   if(welcome)cards.unshift(welcome);
   if(fs.pinned&&!posts.some(p=>p.id===fs.pinned.id)){const wrap=make('section',undefined,'opy-pinned');wrap.setAttribute('aria-label','Publicação aberta pelo link');const bar=make('div',undefined,'opy-pinned-bar');bar.append(make('strong','Publicação'));const back=button('Ver feed',()=>{fs.pinned=null;history.replaceState(null,'',location.pathname+location.search);render();},bar);back.className='pf-link';wrap.append(bar,renderPost(fs.pinned));cards.unshift(wrap);}
   feed.replaceChildren(...cards);

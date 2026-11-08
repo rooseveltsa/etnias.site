@@ -165,6 +165,82 @@ async function api(cookie, body) {
       await ctx3.close();
     });
 
+    // P2/P3/P4 no navegador (servidor local com OPY_PLANS_OPEN=1 e OPY_PAYMENTS_TEST=1; a decisão é da conta de administração local).
+    const admLogin = await fetch(base + '/api/community', { method: 'POST', headers: { 'content-type': 'application/json', origin: base }, body: JSON.stringify({ action: 'login', username: process.env.OPY_ADMIN_USER || 'fase.dois', password: process.env.OPY_ADMIN_PASSWORD || 'Fase-dois-local-2026' }) });
+    const admCookie = (admLogin.headers.get('set-cookie') || '').split(';')[0];
+    const ctx4 = await browser.newContext({ locale: 'pt-BR', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const eli = await signIn(ctx4, base); const p4 = await ctx4.newPage(); p4.on('pageerror', e => errors.push(e.message));
+    const eliId = (await (await fetch(base + '/api/community', { headers: { cookie: eli.cookie } })).json()).me.id;
+
+    await step('10. Plano: conta gratuita, catálogo recuperado (Star, Hot, Ultima, VIP) e contratação ativada pela equipe', async () => {
+      if (admLogin.status !== 200) throw new Error('conta de administração local indisponível');
+      await p4.goto(base + '/configuracoes/#plano'); await p4.locator('#plano').waitFor();
+      assert.ok((await p4.locator('#plano').textContent()).includes('Conta gratuita'));
+      for (const n of ['Star', 'Hot', 'Ultima', 'VIP']) assert.ok(await p4.locator('#plano .set-plan strong', { hasText: n }).count(), n);
+      await p4.locator('#plano .set-plan', { hasText: 'Hot' }).locator('button', { hasText: 'Contratar' }).dispatchEvent('click');
+      await p4.locator('#plano', { hasText: 'Aguardando pagamento' }).waitFor({ timeout: 8000 });
+      const req = (await (await fetch(base + '/api/community?view=plans', { headers: { cookie: eli.cookie } })).json()).pedidos[0];
+      assert.equal((await api(admCookie, { action: 'admin_plan_decide', requestId: req.id, decision: 'confirmar', reason: 'teste automatizado' })).status, 200);
+      await p4.reload(); await p4.locator('#plano .pf-plan-chip', { hasText: 'Hot' }).waitFor({ timeout: 8000 });
+      await p4.goto(base + '/conta/'); await p4.locator('#profile-page .pf-plan-chip', { hasText: 'Hot' }).waitFor();
+    });
+
+    await step('11. Verificação: pedir pelo formulário, aparece em análise e a aprovação vem pela aba Decisões do admin', async () => {
+      await p4.goto(base + '/configuracoes/#verificacao'); await p4.locator('#verificacao .set-verify').waitFor();
+      await p4.fill('#verificacao .set-verify textarea', 'Comunicadora do meu povo, publico sobre cultura e território.');
+      await p4.locator('#verificacao .set-verify button[type=submit]').dispatchEvent('click');
+      await p4.locator('#verificacao', { hasText: 'em análise' }).waitFor({ timeout: 8000 });
+      const adm = await browser.newContext({ locale: 'pt-BR', viewport: { width: 1280, height: 900 } });
+      const [n, v] = admCookie.split('='); await adm.addCookies([{ name: n, value: v, url: base }]);
+      const pa = await adm.newPage(); await pa.goto(base + '/admin/#decisoes');
+      const card = pa.locator('.adm-alert', { hasText: 'Comunicadora do meu povo' }).first(); await card.waitFor({ timeout: 10000 });
+      await card.locator('button', { hasText: 'Aprovar' }).click();
+      await pa.locator('dialog.adm-dialog textarea').fill('Perfil confirmado pela equipe'); await pa.locator('dialog.adm-dialog button[value=ok]').click();
+      await pa.waitForFunction(() => !document.querySelector('.adm-alert')?.textContent.includes('Comunicadora do meu povo'), null, { timeout: 8000 });
+      await adm.close();
+      await p4.reload(); await p4.locator('#verificacao .set-verified').waitFor();
+      assert.equal((await (await fetch(base + '/api/community', { headers: { cookie: eli.cookie } })).json()).me.verified, true);
+    });
+
+    await step('12. Impulsionar pelo plano no menu ⋯; outra pessoa vê "Impulsionado" e o alcance conta de verdade', async () => {
+      const text = 'Impulso pelo plano ' + Date.now();
+      const post = (await api(eli.cookie, { action: 'publish', text, audience: 'public' })).data.posts.find(x => x.text === text);
+      await p4.goto(base + '/#post-' + post.id); const card = p4.locator('#post-' + post.id); await card.waitFor();
+      await card.locator('button[aria-label*="Mais opções"], .post-menu-toggle, button[aria-haspopup=menu]').first().dispatchEvent('click');
+      await card.locator('.post-menu-item', { hasText: 'Impulsionar publicação' }).dispatchEvent('click');
+      await p4.locator('.boost-dialog button', { hasText: 'Impulsionar com o plano' }).waitFor();
+      await p4.locator('.boost-dialog button', { hasText: 'Impulsionar com o plano' }).dispatchEvent('click');
+      await p4.waitForFunction(() => !document.querySelector('.boost-dialog'), null, { timeout: 8000 });
+      const ctx5 = await browser.newContext({ locale: 'pt-BR', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }); await signIn(ctx5, base);
+      const p5 = await ctx5.newPage(); await p5.goto(base + '/'); await p5.locator('.community-post').first().waitFor();
+      const tagged = p5.locator(`[data-boost]:has-text("${text}")`).first(); await tagged.waitFor({ timeout: 8000 });
+      assert.match(await tagged.locator('.post-sponsored').textContent(), /Impulsionado/);
+      await tagged.scrollIntoViewIfNeeded(); await p5.waitForTimeout(1800);
+      await ctx5.close();
+      const fin = (await (await fetch(base + '/api/community?view=plans', { headers: { cookie: eli.cookie } })).json()).finance;
+      const it = fin.items.find(b => b.postId === post.id); assert.equal(it.status, 'ativo'); assert.equal(it.results.alcance, 1, 'uma pessoa alcançada');
+    });
+
+    await step('13. Campanha com orçamento e duração: aguarda pagamento, a equipe confirma o de teste e o histórico separa o valor de teste', async () => {
+      const text = 'Campanha teste ' + Date.now();
+      const post = (await api(eli.cookie, { action: 'publish', text, audience: 'public' })).data.posts.find(x => x.text === text);
+      await p4.goto(base + '/#post-' + post.id); const card = p4.locator('#post-' + post.id); await card.waitFor();
+      await card.locator('button[aria-label*="Mais opções"], .post-menu-toggle, button[aria-haspopup=menu]').first().dispatchEvent('click');
+      await card.locator('.post-menu-item', { hasText: 'Impulsionar publicação' }).dispatchEvent('click');
+      await p4.locator('.boost-dialog input[type=number]').fill('35'); await p4.locator('.boost-dialog select').selectOption('3');
+      await p4.locator('.boost-dialog button', { hasText: 'Criar campanha' }).dispatchEvent('click');
+      await p4.waitForFunction(() => !document.querySelector('.boost-dialog'), null, { timeout: 8000 });
+      let fin = (await (await fetch(base + '/api/community?view=plans', { headers: { cookie: eli.cookie } })).json()).finance;
+      const camp = fin.items.find(b => b.postId === post.id); assert.equal(camp.status, 'aguardando_pagamento'); assert.equal(camp.budgetCents, 3500); assert.equal(camp.days, 3);
+      assert.equal((await api(admCookie, { action: 'admin_boost_decide', boostId: camp.id, decision: 'confirmar_teste', reason: 'teste automatizado' })).status, 200);
+      await p4.goto(base + '/configuracoes/#impulsos'); await p4.locator('#impulsos').waitFor();
+      const txt = await p4.locator('#impulsos').textContent();
+      assert.ok(txt.includes('Pagamentos de teste') && txt.includes('R$'), 'valor de teste aparece separado');
+      fin = (await (await fetch(base + '/api/community?view=plans', { headers: { cookie: eli.cookie } })).json()).finance;
+      assert.equal(fin.totais.investidoCents, 0, 'teste não conta como investido');
+    });
+    await ctx4.close();
+
     assert.deepEqual(errors.filter(e => !/ResizeObserver/.test(e)), [], 'sem erros de página');
   } finally {
     for (const [s, n] of results) console.log(s.padEnd(7), n);

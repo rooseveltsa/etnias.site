@@ -369,6 +369,72 @@ try {
   assert.ok(state.accounts.find(a => a.id === anaId).deletionRequestedAt > 0);
   await api({ action:'login', username:'ana.p2', password:'Test-only-2026' });
   assert.equal(state.accounts.find(a => a.id === anaId).deletionRequestedAt, undefined, 'entrar de novo cancela o pedido de exclusão');
+  // P2 (verificação) + P4 (planos) + P3 (impulsionamento): regras no servidor e negativos de autorização.
+  process.env.OPY_ADMIN_USERNAMES = 'adm.p3';
+  const adm = await api(profile('adm.p3')), cli = await api(profile('cli.p3')), viu = await api(profile('viu.p3'));
+  const cliId = (await api(null, cli.cookie)).data.me.id, viuId = (await api(null, viu.cookie)).data.me.id;
+  const plans = async c => (await view('view=plans', c)).data;
+  // Verificação: pedir, não se autoconceder, só a equipe decide, rejeição precisa de motivo.
+  assert.equal((await api({ action:'verification_request', message:'curto' }, cli.cookie)).status, 400);
+  assert.equal((await api({ action:'verification_request', message:'Sou liderança da aldeia e produzo conteúdo sobre o meu povo.' }, cli.cookie)).status, 200);
+  assert.equal((await api({ action:'verification_request', message:'Segundo pedido enquanto o primeiro está em análise.' }, cli.cookie)).status, 409);
+  assert.equal((await api({ action:'profile_update', name:'Cli', verified:true }, cli.cookie)).data.me?.verified, false, 'não se autoverifica pelo perfil');
+  const vReq = (await plans(cli.cookie)).verificacao.pedidos[0]; assert.equal(vReq.status, 'pendente');
+  assert.equal((await api({ action:'admin_verification_decide', requestId:vReq.id, decision:'aprovar' }, cli.cookie)).status, 403, 'conta comum não decide');
+  assert.equal((await api({ action:'admin_verification_decide', requestId:vReq.id, decision:'rejeitar' }, adm.cookie)).status, 400, 'rejeitar exige motivo');
+  assert.equal((await api({ action:'admin_verification_decide', requestId:vReq.id, decision:'aprovar' }, adm.cookie)).status, 200);
+  assert.equal((await api(null, cli.cookie)).data.me.verified, true);
+  assert.equal((await plans(cli.cookie)).verificacao.celularVerificado, false, 'telefone cadastrado não é celular verificado');
+  // Planos: catálogo recuperado; contratação fechada sem aprovação; aberta só em teste; ninguém se autoatribui plano.
+  const p0 = await plans(cli.cookie);
+  assert.deepEqual(p0.planos.map(p => p.nome), ['Star', 'Hot', 'Ultima', 'VIP']); assert.equal(p0.current.id, 'gratuito');
+  assert.equal(p0.planos[0].preco, undefined, 'sem aprovação, preço não aparece');
+  assert.equal((await api({ action:'plan_request', planId:'hot' }, cli.cookie)).status, 409, 'contratação fechada');
+  process.env.OPY_PLANS_OPEN = '1'; process.env.OPY_PAYMENTS_TEST = '1';
+  assert.equal((await api({ action:'plan_request', planId:'nao-existe' }, cli.cookie)).status, 400);
+  assert.equal((await api({ action:'plan_request', planId:'hot' }, cli.cookie)).status, 200);
+  const pReq = (await plans(cli.cookie)).pedidos[0]; assert.equal(pReq.status, 'aguardando_pagamento'); assert.equal(pReq.teste, true);
+  assert.equal((await api({ action:'admin_plan_decide', requestId:pReq.id, decision:'confirmar' }, cli.cookie)).status, 403, 'não confirma o próprio pagamento');
+  assert.equal((await api({ action:'profile_update', name:'Cli', plan:{ id:'vip' } }, cli.cookie)).status, 200);
+  assert.equal((await plans(cli.cookie)).current.id, 'gratuito', 'plano não muda pelo perfil');
+  assert.equal((await api({ action:'admin_plan_decide', requestId:pReq.id, decision:'confirmar' }, adm.cookie)).status, 200);
+  const p1 = await plans(cli.cookie); assert.equal(p1.current.id, 'hot'); assert.equal(p1.current.ativo, true); assert.equal(p1.current.origem, 'teste');
+  assert.equal((await api(null, cli.cookie)).data.me.verified, true, 'plano não mexe na verificação');
+  assert.equal((await api(null, viu.cookie)).data.me.plan, null, 'quem não tem plano não ganha selo');
+  // Impulsionar: só a própria publicação pública; crédito do plano; campanha aguarda pagamento; resultados de eventos reais.
+  const post = (await api({ action:'publish', text:'Post para impulsionar P3', audience:'public' }, cli.cookie)).data.posts.find(p => p.text === 'Post para impulsionar P3');
+  const amigos = (await api({ action:'publish', text:'Só amizades P3', audience:'friends' }, cli.cookie)).data.posts.find(p => p.text === 'Só amizades P3');
+  assert.equal((await api({ action:'boost_create', postId:post.id, mode:'plano' }, viu.cookie)).status, 404, 'não impulsiona publicação alheia');
+  assert.equal((await api({ action:'boost_create', postId:amigos.id, mode:'plano' }, cli.cookie)).status, 400, 'só públicas');
+  assert.equal((await api({ action:'boost_create', postId:post.id, mode:'plano' }, cli.cookie)).status, 200);
+  assert.equal((await api({ action:'boost_create', postId:post.id, mode:'plano' }, cli.cookie)).status, 409, 'uma vez por publicação');
+  const seenSnap = (await api(null, viu.cookie)).data;
+  const tagged = seenSnap.sponsored?.id === post.id ? seenSnap.sponsored : seenSnap.posts.find(p => p.id === post.id && p.sponsored);
+  assert.ok(tagged, 'patrocinado aparece para outra pessoa'); assert.equal(tagged.sponsored.label, 'Impulsionado');
+  const own = (await api(null, cli.cookie)).data; assert.equal(own.sponsored?.id === post.id || own.posts.some(p => p.id === post.id && p.sponsored), false, 'autor não vê o próprio impulso como patrocinado');
+  const boostId = tagged.sponsored.boostId;
+  assert.equal((await api({ action:'boost_seen', boostId }, viu.cookie)).status, 200);
+  assert.equal((await api({ action:'react', postId:post.id, reaction:'heart' }, viu.cookie)).status, 200);
+  const fin = (await plans(cli.cookie)).finance; const it = fin.items.find(b => b.id === boostId);
+  assert.deepEqual([it.results.alcance, it.results.visualizacoes, it.results.engajamento], [1, 1, 1], 'resultados só de eventos reais');
+  const post2 = (await api({ action:'publish', text:'Campanha P3', audience:'public' }, cli.cookie)).data.posts.find(p => p.text === 'Campanha P3');
+  assert.equal((await api({ action:'boost_create', postId:post2.id, mode:'campanha', budget:50, days:9 }, cli.cookie)).status, 400, 'duração fora da lista');
+  assert.equal((await api({ action:'boost_create', postId:post2.id, mode:'campanha', budget:0.5, days:7 }, cli.cookie)).status, 400, 'orçamento mínimo');
+  assert.equal((await api({ action:'boost_create', postId:post2.id, mode:'campanha', budget:50, days:7 }, cli.cookie)).status, 200);
+  const camp = (await plans(cli.cookie)).finance.items.find(b => b.kind === 'campanha');
+  assert.equal(camp.status, 'aguardando_pagamento'); assert.equal(camp.budgetCents, 5000);
+  assert.equal((await api({ action:'admin_boost_decide', boostId:camp.id, decision:'confirmar_teste' }, cli.cookie)).status, 403, 'não confirma o próprio pagamento');
+  delete process.env.OPY_PAYMENTS_TEST;
+  assert.equal((await api({ action:'admin_boost_decide', boostId:camp.id, decision:'confirmar_teste' }, adm.cookie)).status, 409, 'sem modo de teste não há confirmação');
+  process.env.OPY_PAYMENTS_TEST = '1';
+  assert.equal((await api({ action:'admin_boost_decide', boostId:camp.id, decision:'confirmar_teste' }, adm.cookie)).status, 200);
+  const fin2 = (await plans(cli.cookie)).finance;
+  assert.equal(fin2.items.find(b => b.id === camp.id).status, 'ativo');
+  assert.deepEqual([fin2.totais.investidoCents, fin2.totais.testeCents], [0, 5000], 'pagamento de teste não conta como investido');
+  assert.equal((await api({ action:'boost_cancel', boostId:camp.id }, cli.cookie)).status, 409, 'campanha paga segue até o fim');
+  assert.equal((await api({ action:'boost_cancel', boostId }, viu.cookie)).status, 404, 'não encerra impulso alheio');
+  assert.equal((await api({ action:'boost_cancel', boostId }, cli.cookie)).status, 200);
+  delete process.env.OPY_PLANS_OPEN; delete process.env.OPY_PAYMENTS_TEST; delete process.env.OPY_ADMIN_USERNAMES;
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }

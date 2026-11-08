@@ -378,7 +378,8 @@ document.addEventListener('visibilitychange', () => { if (!viewer.open) return; 
 const measure = () => viewer.style.setProperty('--sv-half', (el.card.getBoundingClientRect().width / 2) + 'px');
 addEventListener('resize', () => { if (viewer.open) measure(); });
 
-function closeViewer() { if (viewer.open) viewer.close(); }
+// A rolagem volta no mesmo instante do fechamento (o evento close chega uma tarefa depois).
+function closeViewer() { document.documentElement.classList.remove('sv-lock'); if (viewer.open) viewer.close(); }
 function open(id, opts = {}) {
   groups = buildGroups();
   let ng = -1, ni = 0;

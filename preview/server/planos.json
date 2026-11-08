@@ -1,0 +1,146 @@
+{
+ "origem": "Etnias 1.0 — tabelas Wo_Manage_Pro e Wo_Config do banco recuperado, lidas em 2026-11-09 (somente leitura).",
+ "observacoes": [
+  "Preços em dólar (Wo_Config.currency = USD) e descrições em inglês são os valores padrão do WoWonder; não há sinal de personalização.",
+  "Ultima aparece como mensal em Wo_Manage_Pro, mas o preço (89) coincide com yearly_price; VIP é vitalício (time = unlimited).",
+  "Único meio de pagamento ligado era transferência bancária com comprovante (bank_payment = 1). Wo_Payments está vazio.",
+  "No Etnias 1.0 todo plano dava o selo de verificado. Na 2.0, plano e verificação ficam separados até haver regra de produto aprovada."
+ ],
+ "moedaLegado": "USD",
+ "pagamentoLegado": "Transferência bancária com comprovante",
+ "planos": [
+  {
+   "id": "star",
+   "legadoId": 1,
+   "nome": "Star",
+   "cor": "#79c149",
+   "descricaoLegado": "Get started!",
+   "precoLegado": 4,
+   "periodo": "mes",
+   "limiteUploadBytes": 24000000,
+   "impulsosPublicacoes": 0,
+   "impulsosPaginas": 2,
+   "descontoPct": 0,
+   "beneficiosLegado": {
+    "membroDestaque": true,
+    "visitantesPerfil": true,
+    "ocultarVistoPorUltimo": true,
+    "seloVerificado": true,
+    "recursos": "Todos os recursos do Etnias 1.0 (grupos, páginas, blog, mercado, eventos, filmes, live, chamadas, stories, enquetes etc.)"
+   }
+  },
+  {
+   "id": "hot",
+   "legadoId": 2,
+   "nome": "Hot",
+   "cor": "#dd3c3c",
+   "descricaoLegado": "Get Hot! More features.",
+   "precoLegado": 8,
+   "periodo": "mes",
+   "limiteUploadBytes": 96000000,
+   "impulsosPublicacoes": 5,
+   "impulsosPaginas": 5,
+   "descontoPct": 10,
+   "beneficiosLegado": {
+    "membroDestaque": true,
+    "visitantesPerfil": true,
+    "ocultarVistoPorUltimo": true,
+    "seloVerificado": true,
+    "recursos": "Todos os recursos do Etnias 1.0 (grupos, páginas, blog, mercado, eventos, filmes, live, chamadas, stories, enquetes etc.)"
+   }
+  },
+  {
+   "id": "ultima",
+   "legadoId": 3,
+   "nome": "Ultima",
+   "cor": "#fb924b",
+   "descricaoLegado": "Oh yeah, join the ultima!",
+   "precoLegado": 89,
+   "periodo": "mes",
+   "limiteUploadBytes": 256000000,
+   "impulsosPublicacoes": 20,
+   "impulsosPaginas": 20,
+   "descontoPct": 20,
+   "beneficiosLegado": {
+    "membroDestaque": true,
+    "visitantesPerfil": true,
+    "ocultarVistoPorUltimo": true,
+    "seloVerificado": true,
+    "recursos": "Todos os recursos do Etnias 1.0 (grupos, páginas, blog, mercado, eventos, filmes, live, chamadas, stories, enquetes etc.)"
+   }
+  },
+  {
+   "id": "vip",
+   "legadoId": 4,
+   "nome": "VIP",
+   "cor": "#5bbaf5",
+   "descricaoLegado": "GO Limitless!",
+   "precoLegado": 259,
+   "periodo": "vitalicio",
+   "limiteUploadBytes": 10000000000,
+   "impulsosPublicacoes": 40,
+   "impulsosPaginas": 40,
+   "descontoPct": 60,
+   "beneficiosLegado": {
+    "membroDestaque": true,
+    "visitantesPerfil": true,
+    "ocultarVistoPorUltimo": true,
+    "seloVerificado": true,
+    "recursos": "Todos os recursos do Etnias 1.0 (grupos, páginas, blog, mercado, eventos, filmes, live, chamadas, stories, enquetes etc.)"
+   }
+  }
+ ],
+ "beneficiosNa2": [
+  {
+   "chave": "impulsosPublicacoes",
+   "texto": "Publicações impulsionadas ao mesmo tempo",
+   "estado": "ativo"
+  },
+  {
+   "chave": "membroDestaque",
+   "texto": "Membro em destaque nas sugestões de pessoas",
+   "estado": "ativo"
+  },
+  {
+   "chave": "planoNoPerfil",
+   "texto": "Plano exibido no perfil",
+   "estado": "ativo"
+  },
+  {
+   "chave": "impulsosPaginas",
+   "texto": "Impulsionamento de páginas",
+   "estado": "bloqueado",
+   "motivo": "Páginas ainda não existem na 2.0."
+  },
+  {
+   "chave": "visitantesPerfil",
+   "texto": "Ver quem visitou o perfil",
+   "estado": "pendente",
+   "motivo": "Exige registrar visitas a perfis; decisão de privacidade (LGPD) antes de implementar."
+  },
+  {
+   "chave": "ocultarVistoPorUltimo",
+   "texto": "Ocultar \"visto por último\"",
+   "estado": "nao_se_aplica",
+   "motivo": "A 2.0 não mostra \"visto por último\"."
+  },
+  {
+   "chave": "seloVerificado",
+   "texto": "Selo de verificado",
+   "estado": "decisao",
+   "motivo": "Plano não concede verificação de identidade sem regra aprovada."
+  },
+  {
+   "chave": "descontoPct",
+   "texto": "Desconto em anúncios e impulsionamentos",
+   "estado": "decisao",
+   "motivo": "Depende da tabela de preços aprovada."
+  },
+  {
+   "chave": "limiteUploadBytes",
+   "texto": "Limite maior de envio de arquivos",
+   "estado": "decisao",
+   "motivo": "Hoje o envio é de até 2 MB para todos; aumentar exige decisão de infraestrutura e custo."
+  }
+ ]
+}

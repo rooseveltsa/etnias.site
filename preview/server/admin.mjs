@@ -1,11 +1,13 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import { hashPassword } from './session.mjs';
+import { decidePlanRequest, decideVerification, adminQueues, plansOpen, testPayments } from './planos.mjs';
+import { decideBoost, boostQueue } from './impulsos.mjs';
 // Prestação de contas do desenvolvimento (contrato × entregas). Só administradores veem; atualizado a cada entrega.
 import development from './desenvolvimento.json' with { type: 'json' };
 
 // Centro de gestão da Casa Opy: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
 // comunicados e registro de transparência. Toda ação fica no adminLog com autor, alvo e motivo.
-export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end', 'admin_verify'];
+export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end', 'admin_verify', 'admin_verification_decide', 'admin_plan_decide', 'admin_boost_decide'];
 const DAY = 864e5;
 // Senha provisória fácil de ditar por telefone (sem 0/O/1/I); a pessoa é obrigada a trocá-la na primeira entrada.
 function temporaryPassword() {
@@ -123,7 +125,7 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
     posts: posts.filter(p => p.communityId === c.id).length, reports: (state.communityReports || []).filter(r => r.communityId === c.id).length }));
   const announcements = (state.announcements || []).slice().sort((a, b) => b.createdAt - a.createdAt).map(a => ({ ...a, active: !a.endedAt && (!a.until || a.until > now) }));
   const health = { accounts: accounts.length, posts: posts.length, messages: dms.length, media: new Set([...posts.flatMap(p => [p.media?.id, p.file?.id]), ...dms.map(m => m.media?.id), ...accounts.flatMap(a => [a.avatarId, a.coverId])].filter(Boolean)).size, dataKb: Math.round(JSON.stringify(state).length / 1024) };
-  return { role, viewer: { key: keyOf(viewer), name: viewer.name }, ...(role === 'admin' ? { development } : {}), kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, announcements, log: (state.adminLog || []).slice(-150).reverse(), health };
+  return { role, viewer: { key: keyOf(viewer), name: viewer.name }, ...(role === 'admin' ? { development } : {}), kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, announcements, log: (state.adminLog || []).slice(-150).reverse(), health, filas: { ...adminQueues(state), campanhas: boostQueue(state), contratacaoAberta: plansOpen(env), pagamentoTeste: testPayments(env) } };
 }
 
 export function adminAction(state, actor, body, env = process.env, now = Date.now()) {
@@ -169,6 +171,10 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     log(state, actor, 'Conta reativada', target.name, reason);
     return {};
   }
+  // Filas de decisão: verificação (administração e moderação) e pagamentos de plano/campanha (só administração).
+  if (body.action === 'admin_verification_decide') { const r = decideVerification(state, body, actor, now); log(state, actor, r.label, r.target.name, reason || body.reason || ''); return {}; }
+  if (body.action === 'admin_plan_decide') { adminOnly(); const r = decidePlanRequest(state, body, actor, env, now); log(state, actor, r.label, r.target.name, reason); return {}; }
+  if (body.action === 'admin_boost_decide') { adminOnly(); const r = decideBoost(state, body, actor, env, now); log(state, actor, r.label, '', reason); return {}; }
   if (body.action === 'admin_verify') {
     adminOnly();
     if (!target) fail(404, 'Pessoa não encontrada.');

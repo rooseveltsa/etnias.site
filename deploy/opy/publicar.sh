@@ -6,6 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 HOST="${OPY_VPS:-root@179.66.136.125}"
 KEY="${OPY_SSH_KEY:-$HOME/.ssh/casa_opy_deploy}"
+# Assinantes do Etnias 1.0: regenerados quando o banco recuperado está rodando neste computador (só leitura).
+if docker ps --format "{{.Names}}" | grep -q "^etnias-recovery-db-1$"; then bash scripts/opy-legacy-plans.sh; fi
 echo "1/3 Gerando as páginas…"
 docker run --rm -v "$PWD":/app -w /app php:8.2-cli php scripts/export-opy-preview.php
 echo "2/3 Enviando para $HOST…"

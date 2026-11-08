@@ -22,10 +22,10 @@ async function api(cookie, body) {
     const stamp = Date.now().toString(36);
     const ana = await registerAccount(base, { name: 'Ana Story ' + stamp });
     const bia = await registerAccount(base, { name: 'Bia Story ' + stamp });
-    const a1 = (await api(ana.cookie, { action: 'story_create', text: 'Primeiro story da Ana', media: { name: 'a1.png', data: pngData } })).data.stories.find(s => s.text === 'Primeiro story da Ana');
-    const a2 = (await api(ana.cookie, { action: 'story_create', text: 'Segundo da Ana, só texto' })).data.stories.find(s => s.text === 'Segundo da Ana, só texto');
     const video = process.env.OPY_STORY_VIDEO && fs.existsSync(process.env.OPY_STORY_VIDEO) ? 'data:video/webm;base64,' + fs.readFileSync(process.env.OPY_STORY_VIDEO).toString('base64') : '';
     const b1 = (await api(bia.cookie, { action: 'story_create', text: 'Vídeo da Bia', media: video ? { name: 'b1.webm', data: video } : { name: 'b1.png', data: pngData } })).data.stories.find(s => s.text === 'Vídeo da Bia');
+    const a1 = (await api(ana.cookie, { action: 'story_create', text: 'Primeiro story da Ana', media: { name: 'a1.png', data: pngData } })).data.stories.find(s => s.text === 'Primeiro story da Ana');
+    const a2 = (await api(ana.cookie, { action: 'story_create', text: 'Segundo da Ana, só texto' })).data.stories.find(s => s.text === 'Segundo da Ana, só texto');
     assert.ok(a1 && a2 && b1, 'stories criados');
 
     const ctx = await browser.newContext({ locale: 'pt-BR', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ['clipboard-read', 'clipboard-write'] });
@@ -133,8 +133,10 @@ async function api(cookie, body) {
     });
 
     await step('10. Arrastar para cima foca a resposta; para baixo fecha e destrava a rolagem', async () => {
+      await page.waitForFunction(() => document.querySelector('.sv-face-next').hidden && !document.getElementById('story-viewer').dataset.turn, null, { timeout: 3000 });
       await drag(0.5, 0.75, 0.5, 0.35);
-      assert.equal(await page.evaluate(() => !!document.activeElement?.matches('#story-actions input')), true);
+      const focusInfo = await page.evaluate(() => ({ ok: !!document.activeElement?.matches('#story-actions input'), el: (document.activeElement?.outerHTML || '').slice(0, 80), now: document.querySelector('#story-progress').getAttribute('aria-valuenow'), who: document.getElementById('story-viewer-author').textContent, holding: document.getElementById('story-viewer').className }));
+      assert.ok(focusInfo.ok, 'foco: ' + JSON.stringify(focusInfo));
       await page.evaluate(() => document.activeElement.blur());
       await drag(0.5, 0.3, 0.5, 0.75);
       await page.waitForFunction(() => !document.getElementById('story-viewer').open);

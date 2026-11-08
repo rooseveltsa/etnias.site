@@ -134,7 +134,7 @@ async function api(cookie, body) {
     await step('7. Menu pessoal: opções reais, um menu por vez, Escape fecha; Editar perfil e Privacidade abrem no lugar certo', async () => {
       await page.locator('.opy-account > summary').click();
       const menu = await page.locator('.opy-account .opy-account-menu').textContent();
-      for (const t of ['Meu perfil', 'Editar perfil', 'Configurações', 'Privacidade', 'Segurança', 'Verificação da conta', 'Sair da conta']) assert.ok(menu.includes(t), t);
+      for (const t of ['Meu perfil', 'Editar perfil', 'Configurações', 'Privacidade', 'Segurança', 'Planos e verificação', 'Sair da conta']) assert.ok(menu.includes(t), t);
       await page.locator('.opy-tools > summary').click();
       assert.equal(await page.evaluate(() => document.querySelectorAll('details.opy-pop[open]').length), 1, 'só um menu aberto');
       await page.keyboard.press('Escape');

@@ -202,6 +202,11 @@
    "data": "2026-11-09",
    "titulo": "Conexões no cabeçalho e tema Dia como padrão",
    "detalhe": "Botão de conexões (pessoa com +) volta ao cabeçalho, como no Etnias antigo: badge com pedidos de amizade, painel com Aceitar e Recusar (nova ação friend_decline) e pessoas para seguir com o motivo da sugestão. O tema abre sempre em Dia; Noite só quando a pessoa escolhe (Recursos ou Configurações → Aparência). A barra inferior usa o item Comunidades direto, sem depender do Mercado. Validação: header-browser.cjs (13 jornadas)."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Conta e experiência — P3 (monetização) e P4 (planos do Etnias 1.0), com a verificação de perfil da P2",
+   "detalhe": "P4: planos recuperados do banco do Etnias 1.0 (Star, Hot, Ultima, VIP; benefícios, limites e período) em preview/server/planos.json; os 16 assinantes do 1.0 são reconhecidos pela regra original (9 VIP vitalícios ativos; 7 mensais vencidos); plano exibido no perfil e nas configurações; contratação e gerenciamento implementados, mas fechados até aprovação de preço, moeda e pagamento (OPY_PLANS_OPEN). P3: impulsionar publicações pelo crédito do plano (como no 1.0) ou por campanha com orçamento e duração; 'Impulsionado'/'Patrocinado' no feed; alcance, visualizações e engajamento só de eventos reais; histórico financeiro com valores de teste separados; pagamento online inexistente — só a equipe confirma pagamento de TESTE (OPY_PAYMENTS_TEST). P2: pedido de verificação com análise na nova aba Decisões do admin; celular verificado separado (sem SMS ainda). Validação: 40+ asserções de servidor com negativos de autorização (community-integration.mjs) e 4 jornadas novas no navegador (accounts-browser.cjs, 13 passos)."
   }
  ],
  "andamento": [
@@ -255,6 +260,26 @@
    "item": "Migrar a VPS para o datacenter de Campinas (Brasil) e tirar backup e reserva da Vercel",
    "depende": "contratante",
    "detalhe": "A conta da Vercel pausou por limite do plano gratuito em 2026-11-08; o Pro foi assinado provisoriamente. Plano proposto: 1) novo VPS KVM 4 em Campinas e migração com janela combinada; 2) backup diário cifrado para armazenamento da Hostinger na mesma região (ou backups automáticos da Hostinger); 3) cancelar a Vercel. Custos: no hPanel da Hostinger."
+  },
+  {
+   "item": "Aprovar preços, moeda e forma de pagamento dos planos",
+   "detalhe": "Os valores do 1.0 são os padrões do WoWonder em dólar (Star 4, Hot 8, Ultima 89, VIP 259). Sem aprovação a contratação fica fechada (OPY_PLANS_OPEN)."
+  },
+  {
+   "item": "Definir meio de pagamento das campanhas patrocinadas",
+   "detalhe": "Sem provedor e regras comerciais, campanhas ficam aguardando pagamento; só pagamentos de teste podem ser confirmados."
+  },
+  {
+   "item": "Decidir se plano dá selo de verificado",
+   "detalhe": "No 1.0 todo plano dava o selo; na 2.0 plano e verificação estão separados até haver regra."
+  },
+  {
+   "item": "Saldo de carteira de 477 contas do Etnias 1.0",
+   "detalhe": "Wo_Users.wallet tem saldo em 477 contas; não foi migrado nem alterado. Decisão de negócio e jurídica."
+  },
+  {
+   "item": "Verificação de celular por SMS",
+   "detalhe": "Precisa de provedor de SMS; o indicador só aparece quando houver confirmação real."
   }
  ],
  "lgpd": [

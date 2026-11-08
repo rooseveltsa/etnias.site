@@ -12,6 +12,8 @@ import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
 import { sendFile } from './files.mjs';
+import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
+import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } from './impulsos.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
@@ -72,7 +74,7 @@ function phoneOf(value) {
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
   return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', belonging: account.belonging || '', povo: account.povo || '', phone: account.phone || '', googleKey: account.googleKey || '',
-    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, role: roleOf(account), mustChangePassword: !!account.mustChangePassword };
+    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, plan: planBadge(account), role: roleOf(account), mustChangePassword: !!account.mustChangePassword };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
@@ -193,7 +195,7 @@ function personFor(state, me, ctx, key, counts) {
     if (access === 'none') return null;
     // Perfil só para amizades: quem não é amizade vê o cartão (nome, foto, apresentação) e o botão de pedir amizade.
     if (access === 'limited') return { ...base, postsCount: 0, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: '', belonging: '', povo: '', avatar: personAvatar(acc), cover: '', joinedAt: 0, verified: !!acc.verified, own: false, locked: true };
-    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
+    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
   }
   // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
@@ -210,8 +212,10 @@ function peopleFor(state, me, ctx, pagePosts, counts) {
   for (const c of ctx.communities) if (c.joined) for (const m of c.members || []) if (!reasons.has(m.key)) reasons.set(m.key, `Na comunidade ${c.name}`);
   for (const f of ctx.friends) { const friend = ctx.accountsById.get(f.slice(3)); if (friend) for (const k of state.friends?.[f] || []) if (!reasons.has(k)) reasons.set(k, `Amizade de ${friend.name}`); }
   const followers = a => counts.followers.get(`id:${a.id}`) || 0;
+  const featured = a => planOf(a).destaque;
+  for (const a of state.accounts || []) if (featured(a) && !reasons.has(`id:${a.id}`)) reasons.set(`id:${a.id}`, 'Membro em destaque');
   const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a) && !isInactive(state, a.id) && !isBlockedPair(state, ctx.myKey, `id:${a.id}`))
-    .sort((a, b) => Number(reasons.has(`id:${b.id}`)) - Number(reasons.has(`id:${a.id}`)) || followers(b) - followers(a)).slice(0, 12);
+    .sort((a, b) => Number(featured(b)) - Number(featured(a)) || Number(reasons.has(`id:${b.id}`)) - Number(reasons.has(`id:${a.id}`)) || followers(b) - followers(a)).slice(0, 12);
   const suggested = new Map(suggestions.map(a => [`id:${a.id}`, reasons.get(`id:${a.id}`) || 'Popular na rede']));
   for (const key of suggested.keys()) keys.add(key);
   return [...keys].map(key => { const person = personFor(state, me, ctx, key, counts); if (person && suggested.has(key)) { person.suggested = true; person.reason = suggested.get(key); } return person; }).filter(Boolean);
@@ -273,6 +277,9 @@ function snapshot(state, me) {
   const ctx = feedContext(state, me);
   const communities = ctx.communities;
   const page = postsPage(state, me, new URLSearchParams(), ctx);
+  const pick = sponsoredFor(state, me, new Set(page.posts.map(p => p.id)), p => visible(p, me, state));
+  const tag = pick ? { boostId: pick.boostId, label: pick.label, test: pick.test } : null;
+  const sponsored = pick && !pick.inPage ? { ...projectPost(pick.post, me, state, ctx), sponsored: tag } : null;
   const posts = page.posts;
   const directory = peopleFor(state, me, ctx, posts, socialCounts(state, me));
   const dms = (Array.isArray(state.dms) ? state.dms : []).filter(m => !m.toKey.startsWith('group:') && !m.hiddenFor?.includes(myKey) && (m.fromKey === myKey || m.toKey === myKey)).slice(-30).map(m => ({ id:m.id, fromKey:m.fromKey, fromName:m.fromName, toKey:m.toKey, text:m.deleted ? '' : m.text, createdAt:m.createdAt }));
@@ -305,7 +312,8 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  if (pick?.inPage) { const inPage = posts.find(p => p.id === pick.post.id); if (inPage) inPage.sponsored = tag; }
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -391,6 +399,10 @@ export default async function handler(req, res) {
       if (path.searchParams.get('view') === 'admin' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(adminView(state, account, path.searchParams)));
+      }
+      if (path.searchParams.get('view') === 'plans' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify({ ...plansView(state, account), finance: financeView(state, me) }));
       }
       if (path.searchParams.get('view') === 'account' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -507,7 +519,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -544,7 +556,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], callResult = null, adminResult = null, pushNotice = null, liveResult = null, accountResult = null;
+    let removedIds = [], callResult = null, adminResult = null, pushNotice = null, liveResult = null, accountResult = null, boostResult = null;
     const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
@@ -555,7 +567,7 @@ export default async function handler(req, res) {
       const minute = Math.floor(Date.now() / 60000);
       const limit = state.limits[me.id];
       // Batimento de audiência e reações rápidas da live não contam no limite por minuto (são frequentes por natureza).
-      if (!['live_watch', 'live_react', 'live_signal'].includes(body.action)) {
+      if (!['live_watch', 'live_react', 'live_signal', 'boost_seen'].includes(body.action)) {
         if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
         state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
       }
@@ -568,6 +580,8 @@ export default async function handler(req, res) {
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
       if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); return; }
+      if (planActions.includes(body.action)) { planAction(state, currentAccount, body); return; }
+      if (boostActions.includes(body.action)) { boostResult = boostAction(state, me, currentAccount, body); return; }
       if (body.action === 'announcement_dismiss') {
         if (!(state.announcements || []).some(a => a.id === body.id)) fail(404, 'Comunicado não encontrado.');
         state.announcementDismiss ||= {}; state.announcementDismiss[me.id] = [...new Set([...(state.announcementDismiss[me.id] || []), body.id])].slice(-100);
@@ -857,6 +871,8 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     // Desativar ou pedir exclusão encerra todas as sessões, inclusive esta.
     if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.VERCEL ? '; Secure' : ''}`); return res.end(JSON.stringify({ signedOut: true })); }
+    if (boostResult?.silent) return res.end('{"ok":true}');
+    if (planActions.includes(body.action) || boostActions.includes(body.action)) { const acc = data.accounts.find(a => a.id === activeMe.id); return res.end(JSON.stringify({ ...snapshot(data, activeMe), plans: { ...plansView(data, acc), finance: financeView(data, activeMe) } })); }
     if (accountActions.includes(body.action)) return res.end(JSON.stringify({ ...snapshot(data, activeMe), account: accountView(data, data.accounts.find(a => a.id === activeMe.id), session.id) }));
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     // A senha provisória só existe nesta resposta: não fica no estado nem no registro.

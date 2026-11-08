@@ -8,7 +8,7 @@ const fmtDate = t => t ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', 
 const fmtDay = t => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(t));
 const rel = t => { if (!t) return 'sem atividade'; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`; };
 let data = null, tab = location.hash.replace('#', '') || 'visao', query = '', busy = false;
-const tabs = [['visao', 'Visão geral'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções'], ['desenvolvimento', 'Desenvolvimento']];
+const tabs = [['visao', 'Visão geral'], ['decisoes', 'Decisões'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções'], ['desenvolvimento', 'Desenvolvimento']];
 // Painel de traduções (GET /api/community?view=i18n). Quem só traduz entra direto nele.
 let idata = null, ilang = '', ifilter = 'faltando', iquery = '', ipage = 0, translatorOnly = false;
 // Rascunhos de tradução por frase: sobrevivem ao redesenho da lista ao enviar uma sugestão ou buscar.
@@ -108,6 +108,38 @@ function table(headers, rows) {
   const tb = el('tbody'); rows.forEach(r => { const row = el('tr'); r.forEach(cell => { const td = el('td'); if (cell instanceof Node) td.append(cell); else td.textContent = String(cell); row.append(td); }); tb.append(row); }); t.append(tb); wrap.append(t); return wrap;
 }
 const views = {
+  // Decisões que dependem da equipe: verificação de perfil (administração e moderação), pagamentos de plano e de campanha (só administração).
+  decisoes() {
+    const q = data.filas || { verificacoes: [], planos: [], campanhas: [] };
+    const box = el('div'); box.append(el('p', 'Toda decisão fica no registro de transparência. Plano e verificação são independentes: aprovar um pagamento não dá selo.', 'adm-muted'));
+    const sec = (title, items, empty, row) => { const s = el('section', undefined, 'adm-card'); s.append(el('h3', title + (items.length ? ' (' + items.length + ')' : ''))); if (!items.length) s.append(el('p', empty, 'adm-empty')); items.forEach(i => s.append(row(i))); box.append(s); };
+    sec('Pedidos de verificação', q.verificacoes, 'Nenhum pedido em análise.', v => {
+      const c = el('article', undefined, 'adm-alert'); c.append(personLink(v.name, v.userKey), el('p', v.message), el('small', 'Pedido em ' + fmtDay(v.createdAt), 'adm-muted'));
+      if (v.link) { const a = el('a', v.link, 'adm-link'); a.href = v.link; a.target = '_blank'; a.rel = 'noopener noreferrer'; c.append(a); }
+      const row = el('div', undefined, 'adm-actions');
+      row.append(btn('Aprovar', async () => { const r = await ask({ title: 'Aprovar verificação de ' + v.name, help: 'O selo aparece no perfil e nas publicações.', confirm: 'Aprovar' }); if (r) act({ action: 'admin_verification_decide', requestId: v.id, decision: 'aprovar', reason: r.reason }, 'Verificação aprovada.'); }, 'is-primary'));
+      row.append(btn('Rejeitar', async () => { const r = await ask({ title: 'Rejeitar verificação de ' + v.name, help: 'O motivo é mostrado à pessoa.', confirm: 'Rejeitar', danger: true }); if (r) act({ action: 'admin_verification_decide', requestId: v.id, decision: 'rejeitar', reason: r.reason }, 'Verificação rejeitada.'); }, 'is-danger-ghost'));
+      c.append(row); return c;
+    });
+    const payNote = q.pagamentoTeste ? 'Ambiente de teste: confirmar ativa com pagamento de TESTE.' : 'Sem meio de pagamento aprovado, confirmar fica indisponível; só é possível recusar.';
+    sec('Pedidos de plano', q.planos, q.contratacaoAberta ? 'Nenhum pedido aguardando pagamento.' : 'Contratação de planos fechada até a aprovação de preços e pagamento.', r => {
+      const c = el('article', undefined, 'adm-alert'); c.append(personLink(r.name, r.userKey), el('p', 'Plano ' + r.plan + (r.teste ? ' · teste' : '')), el('small', 'Pedido em ' + fmtDay(r.createdAt) + ' · ' + payNote, 'adm-muted'));
+      if (data.role === 'admin') { const row = el('div', undefined, 'adm-actions');
+        row.append(btn('Confirmar pagamento', async () => { const x = await ask({ title: 'Confirmar pagamento do plano ' + r.plan, help: payNote, confirm: 'Confirmar' }); if (x) act({ action: 'admin_plan_decide', requestId: r.id, decision: 'confirmar', reason: x.reason }, 'Plano ativado.'); }, 'is-primary'));
+        row.append(btn('Recusar', async () => { const x = await ask({ title: 'Recusar pedido de plano', confirm: 'Recusar', danger: true }); if (x) act({ action: 'admin_plan_decide', requestId: r.id, decision: 'recusar', note: x.reason, reason: x.reason }, 'Pedido recusado.'); }, 'is-danger-ghost'));
+        c.append(row); }
+      return c;
+    });
+    sec('Campanhas aguardando pagamento', q.campanhas, 'Nenhuma campanha aguardando pagamento.', b => {
+      const c = el('article', undefined, 'adm-alert'); c.append(el('strong', b.name), el('p', b.excerpt), el('small', new Intl.NumberFormat('pt-BR', { style: 'currency', currency: b.currency || 'BRL' }).format(b.budgetCents / 100) + ' · ' + b.days + ' dias' + (b.teste ? ' · teste' : '') + ' · ' + payNote, 'adm-muted'));
+      if (data.role === 'admin') { const row = el('div', undefined, 'adm-actions');
+        if (b.teste && q.pagamentoTeste) row.append(btn('Confirmar pagamento de teste', async () => { const x = await ask({ title: 'Ativar campanha com pagamento de teste', help: 'Nada é cobrado. A campanha aparece como Patrocinado (teste).', confirm: 'Ativar' }); if (x) act({ action: 'admin_boost_decide', boostId: b.id, decision: 'confirmar_teste', reason: x.reason }, 'Campanha ativada (teste).'); }, 'is-primary'));
+        row.append(btn('Recusar', async () => { const x = await ask({ title: 'Recusar campanha', help: 'O motivo é mostrado à pessoa.', confirm: 'Recusar', danger: true }); if (x) act({ action: 'admin_boost_decide', boostId: b.id, decision: 'recusar', note: x.reason, reason: x.reason }, 'Campanha recusada.'); }, 'is-danger-ghost'));
+        c.append(row); }
+      return c;
+    });
+    return box;
+  },
   visao() {
     const k = data.kpis, box = el('div');
     const grid = el('div', undefined, 'adm-kpis');
