@@ -523,7 +523,75 @@ async function addProfilePhoto(input){
 function openProfileEdit(){const d=$('#profile-edit-dialog');if(d&&!d.open)d.showModal();}
 let profileSignature='';
 // Perfil no padrão de rede social: capa, foto, identidade, ações, abas e apresentação.
+// Configurações da própria conta (missão "Conta e experiência", P2). Tudo o que muda aqui é aplicado no servidor;
+// a acessibilidade (texto maior, menos movimento) é preferência do aparelho, aplicada antes da pintura por theme.js.
+let settingsData=null,settingsLoading=false;
+function prefGet(k,d){try{return localStorage.getItem(k)||d;}catch{return d;}}
+function applyA11y(){const r=document.documentElement;r.dataset.text=prefGet('opy-text','normal');r.dataset.motion=prefGet('opy-motion','auto');}
+async function loadSettings(){settingsLoading=true;try{settingsData=await apiGet({view:'account'});}catch(e){showError(e.message);}finally{settingsLoading=false;renderSettings();}}
+async function accountChange(body,ok){try{const next=await change(body);if(next?.account)settingsData=next.account;else await loadSettings();if(ok)toast(ok);renderSettings();}catch(e){showError(e.message);}}
+function radioGroup(name,legend,options,value,onPick){
+ const fs=make('fieldset',undefined,'set-radios');fs.append(make('legend',legend));
+ for(const [v,label,hint] of options){const l=make('label',undefined,'pf-radio');const r=make('input');r.type='radio';r.name=name;r.value=v;r.checked=v===value;r.onchange=()=>onPick(v);const t=make('span',label);if(hint)t.append(make('small',hint));l.append(r,t);fs.append(l);}
+ return fs;
+}
+function personRow(p,actionLabel,onAction){
+ const li=make('li',undefined,'set-person');li.append(avatarNode(p.name,p.avatar,36));const who=make('a',p.name);who.href='/perfil/?u='+encodeURIComponent(p.key);if(p.username)who.append(make('small','@'+p.username));li.append(who);
+ if(actionLabel){const b=button(actionLabel,()=>onAction(p),li);b.className='preview-secondary';b.setAttribute('aria-label',actionLabel+' '+p.name);}
+ return li;
+}
+function peopleList(list,empty,actionLabel,onAction){const ul=make('ul',undefined,'set-people');if(!list.length)ul.append(make('li',empty,'pf-empty'));for(const p of list)ul.append(personRow(p,actionLabel,onAction));return ul;}
+function confirmPasswordDialog(title,text,confirmLabel,onConfirm){
+ const dlg=make('dialog');dlg.className='opy-dialog live-dialog';dlg.setAttribute('aria-label',title);
+ const form=make('form');form.method='dialog';form.append(make('h2',title),make('p',text,'chat-hint'));
+ const l=make('label','Sua senha atual');const inp=make('input');inp.type='password';inp.required=true;inp.autocomplete='current-password';l.append(inp);
+ const status=make('p',undefined,'preview-feedback');status.setAttribute('role','status');
+ const row=make('div',undefined,'adm-dialog-actions');const go=make('button',confirmLabel,'pf-danger');go.type='submit';const cancel=make('button','Cancelar','preview-secondary');cancel.type='button';cancel.onclick=()=>dlg.close();row.append(go,cancel);
+ form.append(l,status,row);dlg.append(form);
+ form.onsubmit=async e=>{e.preventDefault();go.disabled=true;try{await onConfirm(inp.value);}catch(err){status.textContent=err.message;go.disabled=false;}};
+ dlg.addEventListener('close',()=>dlg.remove());document.body.append(dlg);dlg.showModal();inp.focus();
+}
+async function leaveAccount(action,password,message){
+ const res=await api({action,password});if(!res?.signedOut)throw Error('Não foi possível concluir. Tente de novo.');
+ try{const list=JSON.parse(localStorage.getItem('opy-accounts')||'[]').filter(a=>a.username!==state.me.username);localStorage.setItem('opy-accounts',JSON.stringify(list));}catch{}
+ try{sessionStorage.setItem('opy-left',message);}catch{}
+ location.replace('/entrar/');
+}
+function renderSettings(){
+ const root=$('#profile-page');if(!root||!state)return;
+ if(!settingsData){if(!settingsLoading)loadSettings();root.replaceChildren(make('p','Carregando configurações…','pf-loading'));return;}
+ const d=settingsData;const page=make('div',undefined,'set-page');page.append(make('h1','Configurações'));
+ const card=(title,desc)=>{const c=make('section',undefined,'pf-card set-card');c.append(make('h2',title));if(desc)c.append(make('p',desc,'set-desc'));page.append(c);return c;};
+ const priv=card('Privacidade','Vale para todo mundo, inclusive na busca e no feed.');
+ priv.append(radioGroup('set-profile','Quem pode ver seu perfil e suas publicações',[['public','Todas as pessoas da rede'],['friends','Só amizades','Quem não é amizade vê só seu nome, foto e apresentação.']],d.privacy.profile,v=>accountChange({action:'privacy_update',profile:v},'Privacidade atualizada.')));
+ priv.append(radioGroup('set-messages','Quem pode mandar mensagem',[['everyone','Todas as pessoas da rede'],['friends','Só amizades']],d.privacy.messages,v=>accountChange({action:'privacy_update',messages:v},'Privacidade atualizada.')));
+ const sess=card('Aparelhos conectados','Saia de um aparelho que você não reconhece ou que não usa mais.');
+ const ul=make('ul',undefined,'set-sessions');
+ for(const x of d.sessions){const li=make('li');const info=make('div');info.append(make('strong',x.device+(x.current?' (este aparelho)':'')));if(x.createdAt)info.append(make('small','Entrou em '+new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(x.createdAt))));li.append(info);
+  if(!x.current){const b=button('Sair deste aparelho',()=>accountChange({action:'session_revoke',sessionId:x.id},'O aparelho saiu da conta.'),li);b.className='preview-secondary';}
+  ul.append(li);}
+ sess.append(ul);
+ if(d.sessions.length>1){const all=button('Sair de todos os outros aparelhos',()=>{if(confirm('Sair de todos os outros aparelhos? Só este continua conectado.'))accountChange({action:'sessions_revoke_others'},'Os outros aparelhos saíram da conta.');},sess);all.className='preview-secondary';}
+ const fol=card('Seguidores','Quem segue você vê suas publicações no feed de "Seguindo".');
+ fol.append(peopleList(d.followers,'Ninguém segue você ainda.','Remover',p=>{if(confirm('Remover '+p.name+' dos seus seguidores? A pessoa não é avisada.'))accountChange({action:'follower_remove',key:p.key},'Seguidor removido.');}));
+ const fing=card('Seguindo');
+ fing.append(peopleList(d.following,'Você ainda não segue ninguém.','Deixar de seguir',p=>accountChange({action:'follow',authorKey:p.key},'Você deixou de seguir '+p.name+'.')));
+ const blk=card('Pessoas bloqueadas','Quem está bloqueado não vê seu perfil nem suas publicações, não manda mensagem e não pede amizade. A pessoa não é avisada.');
+ blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
+ const a11y=card('Acessibilidade','Preferências deste aparelho.');
+ a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
+ a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
+ const acc=card('Conta');
+ if(d.verified)acc.append(make('p','✓ Conta verificada pela equipe do Etnias.','set-verified'));
+ const row=make('div',undefined,'set-actions');
+ const pw=button('Alterar senha',()=>openPasswordDialog(false),row);pw.className='preview-secondary';
+ const off=button('Desativar conta',()=>confirmPasswordDialog('Desativar conta','Seu perfil, suas publicações e seus comentários somem da rede até você entrar de novo. Nada é apagado. Todos os aparelhos saem.','Desativar',p=>leaveAccount('account_deactivate',p,'Sua conta foi desativada. Para voltar, é só entrar de novo.')),row);off.className='preview-secondary';
+ const del=button('Excluir conta',()=>confirmPasswordDialog('Excluir conta','A conta fica desativada agora e é excluída pela equipe depois de '+d.deletionGraceDays+' dias. Se mudar de ideia, entre de novo antes do prazo e o pedido é cancelado.','Pedir exclusão',p=>leaveAccount('account_delete_request',p,'Pedido de exclusão registrado. Se mudar de ideia, entre de novo em até '+d.deletionGraceDays+' dias.')),row);del.className='pf-danger';
+ acc.append(row);
+ root.replaceChildren(page);
+}
 function renderProfile(){
+ if(document.body.dataset.previewRoute==='setting')return renderSettings();
  const root=$('#profile-page');if(!root||!state)return;
  const key=profileKey();if(!key)return;
  const own=key==='id:'+state.me.id;
@@ -548,7 +616,7 @@ function renderProfile(){
  const head=make('div',undefined,'pf-head');
  const av=make('div',undefined,'pf-avatar');av.append(avatarNode(person.name,person.avatar,168));
  if(own){const b=button('',()=>$('#profile-avatar-input').click(),av);b.className='pf-avatar-btn';b.setAttribute('aria-label','Trocar foto do perfil');b.title='Trocar foto do perfil';}
- const id=make('div',undefined,'pf-id');id.append(make('h1',person.name));
+ const id=make('div',undefined,'pf-id');const h1=make('h1',person.name);if(person.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');h1.append(' ',v);}id.append(h1);
  const meta=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.affiliation].filter(Boolean).join(' · ');
  if(meta)id.append(make('p',meta,'pf-meta'));
  const counts=make('p',undefined,'pf-counts');
@@ -563,6 +631,7 @@ function renderProfile(){
   if(key.startsWith('id:')){
    const m=button('Mensagem',()=>openPrivateChat(key),actions);m.className='preview-secondary';
    const fr=button(friendLabel(person.friendStatus),()=>change({action:'friend',authorKey:key}),actions);fr.className='preview-secondary';fr.setAttribute('aria-pressed',String(person.friendStatus==='friends'));
+   const bl=button('Bloquear',async()=>{if(!confirm('Bloquear '+person.name+'? Vocês deixam de se ver na rede, a amizade e o seguir são desfeitos. A pessoa não é avisada. Dá para desbloquear em Configurações.'))return;try{await change({action:'block_set',key,blocked:true});toast(person.name+' foi bloqueado(a).');location.href='/';}catch(e){showError(e.message);}},actions);bl.className='preview-secondary pf-block';
   }
  }
  head.append(av,id,actions);
@@ -599,6 +668,7 @@ function renderProfile(){
   if(!comms.length)c.append(make('p',own?'Você ainda não participa de comunidades.':'Nenhuma comunidade pública.','pf-empty'));
   const ul=make('ul',undefined,'pf-comms');for(const cm of comms){const li=make('li');const a=make('a',cm.name);a.href='/grupos/?c='+encodeURIComponent(cm.id);li.append(a,make('small',[cm.category,(cm.membersCount||0)+' participantes'].filter(Boolean).join(' · ')));ul.append(li);}c.append(ul);main.append(c);
  }
+ if(person.locked){const lock=make('section',undefined,'pf-card pf-locked');lock.append(make('h2','Perfil visível só para amizades'),make('p',person.name+' mostra publicações, fotos e comunidades só para amizades. Peça amizade para ver.','pf-empty'));root.replaceChildren(top,lock);return;}
  const body=make('div',undefined,'pf-body');body.append(side,main);
  root.replaceChildren(top,body);
 }
@@ -1174,6 +1244,7 @@ function openPasswordDialog(forced){
 }
 function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-register');const tabs=[$('#tab-login'),$('#tab-register')];function show(which){login.hidden=which!=='login';register.hidden=which!=='register';tabs[0].setAttribute('aria-selected',String(which==='login'));tabs[1].setAttribute('aria-selected',String(which==='register'));$('#welcome-error').hidden=true;}
  tabs[0].onclick=()=>show('login');tabs[1].onclick=()=>show('register');
+ try{const left=sessionStorage.getItem('opy-left');if(left){sessionStorage.removeItem('opy-left');toast(left);}}catch{}
  const presetUser=new URLSearchParams(location.search).get('user');if(presetUser&&$('#login-username')){$('#login-username').value=presetUser.slice(0,80);show('login');setTimeout(()=>$('#login-password')?.focus(),50);}
  all('[data-toggle-password]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.togglePassword);const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Mostrar senha':'Ocultar senha';button.setAttribute('aria-pressed',String(!visible));});
  async function submit(form,action){const statusButton=$('[type=submit]',form);statusButton.disabled=true;const original=statusButton.textContent;statusButton.textContent=action==='login'?'Entrando…':'Criando conta…';try{await api({action,name:form.elements.name?.value,username:form.elements.username.value,password:form.elements.password.value,googleKey:form.elements.googleKey?.value,phone:form.elements.phone?.value});location.replace(safeNext(new URLSearchParams(location.search).get('next')));}catch(error){showWelcomeError(error.message);statusButton.disabled=false;statusButton.textContent=original;}}

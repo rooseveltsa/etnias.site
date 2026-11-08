@@ -139,6 +139,32 @@ async function api(cookie, body) {
       await ctx2.close();
     });
 
+    await step('9. Configurações: privacidade, aparelhos, acessibilidade e bloqueio pelo perfil', async () => {
+      const ctx3 = await browser.newContext({ locale: 'pt-BR', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      const dani = await signIn(ctx3, base);
+      const p3 = await ctx3.newPage(); p3.on('pageerror', e => errors.push(e.message));
+      await p3.goto(base + '/configuracoes/'); await p3.locator('.set-page h1').waitFor();
+      for (const t of ['Privacidade', 'Aparelhos conectados', 'Seguidores', 'Pessoas bloqueadas', 'Acessibilidade', 'Conta']) assert.ok(await p3.locator('.set-card h2', { hasText: t }).count(), 'seção ' + t);
+      assert.ok((await p3.locator('.set-sessions').textContent()).includes('(este aparelho)'));
+      await p3.locator('input[name=set-profile][value=friends]').check({ force: true });
+      await p3.waitForFunction(() => document.querySelector('input[name=set-profile][value=friends]')?.checked, null, { timeout: 8000 });
+      const acc = await (await fetch(base + '/api/community?view=account', { headers: { cookie: dani.cookie } })).json();
+      assert.equal(acc.privacy.profile, 'friends', 'privacidade gravada no servidor');
+      await p3.locator('input[name=set-text][value=large]').check({ force: true });
+      assert.equal(await p3.evaluate(() => document.documentElement.dataset.text), 'large');
+      await p3.reload(); assert.equal(await p3.evaluate(() => document.documentElement.dataset.text), 'large', 'texto grande persiste');
+      // Bloquear pelo perfil de outra pessoa e desbloquear em Configurações.
+      const target = await registerAccount(base, { name: 'Eva ' + Date.now().toString(36) });
+      const evaId = (await (await fetch(base + '/api/community', { headers: { cookie: target.cookie } })).json()).me.id;
+      await p3.goto(base + '/perfil/?u=' + encodeURIComponent('id:' + evaId)); await p3.locator('.pf-block').waitFor();
+      p3.once('dialog', d => d.accept()); await p3.locator('.pf-block').dispatchEvent('click');
+      await p3.waitForURL(u => new URL(u).pathname === '/', { timeout: 10000 });
+      await p3.goto(base + '/configuracoes/'); await p3.locator('.set-people button:has-text("Desbloquear")').waitFor();
+      await p3.locator('.set-people button:has-text("Desbloquear")').dispatchEvent('click');
+      await p3.waitForFunction(() => !document.querySelector('.set-people button[aria-label^="Desbloquear"]'), null, { timeout: 8000 });
+      await ctx3.close();
+    });
+
     assert.deepEqual(errors.filter(e => !/ResizeObserver/.test(e)), [], 'sem erros de página');
   } finally {
     for (const [s, n] of results) console.log(s.padEnd(7), n);

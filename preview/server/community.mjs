@@ -12,6 +12,7 @@ import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
 import { sendFile } from './files.mjs';
+import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -78,6 +79,7 @@ function authorKeyOf(post) {
 }
 function visible(post, me, state) {
   if (post.audience === 'private' && post.authorId !== me.id) return false;
+  if (state && post.authorId && post.authorId !== me.id && profileAccess(state, me.id, post.authorId) !== 'full') return false;
   // "Amigos": só o autor e quem tem amizade confirmada com ele.
   if (post.audience === 'friends' && post.authorId !== me.id && !(state?.friends?.['id:' + post.authorId] || []).includes('id:' + me.id)) return false;
   if (post.communityId && state && !canViewCommunityContent(state, me, post.communityId)) return false;
@@ -187,7 +189,11 @@ function personFor(state, me, ctx, key, counts) {
   if (key.startsWith('id:')) {
     const acc = ctx.accountsById.get(key.slice(3));
     if (!acc) return null;
-    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, own: acc.id === me.id };
+    const access = profileAccess(state, me.id, acc.id);
+    if (access === 'none') return null;
+    // Perfil só para amizades: quem não é amizade vê o cartão (nome, foto, apresentação) e o botão de pedir amizade.
+    if (access === 'limited') return { ...base, postsCount: 0, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: '', belonging: '', povo: '', avatar: personAvatar(acc), cover: '', joinedAt: 0, verified: !!acc.verified, own: false, locked: true };
+    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
   }
   // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
@@ -204,7 +210,7 @@ function peopleFor(state, me, ctx, pagePosts, counts) {
   for (const c of ctx.communities) if (c.joined) for (const m of c.members || []) if (!reasons.has(m.key)) reasons.set(m.key, `Na comunidade ${c.name}`);
   for (const f of ctx.friends) { const friend = ctx.accountsById.get(f.slice(3)); if (friend) for (const k of state.friends?.[f] || []) if (!reasons.has(k)) reasons.set(k, `Amizade de ${friend.name}`); }
   const followers = a => counts.followers.get(`id:${a.id}`) || 0;
-  const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a))
+  const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a) && !isInactive(state, a.id) && !isBlockedPair(state, ctx.myKey, `id:${a.id}`))
     .sort((a, b) => Number(reasons.has(`id:${b.id}`)) - Number(reasons.has(`id:${a.id}`)) || followers(b) - followers(a)).slice(0, 12);
   const suggested = new Map(suggestions.map(a => [`id:${a.id}`, reasons.get(`id:${a.id}`) || 'Popular na rede']));
   for (const key of suggested.keys()) keys.add(key);
@@ -249,7 +255,7 @@ function searchView(state, me, params) {
   const counts = socialCounts(state, me);
   const q = plain(params.get('q')).slice(0, 80);
   const exclude = params.get('excludeCommunity') ? new Set((state.communities || []).find(c => c.id === params.get('excludeCommunity'))?.members || []) : null;
-  const people = q || exclude ? (state.accounts || []).filter(a => !isSuspended(a) && accountMatches(a, q) && !(exclude && exclude.has(`id:${a.id}`)))
+  const people = q || exclude ? (state.accounts || []).filter(a => !isSuspended(a) && !isInactive(state, a.id) && !isBlockedPair(state, ctx.myKey, `id:${a.id}`) && accountMatches(a, q) && !(exclude && exclude.has(`id:${a.id}`)))
     .sort((a, b) => (counts.followers.get(`id:${b.id}`) || 0) - (counts.followers.get(`id:${a.id}`) || 0)).slice(0, 20).map(a => personFor(state, me, ctx, `id:${a.id}`, counts)).filter(Boolean) : [];
   const posts = q ? postsPage(state, me, new URLSearchParams({ q, limit: '30' }), ctx) : { posts: [], hasMore: false };
   return { people, posts: posts.posts, postsHasMore: posts.hasMore };
@@ -385,6 +391,10 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(adminView(state, account, path.searchParams)));
       }
+      if (path.searchParams.get('view') === 'account' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(accountView(state, account, session.id)));
+      }
       if (path.searchParams.get('view') === 'chat' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(chatSnapshot(state, me, path.searchParams)));
@@ -445,6 +455,7 @@ export default async function handler(req, res) {
         const phone = phoneOf(body.phone);
         const accountId = randomUUID();
         const issued = await createSession(accountId, secret);
+        stampSession(issued.session, req.headers['user-agent']);
         const { data, result } = await transact(state => {
           const accounts = accountsOf(state);
           if (accounts.length >= (Number(process.env.OPY_MAX_ACCOUNTS) || 20000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
@@ -477,12 +488,14 @@ export default async function handler(req, res) {
       }
       if (isSuspended(account)) fail(403, suspensionMessage(account));
       const issued = await createSession(account.id, secret);
+      stampSession(issued.session, req.headers['user-agent']);
       const { data } = await transact(state => {
         const stored = accountsOf(state).find(item => item.id === account.id);
         if (!stored) fail(401, 'Entre novamente para continuar.');
         if (legacyOk) { stored.password = hashPassword(password); delete stored.legacyPassword; }
         else if (stored.password?.hash !== account.password?.hash) fail(401, 'Entre novamente para continuar.');
         if (state.authFailures) delete state.authFailures[identity];
+        reactivateOnLogin(stored);
         addSession(stored, issued.session);
       });
       res.setHeader('Set-Cookie', cookieHeader(issued.token));
@@ -493,7 +506,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -530,7 +543,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], callResult = null, adminResult = null, pushNotice = null, liveResult = null;
+    let removedIds = [], callResult = null, adminResult = null, pushNotice = null, liveResult = null, accountResult = null;
     const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
@@ -553,6 +566,7 @@ export default async function handler(req, res) {
       if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
+      if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); return; }
       if (body.action === 'announcement_dismiss') {
         if (!(state.announcements || []).some(a => a.id === body.id)) fail(404, 'Comunicado não encontrado.');
         state.announcementDismiss ||= {}; state.announcementDismiss[me.id] = [...new Set([...(state.announcementDismiss[me.id] || []), body.id])].slice(-100);
@@ -722,6 +736,7 @@ export default async function handler(req, res) {
           const key = text(body.authorKey, 90);
           if (!/^(id:[a-f0-9-]{36}|name:.+)$/.test(key)) fail(400, 'Não foi possível seguir esta pessoa.');
           if (key === `id:${me.id}`) fail(400, 'Você já vê as próprias publicações em Notícias.');
+          if (key.startsWith('id:') && profileAccess(state, me.id, key.slice(3)) === 'none') fail(403, 'Não é possível seguir esta pessoa.');
           state.follows ||= {};
           const list = Array.isArray(state.follows[me.id]) ? state.follows[me.id] : [];
           state.follows[me.id] = list.includes(key) ? list.filter(item => item !== key) : [...list, key].slice(-200);
@@ -736,6 +751,7 @@ export default async function handler(req, res) {
           const myKey = `id:${me.id}`;
           if (key === myKey) fail(400, 'Não foi possível atualizar esta amizade.');
           if (!/^id:[a-f0-9-]{36}$/.test(key) || !state.accounts?.some(a => `id:${a.id}` === key)) fail(404, 'Esta pessoa não tem conta nesta prévia.');
+          if (profileAccess(state, me.id, key.slice(3)) === 'none') fail(403, 'Não é possível pedir amizade a esta pessoa.');
           state.friends ||= {};
           state.friendRequests ||= {};
           const myFriends = Array.isArray(state.friends[myKey]) ? state.friends[myKey] : [];
@@ -822,6 +838,9 @@ export default async function handler(req, res) {
     else attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    // Desativar ou pedir exclusão encerra todas as sessões, inclusive esta.
+    if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.VERCEL ? '; Secure' : ''}`); return res.end(JSON.stringify({ signedOut: true })); }
+    if (accountActions.includes(body.action)) return res.end(JSON.stringify({ ...snapshot(data, activeMe), account: accountView(data, data.accounts.find(a => a.id === activeMe.id), session.id) }));
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     // A senha provisória só existe nesta resposta: não fica no estado nem no registro.
     if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URL(req.url, 'http://local').searchParams), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));

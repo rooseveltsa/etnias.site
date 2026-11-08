@@ -1,4 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto';
+import { canMessage } from './account.mjs';
 
 export const chatActions = ['dm', 'chat_typing', 'chat_edit', 'chat_delete', 'chat_react', 'chat_read', 'chat_preferences', 'chat_block', 'chat_report', 'chat_group_create', 'chat_group_accept', 'chat_group_decline', 'chat_group_update', 'chat_group_invite', 'chat_group_remove', 'chat_group_admin', 'chat_group_leave', 'chat_request_accept', 'chat_request_decline'];
 const keyOf = me => `id:${me.id}`;
@@ -155,6 +156,7 @@ export function chatAction(state, me, body, upload) {
   }
   if(body.action==='dm') {
     const t=thread(state,me,body.toKey);
+    if(String(body.toKey).startsWith('id:') && !canMessage(state,me.id,body.toKey))fail(403,'Esta pessoa só recebe mensagens de amizades.');
     if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada. Não é possível enviar mensagens.');
     const copy=text(body.text || '',2000,false);
     if(!copy && !upload)fail(400,'Escreva uma mensagem ou escolha um anexo.');

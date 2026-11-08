@@ -177,6 +177,11 @@
    "data": "2026-11-08",
    "titulo": "Conta e experiência — Prioridade 1 (sair, trocar de conta, tema claro/escuro, fotos do perfil, pertencimento)",
    "detalhe": "Tema claro/escuro com sol/lua no cabeçalho, guardado no aparelho e aplicado antes da primeira pintura (sem piscar); sair e trocar de conta pelo menu da foto (lista das contas já usadas no aparelho, entrar com o @ preenchido, nunca guarda senha); aba Fotos do perfil com adicionar, ampliar e excluir a própria foto com confirmação; aba Sobre funcional; campo opcional de pertencimento no perfil (indígena com povo/etnia, ou não indígena) com resumo no painel de administração (Quem está na rede). Validação: tests/opy/accounts-browser.cjs (8 passos, incluindo testes negativos de autorização) e tests/opy/community-integration.mjs."
+  },
+  {
+   "data": "2026-11-08",
+   "titulo": "Conta e experiência — Prioridade 2 (privacidade, bloqueio, aparelhos, seguidores, desativar e excluir conta, verificação, acessibilidade)",
+   "detalhe": "Página Configurações real: perfil público ou só para amizades e quem pode mandar mensagem, aplicados no servidor (feed, busca, perfil, mídia e chat); aparelhos conectados com sair de um ou de todos os outros; remover seguidor; deixar de seguir; bloqueio geral pelo perfil (desfaz amizade e seguir nos dois sentidos) e desbloqueio; desativar conta e pedir exclusão com senha (prazo de 30 dias, entrar de novo cancela; a remoção definitiva fica com a equipe e aparece como alerta no painel); selo de verificação concedido só pela administração; texto grande e menos movimento. Validação: 40 asserções novas em tests/opy/community-integration.mjs (com negativos de autorização) e passo 9 em tests/opy/accounts-browser.cjs."
   }
  ],
  "andamento": [

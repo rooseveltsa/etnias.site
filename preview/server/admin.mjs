@@ -5,7 +5,7 @@ import development from './desenvolvimento.json' with { type: 'json' };
 
 // Centro de gestão da Casa Opy: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
 // comunicados e registro de transparência. Toda ação fica no adminLog com autor, alvo e motivo.
-export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end'];
+export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end', 'admin_verify'];
 const DAY = 864e5;
 // Senha provisória fácil de ditar por telefone (sem 0/O/1/I); a pessoa é obrigada a trocá-la na primeira entrada.
 function temporaryPassword() {
@@ -62,6 +62,8 @@ function alertsOf(state) {
   const declined = new Map();
   for (const [pair, c] of Object.entries(state.chatConsent || {})) if (c?.status === 'declined') { const other = pair.split('|').find(k => k !== c.by); if (other) declined.set(other, (declined.get(other) || 0) + 1); }
   for (const [k, n] of declined) if (n >= 3) out.push({ id: 'declined:' + k + ':' + n, kind: `Solicitações recusadas por ${n} pessoas`, severity: 'média', at: Date.now(), reason: 'Sinal automático', reporter: 'Sistema', targetKey: k, targetName: nameOf(k), excerpt: '' });
+  // Pedidos de exclusão de conta (LGPD): a remoção definitiva é feita pela equipe depois do prazo, não automaticamente.
+  for (const a of state.accounts || []) if (a.deletionRequestedAt) out.push({ id: 'deletion:' + a.id + ':' + a.deletionRequestedAt, kind: 'Pedido de exclusão de conta', severity: 'média', at: a.deletionRequestedAt, reason: 'A pessoa pediu a exclusão. Prazo de 30 dias para desistir entrando de novo.', reporter: 'Sistema', targetKey: 'id:' + a.id, targetName: a.name, excerpt: '' });
   const res = state.adminResolutions || {};
   return out.map(a => ({ ...a, status: res[a.id]?.status || 'aberto', resolvedBy: res[a.id]?.byName || '', resolvedAt: res[a.id]?.at || 0, targetSuspended: isSuspended(accountByKey(state, a.targetKey)) }))
     .sort((a, b) => Number(a.status !== 'aberto') - Number(b.status !== 'aberto') || (a.severity === b.severity ? b.at - a.at : a.severity === 'alta' ? -1 : 1));
@@ -108,6 +110,7 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
   const people = accounts.filter(a => !q || (a.name + ' ' + (a.username || '')).toLocaleLowerCase('pt-BR').includes(q))
     .map(a => ({ key: keyOf(a), name: a.name, username: a.username || '', createdAt: a.createdAt || 0, role: roleOf(a, env), envAdmin: envAdmins(env).includes(String(a.username || '').toLowerCase()),
       suspension: isSuspended(a, now) ? { until: a.suspension.until || 0, reason: a.suspension.reason } : null,
+      verified: !!a.verified, deactivated: !!a.deactivatedAt, deletionRequestedAt: a.deletionRequestedAt || 0,
       posts: posts.filter(p => p.authorId === a.id).length, reports: reportsAgainst(keyOf(a)), blockedBy: blockedCount(keyOf(a)), lastActivity: lastActivity(keyOf(a)) }))
     .sort((a, b) => b.reports - a.reports || b.lastActivity - a.lastActivity).slice(0, 60);
   const reportedPosts = new Set(alerts.filter(a => a.postId).map(a => a.postId));
@@ -163,6 +166,14 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     if (!target.suspension) fail(409, 'Esta conta não está suspensa.');
     delete target.suspension;
     log(state, actor, 'Conta reativada', target.name, reason);
+    return {};
+  }
+  if (body.action === 'admin_verify') {
+    adminOnly();
+    if (!target) fail(404, 'Pessoa não encontrada.');
+    if (typeof body.verified !== 'boolean') fail(400, 'Escolha verificar ou retirar o selo.');
+    if (body.verified) target.verified = true; else delete target.verified;
+    log(state, actor, body.verified ? 'Selo de verificação concedido' : 'Selo de verificação retirado', target.name, reason);
     return {};
   }
   if (body.action === 'admin_role') {

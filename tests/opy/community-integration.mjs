@@ -311,6 +311,64 @@ try {
   assert.deepEqual(declared.data.povos, ['Guarani Mbya']);
   assert.equal((await api({ action:'profile_update', name:'Primeiro', belonging:'nao_indigena', povo:'Ignorado' }, login.cookie)).data.me.povo, '', 'povo não fica guardado para quem não é indígena');
   assert.equal((await api({ action:'profile_update', name:'Terceiro', belonging:'' }, third.cookie)).data.me.belonging, '');
+  // Conta e experiência P2: privacidade, mensagens, bloqueio, seguidores, sessões, desativar e pedir exclusão — com os negativos de autorização.
+  const ana = await api(profile('ana.p2')), bia = await api(profile('bia.p2'));
+  const anaId = (await api(null, ana.cookie)).data.me.id, biaId = (await api(null, bia.cookie)).data.me.id;
+  const anaPost = (await api({ action:'publish', text:'Texto da Ana P2', audience:'public' }, ana.cookie)).data.posts.find(p => p.text === 'Texto da Ana P2');
+  const biaSees = async () => (await view('view=posts&author=' + encodeURIComponent('id:' + anaId), bia.cookie)).data.posts.some(p => p.id === anaPost.id);
+  assert.ok(await biaSees(), 'perfil público: publicação aparece');
+  assert.equal((await api({ action:'privacy_update', profile:'todos' }, ana.cookie)).status, 400);
+  assert.equal((await api({ action:'privacy_update', profile:'friends', messages:'friends' }, ana.cookie)).status, 200);
+  assert.equal(await biaSees(), false, 'perfil só para amizades: quem não é amizade não vê a publicação');
+  const locked = await view('view=profile&key=' + encodeURIComponent('id:' + anaId), bia.cookie);
+  assert.equal(locked.data.person.locked, true); assert.equal(locked.data.posts.length, 0); assert.equal(locked.data.person.belonging, '');
+  assert.equal((await api({ action:'dm', toKey:'id:' + anaId, text:'Oi' }, bia.cookie)).status, 403, 'mensagem só de amizades');
+  assert.equal((await api({ action:'privacy_update', profile:'public', messages:'everyone' }, ana.cookie)).status, 200);
+  assert.ok(await biaSees());
+  // Seguidores: remover alguém que segue; remover quem não segue é recusado.
+  assert.equal((await api({ action:'follow', authorKey:'id:' + anaId }, bia.cookie)).status, 200);
+  const anaAccount = await view('view=account', ana.cookie);
+  assert.ok(anaAccount.data.followers.some(p => p.key === 'id:' + biaId));
+  assert.equal((await api({ action:'follower_remove', key:'id:' + biaId }, ana.cookie)).status, 200);
+  assert.equal((await api({ action:'follower_remove', key:'id:' + biaId }, ana.cookie)).status, 404);
+  // Bloqueio geral: some do feed e do perfil, não segue, não pede amizade, não manda mensagem, não aparece na busca.
+  assert.equal((await api({ action:'block_set', key:'id:' + anaId, blocked:true }, ana.cookie)).status, 400, 'não bloqueia a si mesma');
+  assert.equal((await api({ action:'block_set', key:'id:' + biaId, blocked:true }, ana.cookie)).status, 200);
+  assert.equal(await biaSees(), false);
+  assert.equal((await view('view=profile&key=' + encodeURIComponent('id:' + anaId), bia.cookie)).status, 404);
+  assert.equal((await api({ action:'follow', authorKey:'id:' + anaId }, bia.cookie)).status, 403);
+  assert.equal((await api({ action:'friend', authorKey:'id:' + anaId }, bia.cookie)).status, 403);
+  assert.equal((await api({ action:'dm', toKey:'id:' + anaId, text:'Oi' }, bia.cookie)).status, 403);
+  assert.equal((await view('view=search&q=ana.p2', bia.cookie)).data.people.some(p => p.key === 'id:' + anaId), false);
+  assert.ok((await view('view=account', ana.cookie)).data.blocked.some(p => p.key === 'id:' + biaId));
+  assert.equal((await api({ action:'block_set', key:'id:' + biaId, blocked:false }, ana.cookie)).status, 200);
+  assert.ok(await biaSees(), 'desbloquear devolve a visibilidade');
+  // Sessões: cada aparelho aparece com rótulo; sair de um aparelho derruba só ele; a sessão de outra conta não é alcançável.
+  const anaPhone = await api({ action:'login', username:'ana.p2', password:'Test-only-2026' });
+  const sessions = (await view('view=account', ana.cookie)).data.sessions;
+  assert.equal(sessions.length, 2); assert.equal(sessions.filter(x => x.current).length, 1); assert.ok(sessions.every(x => x.device));
+  const other = sessions.find(x => !x.current);
+  assert.equal((await api({ action:'session_revoke', sessionId: sessions.find(x => x.current).id }, ana.cookie)).status, 400);
+  assert.equal((await api({ action:'session_revoke', sessionId: other.id }, bia.cookie)).status, 404, 'não derruba sessão de outra conta');
+  assert.equal((await api(null, anaPhone.cookie)).status, 200);
+  assert.equal((await api({ action:'session_revoke', sessionId: other.id }, ana.cookie)).status, 200);
+  assert.equal((await api(null, anaPhone.cookie)).status, 401);
+  // Selo de verificação: só administração concede.
+  assert.equal((await api({ action:'admin_verify', userKey:'id:' + anaId, verified:true }, bia.cookie)).status, 403);
+  // Desativar: exige a senha; encerra a sessão; some da rede; entrar de novo reativa.
+  assert.equal((await api({ action:'account_deactivate', password:'Errada-2026-xx' }, ana.cookie)).status, 403);
+  const off = await api({ action:'account_deactivate', password:'Test-only-2026' }, ana.cookie);
+  assert.equal(off.status, 200); assert.equal(off.data.signedOut, true);
+  assert.equal((await api(null, ana.cookie)).status, 401);
+  assert.equal(await biaSees(), false, 'conta desativada some do feed');
+  assert.equal((await view('view=search&q=ana.p2', bia.cookie)).data.people.length, 0);
+  const back = await api({ action:'login', username:'ana.p2', password:'Test-only-2026' });
+  assert.equal(back.status, 200); assert.ok(await biaSees(), 'entrar de novo reativa');
+  // Pedir exclusão: desativa na hora, fica registrado para a equipe; entrar de novo cancela o pedido.
+  assert.equal((await api({ action:'account_delete_request', password:'Test-only-2026' }, back.cookie)).data.signedOut, true);
+  assert.ok(state.accounts.find(a => a.id === anaId).deletionRequestedAt > 0);
+  await api({ action:'login', username:'ana.p2', password:'Test-only-2026' });
+  assert.equal(state.accounts.find(a => a.id === anaId).deletionRequestedAt, undefined, 'entrar de novo cancela o pedido de exclusão');
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }
