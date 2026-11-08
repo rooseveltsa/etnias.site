@@ -12,13 +12,15 @@ const widths = [375, 768, 1440];
   fs.mkdirSync(path.join(out, 'screens'), { recursive: true });
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
   // bypassCSP só aqui: a CSP do site (script-src 'self') bloquearia a injeção do axe-core.
-  const ctx = await browser.newContext({ bypassCSP: true });
-  const reg = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'register', name: 'Auditoria Visual', username: 'audit' + Date.now().toString(36), password: 'Test-only-2026', googleKey: 'audit@example.com', phone: '11912345678' } });
-  if (reg.status() !== 200) throw new Error('cadastro falhou ' + reg.status());
   const axe = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
   const results = [];
+  const username = 'audit' + Date.now().toString(36);
   for (const width of widths) {
-    const page = await ctx.newPage({ viewport: { width, height: width < 768 ? 812 : 900 } });
+    // O viewport só vale em newContext (newPage ignora a opção): um contexto por largura, mesma conta.
+    const ctx = await browser.newContext({ bypassCSP: true, viewport: { width, height: width < 768 ? 812 : 900 }, isMobile: width < 768, hasTouch: width < 768 });
+    const auth = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: width === widths[0] ? { action: 'register', name: 'Auditoria Visual', username, password: 'Test-only-2026', googleKey: 'audit@example.com', phone: '11912345678' } : { action: 'login', username, password: 'Test-only-2026' } });
+    if (auth.status() !== 200) throw new Error('acesso falhou ' + auth.status());
+    const page = await ctx.newPage();
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     for (const route of routes) {
       errors.length = 0;

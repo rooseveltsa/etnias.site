@@ -23,9 +23,12 @@ try {
   await assert.rejects(store.readMedia('../session-secret'));
   await reopened.deleteMedia(id);
   assert.equal(await store.readMedia(id), null);
+  // Arquivo corrompido fora do processo: um store novo (sem cache) recusa a escrita e preserva o arquivo.
   await writeFile(join(directory, 'community.json'), '{invalid');
-  await assert.rejects(store.transact(data => { data.count++; }));
+  const corrupted = createLocalStore(directory, () => ({ count: 0 }));
+  await assert.rejects(corrupted.transact(data => { data.count++; }));
   assert.equal(await readFile(join(directory, 'community.json'), 'utf8'), '{invalid');
+  await writeFile(join(directory, 'community.json'), JSON.stringify({ count: 20 }));
 
   process.env.OPY_LOCAL_DATA_DIR = join(directory, 'community');
   process.env.OPY_SESSION_SECRET = 'local-store-test-isolated-secret-2026';

@@ -216,6 +216,42 @@ try {
   assert.equal((await api({ action:'profile_media', kind:'avatar', media:png }, login.cookie)).status, 200);
   assert.equal((await getMedia(firstAvatar, third.cookie)).statusCode, 404, 'foto anterior é apagada');
   assert.equal((await api({ action:'profile_media', kind:'banner', media:png }, login.cookie)).status, 400);
+  // Feed paginado, busca e perfil no servidor: a rede tem milhares de publicações, o cliente recebe páginas.
+  async function view(query, cookie) {
+    const response = { statusCode: 200, setHeader() {}, end(value) { this.output = value; } };
+    await handler({ method: 'GET', url: '/api/community?' + query, headers: { cookie, host: '127.0.0.1:' + port } }, response);
+    return { status: response.statusCode, data: JSON.parse(response.output) };
+  }
+  for (let i = 0; i < 3; i++) assert.equal((await api({ action:'publish', text:'Página ' + i + ' da paginação', audience:'public' }, login.cookie)).status, 200);
+  const page1 = await view('view=posts&limit=2&q=pagina', login.cookie);
+  assert.equal(page1.status, 200); assert.equal(page1.data.posts.length, 2); assert.equal(page1.data.hasMore, true);
+  const last = page1.data.posts.at(-1);
+  const page2 = await view(`view=posts&limit=2&q=pagina&before=${last.createdAt}&beforeId=${encodeURIComponent(last.id)}`, login.cookie);
+  assert.equal(page2.data.posts.length, 1); assert.equal(page2.data.hasMore, false);
+  assert.ok(!page2.data.posts.some(p => page1.data.posts.some(q => q.id === p.id)), 'páginas não repetem publicação');
+  assert.equal((await view('view=posts&feed=following', third.cookie)).data.posts.length, 0, 'quem não segue ninguém não vê nada em Seguindo');
+  const found = await view('view=search&q=' + encodeURIComponent('Pagina'), third.cookie);
+  assert.equal(found.data.posts.length, 3, 'busca ignora acentos e maiúsculas');
+  assert.ok(found.data.people.length === 0, 'busca de pessoas só casa nome, usuário, povo ou apresentação');
+  const who = await view('view=search&q=' + encodeURIComponent((await api(null, login.cookie)).data.me.name.slice(0, 5)), third.cookie);
+  assert.ok(who.data.people.some(p => p.key === 'id:' + meId));
+  const prof = await view('view=profile&key=' + encodeURIComponent('id:' + meId), third.cookie);
+  assert.equal(prof.data.person.key, 'id:' + meId); assert.ok(prof.data.posts.length >= 3);
+  assert.ok(prof.data.posts.every(p => p.authorKey === 'id:' + meId));
+  assert.equal((await view('view=profile&key=id:nao-existe', third.cookie)).status, 404);
+  const reactOld = await api({ action:'react', postId:page2.data.posts[0].id, reaction:'heart' }, third.cookie);
+  assert.equal(reactOld.data.touched?.id, page2.data.posts[0].id, 'ação devolve a publicação alterada mesmo fora da primeira página');
+  assert.equal(reactOld.data.touched.reaction, 'heart');
+  // Conta do Etnias antigo: entra com a senha original (bcrypt) e sai migrada para scrypt.
+  const bcryptjs = (await import(new URL('../../preview/node_modules/bcryptjs/index.js', import.meta.url).href)).default;
+  state.accounts.push({ id: '11111111-2222-4333-8444-555555555555', username: 'antiga.etnias', name: 'Conta Antiga', googleKey: 'antiga@example.com', createdAt: 1600000000000, legacyId: 42, legacyPassword: await bcryptjs.hash('Senha-antiga-2026', 4), avatarUrl: '/legado/upload/photos/a.jpg' });
+  assert.equal((await api({ action:'login', username:'antiga.etnias', password:'Senha-errada-2026' })).status, 401);
+  const legacyLogin = await api({ action:'login', username:'antiga@example.com', password:'Senha-antiga-2026' });
+  assert.equal(legacyLogin.status, 200); assert.equal(legacyLogin.data.me.avatar, '/legado/upload/photos/a.jpg');
+  const migrated = state.accounts.find(a => a.username === 'antiga.etnias');
+  assert.ok(migrated.password?.hash && !migrated.legacyPassword, 'senha migrada para scrypt na primeira entrada');
+  assert.equal((await api({ action:'login', username:'antiga.etnias', password:'Senha-antiga-2026' })).status, 200, 'segunda entrada usa o scrypt');
+  assert.equal((await api({ action:'login', username:'antiga.etnias', password:'Senha-errada-2026' })).status, 401);
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }

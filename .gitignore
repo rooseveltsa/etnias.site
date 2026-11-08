@@ -27,3 +27,4 @@ deploy/backups/
 deploy/runtime.htaccess
 
 audit-reports/
+preview/legacy/

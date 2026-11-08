@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual, scryptSync, randomBytes } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { readState, transact, saveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
 import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
@@ -77,7 +78,7 @@ function phoneOf(value) {
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
   return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '',
-    avatar: profileUrl(account.avatarId), cover: profileUrl(account.coverId), joinedAt: account.createdAt || 0, role: roleOf(account) };
+    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, role: roleOf(account) };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
@@ -96,51 +97,131 @@ function friendStatusOf(state, myKey, targetKey) {
   if ((state.friendRequests?.[targetKey] || []).includes(myKey)) return 'outgoing';
   return 'none';
 }
-function snapshot(state, me) {
+const PAGE_SIZE = 30;
+const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '' } : null;
+const personAvatar = acc => acc?.avatarUrl || profileUrl(acc?.avatarId);
+// Contexto por requisição: tudo que a projeção de um post ou de uma pessoa precisa, calculado uma vez.
+function feedContext(state, me) {
   const myKey = `id:${me.id}`;
   const communities = projectCommunities(state, me);
-  const communityNames = new Map(communities.map(c => [c.id, c.name]));
-  const followed = new Set(Array.isArray(state.follows?.[me.id]) ? state.follows[me.id] : []);
-  const mapMedia = m => m ? { url: `/api/media?id=${m.id}`, kind: m.kind, name: m.name } : null;
-  const accountsById = new Map((state.accounts || []).map(a => [a.id, a]));
-  const posts = state.posts.filter(p => visible(p, me, state)).map(p => {
-    const aKey = authorKeyOf(p);
-    return {
-      id: p.id, text: p.text, author: p.author, authorKey: aKey, following: followed.has(aKey), friendStatus: friendStatusOf(state, myKey, aKey),
-      origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', avatar: archiveAvatar(p) || profileUrl(accountsById.get(p.authorId)?.avatarId), attachmentMissing: !!p.attachmentMissing,
-      media: mapMedia(p.media), file: mapMedia(p.file), location: p.location || '',
-      communityId: p.communityId || '', communityName: p.communityId ? (communityNames.get(p.communityId) || p.communityName || '') : '',
-      audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
-      shares: p.shares || 0,
-      repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file) } : null,
-      reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
-      comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
-        parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(myKey), own: c.authorKey === myKey })),
-      editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
-      poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
-    };
-  });
-  const peopleMap = new Map();
-  for (const acc of (state.accounts || [])) {
-    const key = `id:${acc.id}`;
-    peopleMap.set(key, { key, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', avatar: profileUrl(acc.avatarId), cover: profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, own: acc.id === me.id });
+  return {
+    myKey, communities,
+    communityNames: new Map(communities.map(c => [c.id, c.name])),
+    followed: new Set(Array.isArray(state.follows?.[me.id]) ? state.follows[me.id] : []),
+    friends: new Set(state.friends?.[myKey] || []),
+    accountsById: new Map((state.accounts || []).map(a => [a.id, a]))
+  };
+}
+function projectPost(p, me, state, ctx) {
+  const aKey = authorKeyOf(p);
+  const author = ctx.accountsById.get(p.authorId);
+  return {
+    id: p.id, text: p.text, author: p.author, authorKey: aKey, following: ctx.followed.has(aKey), friendStatus: friendStatusOf(state, ctx.myKey, aKey),
+    origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', images: Array.isArray(p.images) && p.images.length > 1 ? p.images : [],
+    avatar: archiveAvatar(p) || personAvatar(author), verified: !!author?.verified, attachmentMissing: !!p.attachmentMissing,
+    media: mapMedia(p.media), file: mapMedia(p.file), link: p.link || null, location: p.location || '',
+    communityId: p.communityId || '', communityName: p.communityId ? (ctx.communityNames.get(p.communityId) || p.communityName || '') : '',
+    audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
+    shares: p.shares || 0,
+    repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file) } : null,
+    reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
+    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
+      parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(ctx.myKey), own: c.authorKey === ctx.myKey })),
+    editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
+    poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
+  };
+}
+function matchesKind(p, kind) {
+  const isImage = x => x?.media?.kind === 'image' || !!x?.image;
+  const isKind = (x, k) => x?.media?.kind === k;
+  if (kind === 'photos') return isImage(p) || isImage(p.repostOf);
+  if (kind === 'videos') return isKind(p, 'video') || isKind(p.repostOf, 'video');
+  if (kind === 'audio') return isKind(p, 'audio') || isKind(p.repostOf, 'audio');
+  if (kind === 'files') return isKind(p, 'file') || !!p.file || isKind(p.repostOf, 'file') || !!p.repostOf?.file;
+  return true;
+}
+// Filtros do feed resolvidos no servidor: a rede tem milhares de publicações, o cliente recebe só uma página.
+function postMatches(p, params, me, ctx) {
+  const aKey = authorKeyOf(p);
+  const isFollowing = ctx.followed.has(aKey) || ctx.friends.has(aKey);
+  const feed = params.get('feed') || 'news';
+  if (feed === 'following' && !isFollowing) return false;
+  if (feed === 'discover' && (p.authorId === me.id || isFollowing)) return false;
+  if (feed === 'saved' && !(p.saves || []).includes(me.id)) return false;
+  if (feed === 'archive' && p.origin !== 'legacy') return false;
+  const author = params.get('author'); if (author && aKey !== author) return false;
+  const community = params.get('community'); if (community && p.communityId !== community) return false;
+  const origin = params.get('origin'); if (origin && origin !== 'all' && (p.origin || 'preview') !== origin) return false;
+  const kind = params.get('kind'); if (kind && !matchesKind(p, kind)) return false;
+  if (params.has('location')) { const q = plain(params.get('location')); if (!p.location || (q && !plain(p.location).includes(q))) return false; }
+  const q = plain(params.get('q')); if (q && !plain(`${p.text} ${p.author} ${p.communityName || ''}`).includes(q)) return false;
+  return true;
+}
+function postsPage(state, me, params, ctx = feedContext(state, me)) {
+  const before = Number(params.get('before')) || Infinity;
+  const beforeId = params.get('beforeId') || '';
+  const limit = Math.min(50, Math.max(1, Number(params.get('limit')) || PAGE_SIZE));
+  // Cursor por (createdAt, id): publicações do acervo têm precisão de segundos e podem empatar na data.
+  const older = p => p.createdAt < before || (p.createdAt === before && beforeId && p.id < beforeId);
+  const list = state.posts.filter(p => older(p) && visible(p, me, state) && postMatches(p, params, me, ctx))
+    .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
+  return { posts: list.slice(0, limit).map(p => projectPost(p, me, state, ctx)), hasMore: list.length > limit };
+}
+function socialCounts(state, me) {
+  const followers = new Map();
+  for (const list of Object.values(state.follows || {})) if (Array.isArray(list)) for (const k of list) followers.set(k, (followers.get(k) || 0) + 1);
+  const posts = new Map();
+  for (const p of state.posts) if (visible(p, me, state)) { const k = authorKeyOf(p); posts.set(k, (posts.get(k) || 0) + 1); }
+  return { followers, posts };
+}
+function personFor(state, me, ctx, key, counts) {
+  const base = { key, following: ctx.followed.has(key), friendStatus: friendStatusOf(state, ctx.myKey, key), followersCount: counts.followers.get(key) || 0, friendsCount: (state.friends?.[key] || []).length, postsCount: counts.posts.get(key) || 0 };
+  if (key.startsWith('id:')) {
+    const acc = ctx.accountsById.get(key.slice(3));
+    if (!acc) return null;
+    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, own: acc.id === me.id };
   }
-  for (const p of state.posts) {
-    if (!visible(p, me, state)) continue;
-    const key = authorKeyOf(p);
-    const av = archiveAvatar(p);
-    if (!peopleMap.has(key)) peopleMap.set(key, { key, name: p.author, username: '', bio: '', affiliation: '', avatar: av, own: p.authorId === me.id });
-    else if (av && !peopleMap.get(key).avatar) peopleMap.get(key).avatar = av;
-  }
-  const allFollowLists = Object.values(state.follows || {});
-  const directory = [...peopleMap.values()].map(person => ({
-    ...person,
-    following: followed.has(person.key),
-    friendStatus: friendStatusOf(state, myKey, person.key),
-    followersCount: allFollowLists.filter(list => Array.isArray(list) && list.includes(person.key)).length,
-    friendsCount: (state.friends?.[person.key] || []).length,
-    postsCount: posts.filter(p => p.authorKey === person.key).length
-  }));
+  // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
+  const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
+  return post ? { ...base, name: post.author, username: '', bio: '', affiliation: '', avatar: archiveAvatar(post), cover: '', joinedAt: 0, verified: false, own: false } : null;
+}
+function accountMatches(acc, q) { return !q || plain(`${acc.name} ${acc.username || ''} ${acc.affiliation || ''} ${acc.bio || ''}`).includes(q); }
+// Pessoas que importam para quem está vendo: relações, autores da página e sugestões. O restante vem pela busca.
+function peopleFor(state, me, ctx, pagePosts, counts) {
+  const keys = new Set([ctx.myKey, ...ctx.friends, ...(state.friendRequests?.[ctx.myKey] || []), ...ctx.followed]);
+  for (const [k, list] of Object.entries(state.friendRequests || {})) if (Array.isArray(list) && list.includes(ctx.myKey)) keys.add(k);
+  for (const p of pagePosts) keys.add(p.authorKey);
+  const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a))
+    .sort((a, b) => (counts.followers.get(`id:${b.id}`) || 0) - (counts.followers.get(`id:${a.id}`) || 0)).slice(0, 12);
+  for (const a of suggestions) keys.add(`id:${a.id}`);
+  return [...keys].map(key => personFor(state, me, ctx, key, counts)).filter(Boolean);
+}
+function searchView(state, me, params) {
+  const ctx = feedContext(state, me);
+  const counts = socialCounts(state, me);
+  const q = plain(params.get('q')).slice(0, 80);
+  const exclude = params.get('excludeCommunity') ? new Set((state.communities || []).find(c => c.id === params.get('excludeCommunity'))?.members || []) : null;
+  const people = q || exclude ? (state.accounts || []).filter(a => !isSuspended(a) && accountMatches(a, q) && !(exclude && exclude.has(`id:${a.id}`)))
+    .sort((a, b) => (counts.followers.get(`id:${b.id}`) || 0) - (counts.followers.get(`id:${a.id}`) || 0)).slice(0, 20).map(a => personFor(state, me, ctx, `id:${a.id}`, counts)).filter(Boolean) : [];
+  const posts = q ? postsPage(state, me, new URLSearchParams({ q, limit: '30' }), ctx) : { posts: [], hasMore: false };
+  return { people, posts: posts.posts, postsHasMore: posts.hasMore };
+}
+function profileView(state, me, params) {
+  const ctx = feedContext(state, me);
+  const key = String(params.get('key') || '');
+  const person = /^(id:[a-f0-9-]{36}|name:.{1,80})$/.test(key) ? personFor(state, me, ctx, key, socialCounts(state, me)) : null;
+  if (!person) fail(404, 'Pessoa não encontrada.');
+  const page = postsPage(state, me, new URLSearchParams({ author: key, before: params.get('before') || '', beforeId: params.get('beforeId') || '' }), ctx);
+  return { person, posts: page.posts, hasMore: page.hasMore };
+}
+function snapshot(state, me) {
+  const myKey = `id:${me.id}`;
+  const ctx = feedContext(state, me);
+  const communities = ctx.communities;
+  const page = postsPage(state, me, new URLSearchParams(), ctx);
+  const posts = page.posts;
+  const directory = peopleFor(state, me, ctx, posts, socialCounts(state, me));
   const dms = (Array.isArray(state.dms) ? state.dms : []).filter(m => !m.toKey.startsWith('group:') && !m.hiddenFor?.includes(myKey) && (m.fromKey === myKey || m.toKey === myKey)).slice(-30).map(m => ({ id:m.id, fromKey:m.fromKey, fromName:m.fromName, toKey:m.toKey, text:m.deleted ? '' : m.text, createdAt:m.createdAt }));
   const saberes = Object.fromEntries(saberTracks.map(id => {
     const list = Array.isArray(state.saberes?.[id]) ? state.saberes[id] : [];
@@ -160,11 +241,11 @@ function snapshot(state, me) {
   const etnia = (Array.isArray(state.etnia?.[me.id]) ? state.etnia[me.id] : []).map(item => ({
     role: item.role, text: item.text, sourceTitle: item.sourceTitle || '', revised: item.revised || '', at: item.createdAt
   }));
-  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now()).map(item => ({ id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own: item.authorId === me.id, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null }));
+  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now()).map(item => ({ id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, avatar: personAvatar(ctx.accountsById.get(item.authorId)), text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own: item.authorId === me.id, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null }));
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -246,6 +327,11 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
+      if (['posts', 'search', 'profile'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
+        const view = path.searchParams.get('view');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? searchView(state, me, path.searchParams) : profileView(state, me, path.searchParams)));
+      }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');
         const post = state.posts.find(p => visible(p, me, state) && (p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
@@ -290,7 +376,7 @@ export default async function handler(req, res) {
         const issued = await createSession(accountId, secret);
         const { data, result } = await transact(state => {
           const accounts = accountsOf(state);
-          if (accounts.length >= 400) fail(429, 'Esta prévia chegou ao limite de contas. Entre com uma conta já criada.');
+          if (accounts.length >= (Number(process.env.OPY_MAX_ACCOUNTS) || 20000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
           if (accounts.some(item => item.username === username)) fail(409, 'Esse usuário já existe. Entre ou escolha outro.');
           const account = { id: accountId, username, name, password: hashPassword(password), googleKey, phone, createdAt: Date.now() };
           addSession(account, issued.session);
@@ -307,7 +393,9 @@ export default async function handler(req, res) {
       const slot = current.authFailures?.[identity];
       if (slot && slot.count >= 8 && Date.now() - slot.at < 10 * 60 * 1000) fail(429, 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');
       const account = accounts.find(item => item.username === identity || item.googleKey === identity);
-      if (!checkPassword(password, account?.password || dummyPassword) || !account) {
+      // Contas do Etnias antigo chegam só com o bcrypt original; na primeira entrada a senha é conferida nele e migrada para o scrypt.
+      const legacyOk = !!account && !account.password && typeof account.legacyPassword === 'string' && await bcrypt.compare(password, account.legacyPassword);
+      if (!account || !(legacyOk || checkPassword(password, account.password || dummyPassword))) {
         await transact(state => {
           if (!state.authFailures) state.authFailures = {};
           const previous = state.authFailures[identity];
@@ -320,7 +408,9 @@ export default async function handler(req, res) {
       const issued = await createSession(account.id, secret);
       const { data } = await transact(state => {
         const stored = accountsOf(state).find(item => item.id === account.id);
-        if (!stored || stored.password.hash !== account.password.hash) fail(401, 'Entre novamente para continuar.');
+        if (!stored) fail(401, 'Entre novamente para continuar.');
+        if (legacyOk) { stored.password = hashPassword(password); delete stored.legacyPassword; }
+        else if (stored.password?.hash !== account.password?.hash) fail(401, 'Entre novamente para continuar.');
         if (state.authFailures) delete state.authFailures[identity];
         addSession(stored, issued.session);
       });
@@ -442,7 +532,7 @@ export default async function handler(req, res) {
           break;
         }
         case 'publish': {
-          if (state.posts.filter(p => p.origin !== 'legacy').length >= 100) fail(409, 'A homologação atingiu o limite de publicações. Remova uma publicação sua para continuar.');
+          if (state.posts.filter(p => p.origin !== 'legacy').length >= (Number(process.env.OPY_MAX_POSTS) || 100000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
           let targetCommunity = null;
           if (typeof body.communityId === 'string' && body.communityId.trim()) {
             targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
@@ -451,7 +541,7 @@ export default async function handler(req, res) {
         }
         case 'repost': {
           if (post.audience === 'private' || post.audience === 'friends' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
-          if (state.posts.filter(p => p.origin !== 'legacy').length >= 100) fail(409, 'A homologação atingiu o limite de publicações. Remova uma publicação sua para continuar.');
+          if (state.posts.filter(p => p.origin !== 'legacy').length >= (Number(process.env.OPY_MAX_POSTS) || 100000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
           const note = text(body.text || '', 1000, false);
           const source = post.repostOf || {
             id: post.id, author: post.author, authorKey: authorKeyOf(post), createdAt: post.createdAt,
@@ -608,7 +698,12 @@ export default async function handler(req, res) {
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     if (adminActions.includes(body.action)) return res.end(JSON.stringify(adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams())));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
-    return res.end(JSON.stringify(body.chatView ? chatSnapshot(data, activeMe, new URLSearchParams({key:body.viewKey || ''})) : snapshot(data, activeMe)));
+    if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));
+    const out = snapshot(data, activeMe);
+    // A publicação alterada pode estar fora da primeira página do feed: devolvê-la mantém a tela do cliente atualizada.
+    const touched = typeof body.postId === 'string' ? data.posts.find(p => p.id === body.postId) : null;
+    if (touched && visible(touched, activeMe, data)) out.touched = projectPost(touched, activeMe, data, feedContext(data, activeMe));
+    return res.end(JSON.stringify(out));
   } catch (error) {
     if (upload) await deleteMedia(upload.id).catch(() => {});
     if (fileUpload) await deleteMedia(fileUpload.id).catch(() => {});
