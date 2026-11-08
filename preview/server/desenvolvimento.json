@@ -187,6 +187,11 @@
    "data": "2026-11-09",
    "titulo": "Cabeçalho global — casa OPY, pesquisa central, Mensagens, Maracá, perfil e Recursos numa linha",
    "detalhe": "Barra em uma única linha em todas as larguras (celular 116→56 px, desktop 80→64 px; o feed ganha 60 px no celular). Casa OPY ao lado da marca abre o menu 'Encontre seu caminho no Etnias' (agora com Sair); áreas ainda sem servidor (Páginas, Blogs, Mercado, Eventos, Filmes, Empregos, Coletas) passam a mostrar 'Em breve' em vez de página de enfeite. Pesquisa central com sugestões reais, limpar, teclado e termo preservado; no celular vira ícone que abre sobre a barra. Badges sobre os ícones (99+), zerando ao ler; 'Seguir de volta' no Maracá. Menu pessoal com Meu perfil, Editar perfil, Configurações, Privacidade, Segurança, Verificação, Trocar de conta e Sair. Botão Recursos com criar publicação/story/live/comunidade, Interatividade, tema escuro e, só para a equipe, Centro de gestão e Traduções. Validação: tests/opy/header-browser.cjs (12 jornadas em 1440, 390 e 320 px) e tests/opy/header-measure.cjs (7 larguras)."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Links clicáveis e vídeo do YouTube com miniatura no feed",
+   "detalhe": "Endereços no texto viram links (abrem em outra aba, sem passar a origem). O primeiro link do YouTube (youtu.be, watch, shorts, live, embed) vira cartão com a miniatura e o botão play; o player (youtube-nocookie) só carrega quando a pessoa toca, então nada do YouTube é carregado para quem só rola o feed. A política de segurança libera apenas i.ytimg.com (miniatura) e www.youtube-nocookie.com (player). Publicações antigas com link ganham o cartão automaticamente. Validação: jornada 13 em tests/opy/journeys-mobile.cjs (inclui texto com HTML continuando texto)."
   }
  ],
  "andamento": [

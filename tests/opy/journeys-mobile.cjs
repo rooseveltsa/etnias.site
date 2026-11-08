@@ -127,6 +127,26 @@ async function api(cookie, body) {
       const admin = await fetch(base + '/api/community?view=admin', { headers: { cookie: ana.cookie } });
       assert.equal(admin.status, 403, 'conta comum não entra no Centro de gestão');
     });
+    await step('13. Link do YouTube: vira link clicável e cartão com miniatura; o player só carrega ao tocar', async () => {
+      const text = 'Vídeo para a aldeia ' + Date.now() + ': https://youtu.be/nCRfDMbVUn0?si=hSO1mjMQhoWOJQkg';
+      const made = await api(beto.cookie, { action: 'publish', text, audience: 'public' });
+      const post = made.data.posts.find(p => p.text === text);
+      await page.goto(base + '/#post-' + post.id); const card = page.locator('#post-' + post.id);
+      await card.waitFor();
+      const link = card.locator('a.post-inline-link'); assert.equal(await link.getAttribute('href'), 'https://youtu.be/nCRfDMbVUn0?si=hSO1mjMQhoWOJQkg');
+      assert.equal(await link.getAttribute('target'), '_blank'); assert.ok((await link.getAttribute('rel')).includes('noopener'));
+      const thumb = card.locator('.post-youtube-play img'); assert.equal(await thumb.getAttribute('src'), 'https://i.ytimg.com/vi/nCRfDMbVUn0/hqdefault.jpg');
+      assert.equal(await card.locator('iframe').count(), 0, 'nada do YouTube carrega antes do toque');
+      await card.locator('.post-youtube-play').dispatchEvent('click');
+      assert.equal(await card.locator('iframe').getAttribute('src'), 'https://www.youtube-nocookie.com/embed/nCRfDMbVUn0?autoplay=1&rel=0&playsinline=1');
+      const csp = (await fetch(base + '/', { headers: { cookie: ana.cookie } })).headers.get('content-security-policy') || '';
+      assert.ok(csp.includes('https://i.ytimg.com') && csp.includes('frame-src https://www.youtube-nocookie.com'), 'política de segurança libera só a miniatura e o player');
+      // Texto com HTML não vira marcação.
+      const evil = 'teste <img src=x onerror=alert(1)> https://example.org/ok ' + Date.now();
+      const e2 = (await api(beto.cookie, { action: 'publish', text: evil, audience: 'public' })).data.posts.find(p => p.text === evil);
+      await page.goto(base + '/#post-' + e2.id); await page.locator('#post-' + e2.id).waitFor();
+      assert.equal(await page.locator('#post-' + e2.id + ' .post-copy img').count(), 0, 'HTML no texto continua texto');
+    });
     assert.deepEqual(errors, [], 'sem erros de página');
   } finally { await browser.close(); }
   for (const [s, n] of results) console.log(s.padEnd(7), n);

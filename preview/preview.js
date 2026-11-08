@@ -223,14 +223,47 @@ function openLightbox(urls,index,author){
  }
  dlg._list=urls;dlg._who=author;dlg._show(index);if(!dlg.open)dlg.showModal();
 }
+// Links no texto: só http(s), abrem em outra aba sem passar a origem; o restante continua texto puro (nada vira HTML).
+const URL_RE=/\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/gi;
+function linkified(text){
+ const frag=document.createDocumentFragment();let last=0;
+ for(const m of text.matchAll(URL_RE)){
+  let ok=false;try{ok=['http:','https:'].includes(new URL(m[0]).protocol);}catch{}
+  if(!ok)continue;
+  frag.append(text.slice(last,m.index));const a=make('a',m[0].length>60?m[0].slice(0,57)+'…':m[0],'post-inline-link');a.href=m[0];a.target='_blank';a.rel='noopener noreferrer nofollow';frag.append(a);last=m.index+m[0].length;
+ }
+ frag.append(text.slice(last));return frag;
+}
+// YouTube: o primeiro link vira cartão com a miniatura; o player (youtube-nocookie) só carrega quando a pessoa toca.
+function youtubeId(text){
+ for(const m of String(text||'').matchAll(URL_RE)){
+  let u;try{u=new URL(m[0]);}catch{continue;}
+  const host=u.hostname.replace(/^(www\.|m\.|music\.)/,'');let id='';
+  if(host==='youtu.be')id=u.pathname.slice(1).split('/')[0];
+  else if(host==='youtube.com'||host==='youtube-nocookie.com'){id=u.searchParams.get('v')||'';const parts=u.pathname.split('/').filter(Boolean);if(!id&&['shorts','embed','live','v'].includes(parts[0]))id=parts[1]||'';}
+  if(/^[A-Za-z0-9_-]{11}$/.test(id))return id;
+ }
+ return '';
+}
+function youtubeCard(id,author){
+ const box=make('div',undefined,'post-youtube');
+ const play=make('button',undefined,'post-youtube-play');play.type='button';play.setAttribute('aria-label','Assistir ao vídeo do YouTube compartilhado por '+author);
+ const img=make('img');img.src='https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';img.alt='';img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
+ const icon=make('span',undefined,'post-youtube-icon');icon.setAttribute('aria-hidden','true');
+ play.append(img,icon);
+ const meta=make('a','Assistir no YouTube','post-youtube-meta');meta.href='https://www.youtube.com/watch?v='+id;meta.target='_blank';meta.rel='noopener noreferrer nofollow';
+ play.onclick=()=>{const f=make('iframe');f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0&playsinline=1';f.title='Vídeo do YouTube compartilhado por '+author;f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';f.allowFullscreen=true;f.referrerPolicy='strict-origin-when-cross-origin';play.replaceWith(f);f.focus();};
+ box.append(play,meta);return box;
+}
 function appendPostBody(item, parent){
  if(item.feeling)parent.append(make('small','Sentindo-se '+item.feeling,'post-feeling'));
- if(item.text&&item.text.trim()){const copy=make('p',item.text,'post-copy');parent.append(copy);
+ if(item.text&&item.text.trim()){const copy=make('p',undefined,'post-copy');copy.append(linkified(item.text));parent.append(copy);
   // Texto longo fica recolhido com "Ver mais", como nos apps; o texto completo continua no DOM para leitores de tela.
   if(item.text.length>420||item.text.split('\n').length>8){copy.classList.add('is-clamped');const more=make('button','Ver mais','post-more-text');more.type='button';more.setAttribute('aria-expanded','false');more.onclick=()=>{const open=copy.classList.toggle('is-clamped');more.textContent=open?'Ver mais':'Ver menos';more.setAttribute('aria-expanded',String(!open));};parent.append(more);}}
  const safeImage=u=>u&&(u.startsWith('/assets/archive/')||u.startsWith('/legado/')||u.startsWith('/api/media?id='));
  const urls=item.images&&item.images.length>1?item.images.filter(safeImage):safeImage(item.image)?[item.image]:item.media&&item.media.kind==='image'?[item.media.url]:[];
  if(urls.length)parent.append(mediaBlock(item,urls));
+ else if(!item.media&&!item.live){const yt=youtubeId(item.text);if(yt)parent.append(youtubeCard(yt,item.author));}
  if(item.link&&item.link.url){const a=make('a',undefined,'post-link');a.href=item.link.url;a.target='_blank';a.rel='noopener noreferrer';let host='';try{host=new URL(item.link.url).hostname.replace(/^www\./,'');}catch{}a.append(make('strong',item.link.title||host||item.link.url),make('small',host));parent.append(a);}
  if(item.live?.active)parent.append(liveBlock(item));
  else if(item.live&&!item.media)parent.append(make('small',item.live.recording==='none'?'A live terminou e a gravação não ficou disponível.':'A live terminou. A gravação está sendo preparada.','post-live-note'));
