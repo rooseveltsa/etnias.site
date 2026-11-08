@@ -26,7 +26,7 @@ function Etnias_OpyUrl($route, $params = array()) {
 }
 function Etnias_OpyAsset($file) {
     global $wo;
-    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.7';
+    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.10';
 }
 function Etnias_OpyItems() {
     global $wo;
@@ -34,16 +34,16 @@ function Etnias_OpyItems() {
     $items = array(
         'opy' => array('Opy', 'home', 'opy-symbol', '', 'Sua casa de entrada para a comunidade.'),
         'saberes' => array('Saberes', 'saberes', 'saberes', '', 'Cursos comunitários, oficinas e Área do Aluno estão sendo preparados e chegam em uma próxima atualização.'),
-        'conexoes' => array('Conexões', 'search', 'conexoes', '', 'Encontre pessoas e fortaleça suas relações na comunidade.'),
+        'conexoes' => array('Conexão', 'search', 'conexoes', '', 'Encontre pessoas e fortaleça suas relações na comunidade.'),
         'grupos' => array('Grupos', 'suggested-groups', 'grupos', 'groups', 'As comunidades estão desativadas neste ambiente.'),
         'paginas' => array('Páginas', 'suggested-pages', 'paginas', 'pages', 'As páginas estão desativadas neste ambiente.'),
         'blogs' => array('Blogs', 'blogs', 'blogs', 'blogs', 'As publicações autorais estão desativadas neste ambiente.'),
         'mercado' => array('Mercado', 'products', 'mercado', 'classified', 'O mercado está desativado neste ambiente.'),
         'eventos' => array('Eventos', 'events', 'eventos', 'events', 'Os eventos estão desativados neste ambiente.'),
         'filmes' => array('Filmes', 'movies', 'filmes', 'movies', 'O catálogo de filmes está desativado neste ambiente.'),
-        'musica' => array('Música', 'musica', 'musica', '', 'O catálogo de artistas, cantos e faixas está sendo preparado e chega em uma próxima atualização. Por enquanto, você pode compartilhar áudio em uma publicação.'),
+        'musica' => array('Músicas', 'musica', 'musica', '', 'O catálogo de artistas, cantos e faixas está sendo preparado e chega em uma próxima atualização. Por enquanto, você pode compartilhar áudio em uma publicação.'),
         'empregos' => array('Empregos', 'jobs', 'empregos', 'job_system', 'As vagas estão desativadas neste ambiente.'),
-        'coletas' => array('Coletas', 'funding', 'coletas', 'funding_system', 'As campanhas de arrecadação estão desativadas neste ambiente.'),
+        'coletas' => array('Coleta', 'funding', 'coletas', 'funding_system', 'As campanhas de arrecadação estão desativadas neste ambiente.'),
         'sobre' => array('Sobre', 'terms', 'sobre', '', 'Conheça o Etnias e o Instituto Etnias.'),
         'etnia' => array('EtnIA', '', 'etnia', '', 'A experiência de inteligência do Etnias ainda não está disponível nesta atualização.'),
         'doar' => array('Doe para o Instituto Etnias', 'doar', 'heart', '', 'O canal de contribuição ao Instituto ainda não foi configurado. Nenhum pagamento é solicitado por esta tela.')

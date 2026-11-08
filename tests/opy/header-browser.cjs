@@ -30,9 +30,10 @@ async function api(cookie, body) {
         return { bar: box('.opy-topbar'), brand: box('.opy-brand'), house: box('.opy-house'), search: box('.opy-search'), chat: box('.messages-notification-container a'), maraca: box('.notification-container a'), avatar: box('.opy-account > summary'), tools: box('.opy-tools > summary'), vw: innerWidth };
       });
       assert.ok(r.bar.h <= 72, 'barra compacta: ' + r.bar.h);
-      const centers = [r.brand, r.house, r.search, r.chat, r.maraca, r.avatar, r.tools].map(b => b.cy);
+      const centers = [r.brand, r.search, r.chat, r.maraca, r.avatar, r.tools].map(b => b.cy);
+      assert.equal(await page.evaluate(() => document.querySelector('.opy-brand')?.matches('button[data-opy-open="opy-menu"]')), true, 'o logo da casa é o botão do menu OPY');
       assert.ok(Math.max(...centers) - Math.min(...centers) < 8, 'tudo alinhado na mesma linha');
-      assert.ok(r.brand.x < r.house.x && r.house.x < r.search.x && r.search.x + r.search.w < r.chat.x && r.chat.x < r.maraca.x && r.maraca.x < r.avatar.x && r.avatar.x < r.tools.x, 'ordem: marca, casa, pesquisa, chat, maracá, perfil, recursos');
+      assert.ok(r.brand.x < r.search.x && r.search.x + r.search.w < r.chat.x && r.chat.x < r.maraca.x && r.maraca.x < r.avatar.x && r.avatar.x < r.tools.x, 'ordem: logo OPY, pesquisa, chat, maracá, perfil, recursos');
       const searchCenter = r.search.x + r.search.w / 2; assert.ok(Math.abs(searchCenter - r.vw / 2) < r.vw * 0.12, 'pesquisa centralizada');
       assert.equal(await page.locator('.opy-control-label:visible').count(), 0, 'sem textos ao lado dos ícones');
     });
@@ -42,25 +43,39 @@ async function api(cookie, body) {
       await page.locator('#opy-menu[open]').waitFor();
       assert.equal(await page.getAttribute('.opy-house', 'aria-expanded'), 'true');
       const text = await page.locator('#opy-menu').textContent();
-      for (const t of ['Encontre seu caminho no Etnias', 'Opy', 'Saberes', 'Conexões', 'Comunidades', 'Páginas', 'Blogs', 'Mercado', 'Eventos', 'Filmes', 'Música', 'Empregos', 'Coletas', 'Sobre', 'Sair']) assert.ok(text.includes(t), 'item ' + t);
+      for (const t of ['Encontre seu caminho no Etnias', 'Opy', 'Saberes', 'Conexão', 'Comunidades', 'Páginas', 'Blogs', 'Mercado', 'Eventos', 'Filmes', 'Músicas', 'Empregos', 'Coleta', 'Sobre', 'Sair', 'Comunidade ou aldeia']) assert.ok(text.includes(t), 'item ' + t);
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('#opy-menu').open);
       assert.equal(await page.getAttribute('.opy-house', 'aria-expanded'), 'false');
       assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('opy-house')), true, 'foco volta à casa');
     });
 
-    await step('3. Itens do OPY: rotas reais navegam; áreas ainda sem servidor mostram o aviso, sem página de enfeite', async () => {
+    await step('3. Itens do OPY: as 10 áreas navegam para páginas reais; Saberes e Músicas mostram Em breve', async () => {
       await page.locator('.opy-house').click(); await page.locator('#opy-menu[open]').waitFor();
-      await page.locator('#opy-menu button[data-opy-info="Blogs"]').click();
+      await page.locator('#opy-menu button[data-opy-info="Saberes"]').click();
       await page.locator('#opy-info[open]').waitFor();
-      assert.ok((await page.locator('#opy-info').textContent()).includes('Em breve'));
+      assert.ok((await page.locator('#opy-info').textContent()).includes('Em breve'), 'Saberes segue Em breve por decisão do projeto');
       await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('dialog[open]'));
-      for (const [label, path] of [['Conexões', 'search'], ['Comunidades', 'grupos'], ['Sobre', 'sobre']]) {
+      for (const [label, path] of [['Conexão', 'search'], ['Comunidades', 'grupos'], ['Sobre', 'sobre'], ['Blogs', 'blogs'], ['Mercado', 'mercado'], ['Eventos', 'eventos'], ['Páginas', 'paginas'], ['Filmes', 'filmes'], ['Empregos', 'empregos'], ['Coleta', 'coletas']]) {
         await page.locator('.opy-house').click(); await page.locator('#opy-menu[open]').waitFor();
         await Promise.all([page.waitForURL(u => String(u).includes(path), { timeout: 10000 }), page.locator('#opy-menu a', { hasText: label }).first().click()]);
       }
       await page.goto(base + '/'); await page.locator('.community-post').first().waitFor();
+    });
+
+    await step('3b. Destinos funcionais: cada área lista conteúdo do Etnias 1.0 e abre o detalhe com ações reais', async () => {
+      for (const path of ['/blogs/', '/paginas/', '/mercado/', '/eventos/', '/filmes/', '/empregos/', '/coletas/']) {
+        await page.goto(base + path); const first = page.locator('#area-app .area-card').first();
+        await first.waitFor({ timeout: 8000 }).catch(() => { throw new Error('sem conteúdo em ' + path); });
+        const title = (await first.locator('strong').textContent()).trim();
+        await Promise.all([page.waitForURL(/\?id=\d+/), first.click()]);
+        await page.locator('#area-app .area-detail h1').waitFor();
+        assert.equal((await page.locator('#area-app .area-detail h1').textContent()).replace('✓', '').trim(), title, 'detalhe de ' + path);
+      }
+      await page.goto(base + '/eventos/'); await page.locator('#area-app .area-card').first().click(); await page.locator('.area-actions a[download]').waitFor();
+      await page.goto(base + '/filmes/'); await page.locator('#area-app .area-card').first().click(); await page.locator('.post-youtube-play').waitFor();
+      await page.goto(base + '/mercado/?q=zzzzzz'); await page.getByText('Nenhum item encontrado').waitFor();
     });
 
     await step('4. Pesquisa: sugestões reais ao digitar, limpar, Escape e Enter levam aos resultados com o termo preservado', async () => {

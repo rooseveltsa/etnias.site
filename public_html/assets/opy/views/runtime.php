@@ -13,6 +13,12 @@ $opyConfig = Etnias_OpyConfig();
 <dialog id="opy-menu" class="opy-dialog opy-drawer" aria-labelledby="opy-menu-title">
     <div class="opy-dialog-heading"><div><h2 id="opy-menu-title">Casa Opy</h2><p>Encontre seu caminho no Etnias.</p></div><button type="button" data-opy-close aria-label="Fechar Casa Opy"><?php echo Etnias_OpyIcon('close'); ?></button></div>
     <?php require __DIR__ . '/sidebar.php'; ?>
+    <nav class="opy-create-links" aria-label="Criar">
+        <p class="opy-create-title">Criar</p>
+        <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>#criar"><?php echo Etnias_OpyIcon('postagem'); ?><span>Publicação</span></a>
+        <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>#criar-story"><?php echo Etnias_OpyIcon('camera'); ?><span>Story</span></a>
+        <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('suggested-groups')); ?>#criar"><?php echo Etnias_OpyIcon('grupos'); ?><span>Comunidade ou aldeia</span></a>
+    </nav>
 </dialog>
 <dialog id="opy-interactivity" class="opy-dialog" aria-labelledby="opy-interactivity-title">
     <div class="opy-dialog-heading"><div><h2 id="opy-interactivity-title">Interatividade</h2><p>Outras formas de participar da aldeia.</p></div><button type="button" data-opy-close aria-label="Fechar Interatividade"><?php echo Etnias_OpyIcon('close'); ?></button></div>

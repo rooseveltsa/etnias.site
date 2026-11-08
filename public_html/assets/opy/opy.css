@@ -480,3 +480,24 @@ body.opy-preview .chat-dock-form input{min-height:36px;border:1px solid var(--op
 .opy-req-actions button.opy-primary { background: var(--opy-red); color: #fff; font-weight: 600; justify-content: center; }
 .opy-req-actions button.opy-primary:hover { background: var(--opy-red-hover, #991116); }
 .opy-req-actions button.preview-secondary { border: 1px solid var(--opy-line); background: transparent; color: var(--opy-ink); justify-content: center; }
+
+/* Logo da casa como botão do menu OPY (documento da barra superior). */
+.opy-brand.opy-house { flex: 0 0 auto; width: auto; height: 44px; padding: 0 6px 0 4px; display: inline-flex; align-items: center; gap: 2px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; color: var(--opy-ink); }
+.opy-brand.opy-house:hover, .opy-brand.opy-house[aria-expanded="true"] { background: var(--opy-hover, #f1f3f0); }
+.opy-brand.opy-house:focus-visible { outline: 3px solid var(--opy-red); outline-offset: 2px; }
+.opy-logo-crop { display: block; overflow: hidden; }
+.opy-brand.opy-house img { display: block; width: 132px; height: auto; max-height: 36px; object-fit: contain; object-position: left center; }
+.opy-brand-caret { width: 18px; height: 18px; flex: 0 0 18px; color: var(--opy-muted); }
+@media (max-width: 1199px) { .opy-brand.opy-house img { width: 112px; } }
+@media (max-width: 700px) {
+    /* No celular só a casa: o recorte mostra o desenho da maloca, sem o nome. */
+    .opy-logo-crop { width: 46px; }
+    .opy-brand.opy-house img { width: auto; height: 26px; max-height: none; max-width: none; }
+    .opy-brand.opy-house { padding: 0 2px; }
+    .opy-brand-caret { width: 14px; height: 14px; flex-basis: 14px; }
+}
+@media (max-width: 359px) { .opy-logo-crop { width: 40px; } .opy-brand.opy-house img { height: 23px; } }
+
+.opy-create-links { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--opy-line); }
+.opy-create-title { margin: 4px 12px; color: var(--opy-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.opy-create-links .opy-nav-item svg { width: 26px; height: 26px; }

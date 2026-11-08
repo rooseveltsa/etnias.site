@@ -31,3 +31,4 @@ preview/legacy/
 
 # Assinantes do Etnias 1.0 (gerado de banco recuperado por scripts/opy-legacy-plans.sh; vai à VPS pelo rsync, não ao Git)
 preview/server/legado-planos.json
+preview/server/legado-areas.json

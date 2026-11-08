@@ -180,7 +180,8 @@
     }
     function activeLinks() {
         var current = new URL(location.href);
-        document.querySelectorAll('.opy-nav-item[href]').forEach(function (link) {
+        // Atalhos de criação apontam para o feed com #: não marcam "página atual".
+        document.querySelectorAll('.opy-nav-item[href]:not(.opy-create-links .opy-nav-item)').forEach(function (link) {
             var url = new URL(link.href, location.href);
             var route = current.searchParams.get('link1');
             var active = (url.pathname === current.pathname && url.search === current.search)

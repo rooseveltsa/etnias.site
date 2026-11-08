@@ -2,10 +2,11 @@
 <div class="opy-topbar">
     <nav class="opy-topbar-inner" aria-label="Navegação principal">
         <div class="opy-topbar-start">
-            <a class="opy-brand" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>" aria-label="Etnias.site — feed">
-                <img src="<?php echo Etnias_OpyEscape(Etnias_OpyAsset('etnias-logo.png')); ?>" alt="etnias.site" width="150" height="40">
-            </a>
-            <button type="button" class="opy-house" data-opy-open="opy-menu" aria-label="OPY — Encontre seu caminho no Etnias" title="OPY — Encontre seu caminho no Etnias" aria-haspopup="dialog" aria-controls="opy-menu" aria-expanded="false"><?php echo Etnias_OpyIcon('opy-symbol'); ?></button>
+            <?php // O logo da casa é o botão do menu OPY ("Encontre seu caminho no Etnias"); o feed fica no item Opy do menu e na barra inferior. ?>
+            <button type="button" class="opy-brand opy-house" data-opy-open="opy-menu" aria-label="OPY — Encontre seu caminho no Etnias" title="OPY — Encontre seu caminho no Etnias" aria-haspopup="dialog" aria-controls="opy-menu" aria-expanded="false">
+                <span class="opy-logo-crop"><img src="<?php echo Etnias_OpyEscape(Etnias_OpyAsset('etnias-logo.png')); ?>" alt="" width="150" height="40"></span>
+                <svg class="opy-brand-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
         </div>
         <form class="opy-search" id="opy-search" action="<?php echo Etnias_OpyEscape(rtrim($wo['config']['site_url'], '/') . '/index.php'); ?>" method="get" role="search" autocomplete="off">
             <input type="hidden" name="link1" value="search">

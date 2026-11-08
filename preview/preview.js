@@ -1187,7 +1187,87 @@ const boostSeen=new Set();
 const boostObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const en of entries){const id=en.target.dataset.boost;if(!id||boostSeen.has(id))continue;
  if(en.isIntersecting){en.target._boostTimer=setTimeout(()=>{if(boostSeen.has(id))return;boostSeen.add(id);boostObserver.unobserve(en.target);api({action:'boost_seen',boostId:id}).catch(()=>{});},1000);}else clearTimeout(en.target._boostTimer);}},{threshold:0.5}):null;
 function watchSponsored(){if(!boostObserver)return;all('[data-boost]').forEach(el=>{if(!boostSeen.has(el.dataset.boost)&&!el._boostWatched){el._boostWatched=true;boostObserver.observe(el);}});}
-function render(){if(!state)return;setTimeout(watchSponsored,0);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
+// Áreas do menu OPY (Blogs, Páginas, Mercado, Eventos, Filmes, Empregos, Coletas) com o conteúdo recuperado do Etnias 1.0.
+// Leitura do que já existia; as ações reais (conversar com quem vende, candidatar-se, salvar na agenda) usam o que a 2.0 já tem.
+const AREA_META={
+ blogs:{titulo:'Blogs',sub:'Textos e artigos da comunidade',vazio:'Nenhum texto encontrado.'},
+ paginas:{titulo:'Páginas',sub:'Projetos, coletivos e instituições',vazio:'Nenhuma página encontrada.'},
+ mercado:{titulo:'Mercado',sub:'Artesanato, saberes e serviços da rede',vazio:'Nenhum item encontrado.'},
+ eventos:{titulo:'Eventos',sub:'Agenda de encontros e atividades',vazio:'Nenhum evento encontrado.'},
+ filmes:{titulo:'Filmes',sub:'Produções audiovisuais indígenas',vazio:'Nenhum filme encontrado.'},
+ empregos:{titulo:'Empregos',sub:'Oportunidades de trabalho',vazio:'Nenhuma vaga encontrada.'},
+ coletas:{titulo:'Coleta',sub:'Campanhas e iniciativas da comunidade',vazio:'Nenhuma campanha encontrada.'}
+};
+const areaDate=v=>{if(!v)return '';const d=typeof v==='number'?new Date(v):new Date(String(v).replace(' ','T'));return isNaN(d)?'':new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',...(typeof v==='string'&&/\d:\d/.test(v)&&!/00:00:00$/.test(v)?{timeStyle:'short'}:{})}).format(d);};
+const areaMoney=(v,cur)=>{try{return new Intl.NumberFormat('pt-BR',{style:'currency',currency:cur||'BRL'}).format(v||0);}catch{return (v||0)+' '+(cur||'');}};
+const areaCover=x=>x.cover||x.image||(x.images&&x.images[0])||x.avatar||'';
+function areaLink(type,extra){const u=new URL(location.href);for(const [k,v] of Object.entries(extra)){if(v)u.searchParams.set(k,v);else u.searchParams.delete(k);}return u.pathname+u.search;}
+function areaAuthor(a,label){const box=make('div',undefined,'area-author');if(!a){box.append(make('small','Publicado no Etnias 1.0'));return box;}const link=make('a',undefined,'area-author-link');link.href='/perfil/?u='+encodeURIComponent(a.key);link.append(avatarNode(a.name,a.avatar,32),make('span',(label?label+' ':'')+a.name));box.append(link);return box;}
+function renderArea(root){
+ const type=root.dataset.area,meta=AREA_META[type];if(!meta)return;
+ const params=new URLSearchParams(location.search),id=params.get('id')||'',q=params.get('q')||'',cat=params.get('categoria')||'';
+ const key=[type,id,q,cat].join('|');if(root.dataset.key===key)return;root.dataset.key=key;
+ apiGet({view:'area',type,...(id?{id}:{}),...(q?{q}:{}),...(cat?{category:cat}:{})}).then(d=>{if(root.dataset.key!==key)return;root.replaceChildren(id?areaDetail(type,meta,d):areaList(type,meta,d,q,cat));if(id)document.title=d.item.title+' · Etnias';}).catch(e=>{root.replaceChildren(emptyState('Não foi possível abrir',e.message,[['Voltar para '+meta.titulo,location.pathname]]));});
+}
+function areaList(type,meta,d,q,cat){
+ const box=make('div',undefined,'area-list');
+ const head=make('header',undefined,'area-head');head.append(make('p',meta.sub+' · '+plural(d.total,'item','itens')+' recuperados do Etnias 1.0','area-sub'));
+ const f=make('form',undefined,'area-search');f.setAttribute('role','search');const i=make('input');i.type='search';i.name='q';i.value=q;i.placeholder='Buscar em '+meta.titulo;i.setAttribute('aria-label','Buscar em '+meta.titulo);const b=make('button','Buscar','preview-secondary');b.type='submit';f.append(i,b);
+ f.onsubmit=e=>{e.preventDefault();location.href=areaLink(type,{q:i.value.trim(),categoria:'',id:''});};head.append(f);
+ if(d.categories.length>1){const chips=make('nav',undefined,'area-chips');chips.setAttribute('aria-label','Categorias');for(const c of ['',...d.categories]){const a=make('a',c||'Todas','area-chip');a.href=areaLink(type,{categoria:c,id:''});if(c===cat)a.setAttribute('aria-current','true');chips.append(a);}head.append(chips);}
+ box.append(head);
+ if(!d.items.length){box.append(emptyState(meta.vazio,q?'Tente outra palavra.':'Ainda não há itens nesta área.',[]));return box;}
+ const grid=make('div',undefined,'area-grid area-grid-'+type);
+ for(const x of d.items){const a=make('a',undefined,'area-card');a.href=areaLink(type,{id:String(x.id),q:'',categoria:''});
+  const cover=areaCover(x);const fig=make('div',undefined,'area-card-cover');if(cover){const img=make('img');img.src=cover;img.alt='';img.loading='lazy';img.decoding='async';fig.append(img);}else fig.classList.add('is-empty');
+  if(type==='mercado'&&x.sold)fig.append(make('span','Vendido','area-badge'));if(type==='empregos'&&!x.open)fig.append(make('span','Encerrada','area-badge'));
+  const body=make('div',undefined,'area-card-body');
+  const line=type==='mercado'?areaMoney(x.price,x.currency):type==='eventos'?areaDate(x.start):type==='coletas'?'Meta '+areaMoney(x.goal,'BRL'):type==='filmes'?[x.genre,x.release].filter(Boolean).join(' · '):type==='empregos'?[x.type,x.location].filter(Boolean).join(' · '):[x.category,x.createdAt?areaDate(x.createdAt):''].filter(Boolean).join(' · ');
+  if(line)body.append(make('small',line,'area-card-meta'));body.append(make('strong',x.title));if(x.excerpt)body.append(make('p',x.excerpt,'area-card-excerpt'));
+  if(x.author)body.append(make('small',x.author.name,'area-card-who'));
+  a.append(fig,body);grid.append(a);}
+ box.append(grid,make('p','Conteúdo recuperado do Etnias 1.0. Publicar novos itens nesta área chega numa próxima etapa da 2.0.','area-note'));
+ return box;
+}
+function areaICS(x){
+ const p=v=>{const d=new Date(String(v).replace(' ','T'));return isNaN(d)?null:d;};const s=p(x.start),e=p(x.end)||(s&&new Date(s.getTime()+2*3600e3));if(!s)return null;
+ const f=d=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');const esc=t=>String(t||'').replace(/[\\,;]/g,m=>'\\'+m).replace(/\n/g,'\\n');
+ const body=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Etnias//Eventos//PT','BEGIN:VEVENT','UID:evento-'+x.id+'@etnias.site','DTSTAMP:'+f(new Date()),'DTSTART:'+f(s),'DTEND:'+f(e),'SUMMARY:'+esc(x.title),'LOCATION:'+esc(x.location),'DESCRIPTION:'+esc(x.description.slice(0,800)),'END:VEVENT','END:VCALENDAR'].join('\r\n');
+ return URL.createObjectURL(new Blob([body],{type:'text/calendar'}));
+}
+function areaDetail(type,meta,d){
+ const x=d.item,a=d.author;const box=make('article',undefined,'area-detail area-detail-'+type);
+ const back=make('a','← '+meta.titulo,'area-back');back.href=location.pathname;box.append(back);
+ const cover=type==='mercado'?'':(x.cover||x.image||'');
+ if(type==='filmes'&&x.youtube)box.append(youtubeCard(x.youtube,x.title));
+ else if(cover){const img=make('img',undefined,'area-cover');img.src=cover;img.alt='';box.append(img);}
+ if(type==='mercado'&&x.images.length){const g=make('div',undefined,'area-gallery');x.images.forEach((u,k)=>{const b=make('button',undefined,'area-thumb');b.type='button';b.setAttribute('aria-label','Ampliar foto '+(k+1)+' de '+x.images.length);const img=make('img');img.src=u;img.alt='';b.append(img);b.onclick=()=>openLightbox(x.images,k,a?.name||'');g.append(b);});box.append(g);}
+ const head=make('header',undefined,'area-detail-head');
+ if(type==='paginas'&&x.avatar){const av=make('img',undefined,'area-page-avatar');av.src=x.avatar;av.alt='';head.append(av);}
+ const h=make('h1',x.title);if(type==='paginas'&&x.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Página verificada');h.append(' ',v);}head.append(h);
+ const facts=[];
+ if(type==='blogs')facts.push(x.category,areaDate(x.createdAt),x.views?plural(x.views,'leitura','leituras'):'');
+ if(type==='paginas')facts.push(x.category);
+ if(type==='mercado')facts.push(areaMoney(x.price,x.currency),x.condition==='usado'?'Usado':'Novo',x.location,x.category,x.sold?'Vendido':'');
+ if(type==='eventos')facts.push((areaDate(x.start)||'')+(x.end&&x.end!==x.start?' até '+areaDate(x.end):''),x.location);
+ if(type==='filmes')facts.push(x.genre,x.release,x.duration?x.duration+' min':'',x.country);
+ if(type==='empregos')facts.push(x.type,x.location,(x.minimum||x.maximum)?areaMoney(Number(x.minimum),x.currency)+' a '+areaMoney(Number(x.maximum),x.currency)+(x.salaryPer?' por '+x.salaryPer:''):'',x.open?'Vaga aberta':'Vaga encerrada');
+ const ul=make('ul',undefined,'area-facts');for(const t of facts.filter(Boolean)){ul.append(make('li',t));}head.append(ul);box.append(head);
+ if(type==='coletas'){const pct=x.goal?Math.min(100,Math.round(x.raised/x.goal*100)):0;const bar=make('div',undefined,'area-progress');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');bar.setAttribute('aria-valuenow',String(pct));const fill=make('span');fill.style.width=pct+'%';bar.append(fill);box.append(bar,make('p',areaMoney(x.raised,'BRL')+' arrecadados de '+areaMoney(x.goal,'BRL')+' ('+pct+'%)','area-sub'));}
+ if(type==='filmes'&&(x.stars||x.producer))box.append(make('p',[x.producer?'Produção: '+x.producer:'',x.stars?'Elenco: '+x.stars:''].filter(Boolean).join(' · '),'area-sub'));
+ const text=x.content||x.description||'';if(text){const body=make('div',undefined,'area-body');for(const para of text.split(/\n{2,}/)){const pEl=make('p');pEl.append(linkified(para));body.append(pEl);}box.append(body);}
+ if(type==='paginas'){const links=make('div',undefined,'area-links');for(const [k,label] of [['website','Site'],['instagram','Instagram'],['youtube','YouTube']])if(x[k]){const l=make('a',label,'preview-secondary');l.href=x[k];l.target='_blank';l.rel='noopener noreferrer nofollow';links.append(l);}if(links.children.length)box.append(links);}
+ const actions=make('div',undefined,'area-actions');
+ const chat=(label)=>{if(a&&!d.own){const b=button(label,()=>openPrivateChat(a.key),actions);b.className='opy-primary';}};
+ if(type==='mercado'&&!x.sold)chat('Falar com quem vende');
+ if(type==='empregos'&&x.open)chat('Candidatar-se pelo chat');
+ if(type==='coletas'){chat('Falar com quem organiza');actions.append(make('p','Contribuições pela 2.0 ainda não estão disponíveis; nenhum pagamento é feito por esta tela.','area-note'));}
+ if(type==='eventos'){const url=areaICS(x);if(url){const l=make('a','Adicionar à agenda','preview-secondary');l.href=url;l.download='evento-etnias-'+x.id+'.ics';actions.append(l);}}
+ if(actions.children.length)box.append(actions);
+ box.append(areaAuthor(a,type==='mercado'?'Vendido por':type==='paginas'?'Responsável:':type==='empregos'?'Vaga de':type==='coletas'?'Organizado por':'Por'));
+ return box;
+}
+function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$('#area-app');if(areaApp)renderArea(areaApp);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
  if(pForm&&!pForm.contains(document.activeElement)){
