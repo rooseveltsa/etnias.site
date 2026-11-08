@@ -792,3 +792,95 @@ body.opy-enabled{--opy-focus:#991116}
 .story-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .invite-results{display:grid;gap:4px;max-height:260px;overflow:auto;margin-top:8px}
 .invite-results .community-person[aria-selected="true"]{outline:3px solid #991116;outline-offset:-3px;border-radius:10px}
+
+/* Fase 2 — experiência de app: mídia em destaque */
+.post-media{position:relative;margin:4px 0 10px;border-radius:12px;overflow:hidden;background:#0f1d23}
+.post-media-track{display:flex;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.post-media-track::-webkit-scrollbar{display:none}
+.post-media-slide{flex:0 0 100%;width:100%;margin:0;padding:0;border:0;border-radius:0;background:transparent;scroll-snap-align:start;display:block;cursor:zoom-in;line-height:0}
+.post-media-slide img{display:block;width:100%;height:auto;max-height:min(125vw,560px);object-fit:cover;border-radius:0}
+.post-media:not([data-count="1"]) .post-media-slide img{aspect-ratio:1;height:auto}
+.post-media-counter{position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:999px;background:#000a;color:#fff;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.post-media-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:5px;pointer-events:none}
+.post-media-dots i{width:6px;height:6px;border-radius:50%;background:#ffffff80}.post-media-dots i.is-on{background:#fff}
+.post-heart-burst{position:absolute;left:50%;top:50%;width:96px;height:96px;margin:-48px 0 0 -48px;color:#fff;filter:drop-shadow(0 4px 12px #0009);animation:opy-heart .9s ease-out forwards;pointer-events:none;z-index:2}
+.post-heart-burst svg{width:100%;height:100%;fill:currentColor;stroke:none}
+@keyframes opy-heart{0%{transform:scale(.4);opacity:0}25%{transform:scale(1.15);opacity:1}60%{transform:scale(1);opacity:1}100%{transform:scale(1) translateY(-24px);opacity:0}}
+.post-media-video .preview-post-video{margin:0;border-radius:0;max-height:min(125vw,560px);background:#000}
+.community-post .post-media-slide:focus-visible{outline-offset:-4px}
+@media(max-width:700px){.preview-post .post-media{margin-inline:-18px;border-radius:0}}
+@media(prefers-reduced-motion:reduce){.post-heart-burst{animation-duration:.01s}}
+/* Visualizador em tela cheia */
+.opy-lightbox{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#000;color:#fff;overflow:hidden}
+.opy-lightbox::backdrop{background:#000}
+.opy-lightbox img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.opy-lightbox-close,.opy-lightbox-nav{position:absolute;z-index:2;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#ffffff26;color:#fff;font-size:22px;line-height:1}
+.opy-lightbox-close{top:calc(12px + env(safe-area-inset-top));right:12px}
+.opy-lightbox-nav{top:50%;margin-top:-22px;font-size:30px}.opy-lightbox-nav.is-prev{left:12px}.opy-lightbox-nav.is-next{right:12px}
+.opy-lightbox-caption{position:absolute;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom));margin:0;text-align:center;font-size:14px;color:#fff;text-shadow:0 1px 3px #000}
+/* Barra de ações em uma linha e botão com a reação escolhida */
+.preview-post-actions{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+.post-react-main.is-heart{color:#bd171c}.post-react-main.is-laugh{color:#8a5a12}.post-react-main.is-wow{color:#176b87}.post-react-main.is-sad{color:#52656c}
+.preview-post-actions .post-react-main[aria-pressed=true]{color:#bd171c}.preview-post-actions .post-react-main.is-laugh[aria-pressed=true]{color:#8a5a12}.preview-post-actions .post-react-main.is-wow[aria-pressed=true]{color:#176b87}.preview-post-actions .post-react-main.is-sad[aria-pressed=true]{color:#52656c}
+.opy-verified{display:inline-grid;place-items:center;width:16px;height:16px;margin-left:5px;border-radius:50%;background:#176b87;color:#fff;font-size:10px;font-weight:700;line-height:1;vertical-align:1px}
+/* Comentários com foto */
+.community-post .preview-comment{grid-template-columns:44px minmax(0,1fr);gap:4px}
+.community-post .preview-comment.is-reply{margin-left:40px}
+.community-post .preview-comment .comment-avatar{display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;background:none}
+.community-post .comment-avatar .preview-avatar{width:36px;height:36px;flex-basis:36px;font-size:14px;object-fit:cover;background:#fbefec;color:#991116;font-weight:700}
+.community-post .is-reply .comment-avatar .preview-avatar{width:28px;height:28px;flex-basis:28px;font-size:12px}
+/* Stories em anel */
+.opy-preview .story-list{gap:4px;padding:4px 0 6px;scroll-snap-type:x proximity}
+.opy-preview .story-list .story-pill{display:flex;flex:0 0 76px;width:76px;flex-direction:column;align-items:center;gap:6px;min-height:44px;padding:4px 2px;border:0;background:transparent;color:#182c34;scroll-snap-align:start}
+.story-ring{position:relative;display:grid;place-items:center;width:66px;height:66px;border-radius:50%;background:conic-gradient(#bd171c,#e0792b,#bd171c);padding:3px}
+.story-ring>.preview-avatar{width:56px;height:56px;flex-basis:56px;font-size:22px;border:3px solid #f5f5f1;object-fit:cover;background:#fbefec;color:#991116}
+.story-pill.is-seen .story-ring{background:#c9c4b8}
+.story-create .story-ring{background:#dde2df}
+.story-plus,.story-count{position:absolute;right:-2px;bottom:-2px;display:grid;place-items:center;width:22px;height:22px;border:2px solid #f5f5f1;border-radius:50%;background:#bd171c;color:#fff;font-size:15px;font-weight:700;line-height:1;font-style:normal}
+.story-count{font-size:11px}
+.opy-preview .story-list .story-pill strong{max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;font-size:12px;font-weight:600;color:#182c34}
+.opy-preview .story-list .story-pill.is-seen strong{color:#52656c}
+#story-viewer-avatar .preview-avatar{width:34px;height:34px;flex-basis:34px;font-size:14px}
+/* Pessoas para seguir */
+.opy-suggest{margin:0 0 16px;padding:14px 0 12px 16px;background:#fff;border-radius:12px}
+.opy-suggest-head{display:flex;align-items:center;justify-content:space-between;padding-right:6px}
+.opy-suggest-head h2{margin:0;font-size:16px}
+.opy-suggest-close{width:44px;height:44px;border:0;border-radius:50%;background:none;color:#52656c;font-size:16px}
+.opy-suggest-close:hover{background:#f1f3f0}
+.opy-suggest-row{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;padding:10px 16px 4px 0;scrollbar-width:none}
+.opy-suggest-row::-webkit-scrollbar{display:none}
+.opy-suggest-card{flex:0 0 150px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 10px 12px;border:1px solid #dde2df;border-radius:12px;scroll-snap-align:start;text-align:center}
+.opy-suggest-who{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;padding:0;border:0;background:none;color:inherit;text-align:center}
+.opy-suggest-who .preview-avatar{width:64px;height:64px;flex-basis:64px;font-size:24px;object-fit:cover}
+.opy-suggest-who strong{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.opy-suggest-who small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-height:2.4em;font-size:12px;line-height:1.2}
+.opy-suggest .opy-suggest-follow{width:100%;margin:0;min-height:40px;padding:8px;border-radius:8px;font-size:14px}
+/* Explorar */
+.opy-explore-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;border-radius:12px;overflow:hidden}
+#preview-search-results .opy-explore-tile{position:relative;display:block;aspect-ratio:1;padding:0;border:0;background:#f1f3f0;overflow:hidden}
+.opy-explore-tile img{display:block;width:100%;height:100%;object-fit:cover}
+.opy-explore-multi{position:absolute;top:6px;right:6px;color:#fff;font-size:14px;text-shadow:0 1px 3px #000c}
+/* Publicação aberta por link */
+.opy-pinned{margin-bottom:8px}
+.opy-pinned-bar{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px}
+/* Puxar para atualizar e pílula de novas publicações */
+.opy-pull{position:fixed;left:50%;top:calc(var(--opy-head,80px) + 8px);z-index:30;transform:translate(-50%,-70px);padding:8px 16px;border-radius:999px;background:#182c34;color:#fff;font-size:13px;font-weight:600;opacity:0;transition:transform .15s,opacity .15s;pointer-events:none}
+.opy-pull.is-on,.opy-pull.is-busy{opacity:1;transform:translate(-50%,var(--pull,20px))}
+.opy-new-posts{position:fixed;left:50%;top:calc(var(--opy-head,80px) + 12px);z-index:30;transform:translateX(-50%);min-height:40px;padding:8px 18px;border:0;border-radius:999px;background:#bd171c;color:#fff;font-weight:700;font-size:14px;box-shadow:0 6px 20px #182c3440;animation:opy-toast-in .2s ease-out}
+/* Notificações */
+.notification-card{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;margin-bottom:8px;background:#fff;color:inherit;text-decoration:none}
+.notification-card.is-unread{background:#fbefec;border-color:#f0d6d1}
+.notification-card>.preview-avatar{width:44px;height:44px;flex-basis:44px;object-fit:cover}
+.notification-body{flex:1;min-width:0}
+.notification-body p{margin:0;font-size:15px;line-height:1.4}
+.notification-body small{margin-top:2px}
+.notification-body .community-member-actions{margin-top:8px}
+a.notification-card:hover{background:#f7f8f6}
+/* Alvos de toque de 44 px no compositor */
+#opy-compose .compose-tools button,#opy-compose .compose-story-shortcut,#opy-compose .compose-camera-open{min-width:44px;min-height:44px}
+#opy-compose .compose-camera-open{flex-basis:44px}
+body.opy-preview .community-post .preview-post-actions{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+.post-copy.is-clamped{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:8;overflow:hidden;margin-bottom:4px}
+.post-more-text{display:inline-flex;align-items:center;min-height:44px;margin:0 0 6px;padding:0;border:0;background:none;color:#52656c;font:inherit;font-size:15px;font-weight:600}
+.post-more-text:hover{color:#182c34;text-decoration:underline}
+.community-card-title{display:flex;align-items:center;min-height:44px}

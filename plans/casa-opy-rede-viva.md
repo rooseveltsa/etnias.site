@@ -51,7 +51,28 @@ Gate (2026-11-08): 39 testes ok; E2E ok; snapshot 241 KB / ~170 ms local com 6.9
 Gate original: `node --test tests/opy/*.mjs`; E2E local com dados importados (servidor local descartável); medir tamanho do snapshot (< 300 KB) e tempo do GET (< 150 ms local); auditoria 375/768/1440 refeita; login de uma conta legada (local, com hash de teste).
 
 ### Fase 2 — Experiência de app (Instagram/Facebook, identidade indígena sem grafismo inventado)
-Feed com mídia em destaque (imagem de borda a borda, duplo toque para curtir, carrossel para álbuns, vídeo mudo em autoplay), linha de reações com rostos, barra de ações grande e igual, stories com anel e estado visto, barra inferior de app com 5 destinos + botão de publicar, perfil com grade de fotos e abas, notificações agregadas ("X e mais 3 curtiram"), sugestões "pessoas da sua comunidade", explorar em grade, busca unificada, pull-to-refresh, pílula "novas publicações". Detalhar quando a Fase 1 estiver no ar.
+Decisão de 2026-11-08 (usuário: "seguir com a Fase 2"). Baseline medido em 375 px com dados de produção: barra de ações quebra em duas linhas (5 botões), stories são cartões com miniatura, comentários com avatar de letra, feed só cronológico, notificações calculadas no cliente a partir da página 1 (erradas com 30 posts por página), link `/#post-<id>` só funciona se o post está na página carregada.
+
+Servidor (`preview/server/community.mjs`):
+- [x] `projectPost`: `reactedBy` (até 3 nomes, "você" primeiro) e `avatar` em cada comentário.
+- [x] `postsPage`: parâmetro `id` (uma publicação, para permalink `/#post-<id>`, notificações e explorar).
+- [x] Sugestões com motivo: pessoas que dividem comunidade comigo ou são amigas de amigos antes das mais seguidas; campo `reason` ("Na comunidade X", "Amiga de Y", "Popular na rede").
+- [x] `?view=notifications`: itens agregados por publicação ("Ana e mais 3 curtiram sua publicação", "Beto comentou: …", "X começou a seguir você", pedidos de amizade, convites e pedidos de entrada), com `createdAt`, `href` e ações; `unreadNotifications` no snapshot; ação `notifications_seen` grava `notificationsSeenAt` na conta. shortcut: reações e seguidores não têm data gravada, então entram com a data da publicação/agora e só contam como novos uma vez.
+- [x] Testes em `tests/opy/community-integration.mjs`.
+
+Cliente (`preview/preview.js`, `preview/preview.css`):
+- [x] Cartão mídia-first: imagem de borda a borda no celular, altura máxima 4:5 (corte como no Instagram), carrossel com snap e contador para várias imagens, duplo toque curte (coração animado), vídeo em autoplay mudo quando visível e pausa fora da tela, toque na imagem abre visualizador em tela cheia.
+- [x] Barra de ações em uma linha: Curtir (com bandeja de reações no toque longo; mostra a reação escolhida), Comentar, Repostar e Salvar à direita; o botão "Amei" separado sai (duplicava a bandeja). Linha de reações "👍❤️ Você, Ana e mais 12".
+- [x] Comentários com foto.
+- [x] Stories em anel: círculos com borda vermelha quando não vistos e cinza quando vistos, "Seu story" com +; viewer com foto do autor.
+- [x] Perfil: contagem de publicações do servidor (não a página carregada).
+- [x] Notificações: página lê `view=notifications`, marca vistas ao abrir; sino com contagem do servidor.
+- [x] Sugestões "Pessoas para seguir" entre a 2ª e a 3ª publicação do feed padrão (carrossel horizontal, Seguir inline, fechar).
+- [x] Explorar: `/search/` sem termo mostra grade de fotos recentes e comunidades.
+- [x] Permalink: `/#post-<id>` fora da página carrega a publicação sozinha no topo com "Ver feed".
+- [x] Pull-to-refresh no celular e pílula "N novas publicações" quando a atualização periódica traz posts e a pessoa está rolada para baixo (sem saltar o conteúdo).
+- [x] Alvos < 44 px restantes (botões do compositor, chip em /grupos/).
+Gate (2026-11-08): 40 testes ok; E2E community-entry e i18n ok; auditoria 375/768/1440 com 0 overflow, 0 axe sério, 0 alvo < 44 px; i18n 1.529 textos, 0 faltando em en/es. Extra feito: texto longo recolhido com "Ver mais"; "Acervo público" só para posts sem conta. Pendente para a Fase 3: miniaturas das fotos do legado (originais de até 5 MB pesam no celular; exige redimensionar no servidor).
 
 ### Fase 3 — Base para crescer
 SQLite (`node:sqlite`) no lugar do JSON único; push (VAPID); recuperação de senha por e-mail (precisa SMTP → decisão do usuário); vídeos do legado acima de 20 MB (218 arquivos, ~12 GB) transcodificados.

@@ -252,6 +252,27 @@ try {
   assert.ok(migrated.password?.hash && !migrated.legacyPassword, 'senha migrada para scrypt na primeira entrada');
   assert.equal((await api({ action:'login', username:'antiga.etnias', password:'Senha-antiga-2026' })).status, 200, 'segunda entrada usa o scrypt');
   assert.equal((await api({ action:'login', username:'antiga.etnias', password:'Senha-errada-2026' })).status, 401);
+  // Fase 2: quem reagiu, foto nos comentários, permalink, sugestões com motivo e notificações agregadas.
+  const target = page2.data.posts[0];
+  assert.equal((await api({ action:'comment', postId:target.id, text:'Comentário da fase 2' }, third.cookie)).status, 200);
+  const single = await view('view=posts&id=' + encodeURIComponent(target.id), login.cookie);
+  assert.equal(single.data.posts.length, 1); assert.equal(single.data.posts[0].id, target.id);
+  assert.deepEqual(single.data.posts[0].reactedBy, [(await api(null, third.cookie)).data.me.name], 'linha "quem reagiu" com o nome de quem reagiu');
+  assert.equal((await view('view=posts&id=' + encodeURIComponent(target.id), third.cookie)).data.posts[0].reactedBy[0], 'você');
+  assert.ok('avatar' in single.data.posts[0].comments.at(-1), 'comentário leva a foto do autor');
+  const snap = await api(null, login.cookie);
+  assert.ok(snap.data.unreadNotifications >= 2, 'reação e comentário de outra pessoa contam como não lidas');
+  const notes = await view('view=notifications', login.cookie);
+  assert.ok(notes.data.items.some(i => i.kind === 'comment' && i.text.includes('Comentário da fase 2') && i.href === '/#post-' + target.id));
+  assert.ok(notes.data.items.some(i => i.kind === 'react' && i.unread));
+  assert.equal((await api({ action:'notifications_seen' }, login.cookie)).status, 200);
+  assert.equal((await api(null, login.cookie)).data.unreadNotifications, 0, 'abrir as notificações zera a contagem');
+  assert.equal((await api({ action:'follow', authorKey:'id:' + meId }, third.cookie)).status, 200);
+  const afterFollow = await view('view=notifications', login.cookie);
+  const thirdId = (await api(null, third.cookie)).data.me.id;
+  assert.ok(afterFollow.data.items.some(i => i.kind === 'follow' && i.unread && i.key === 'id:' + thirdId), 'seguir gera notificação datada');
+  const directory = (await api(null, third.cookie)).data.directory;
+  assert.ok(directory.filter(p => p.suggested).every(p => typeof p.reason === 'string' && p.reason), 'toda sugestão explica o motivo');
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }

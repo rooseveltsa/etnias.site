@@ -113,6 +113,14 @@ function feedContext(state, me) {
     accountsById: new Map((state.accounts || []).map(a => [a.id, a]))
   };
 }
+const avatarOfKey = (ctx, key) => String(key || '').startsWith('id:') ? personAvatar(ctx.accountsById.get(key.slice(3))) : '';
+// Quem reagiu, para a linha "Você, Ana e mais 12": até 3 nomes, a própria pessoa primeiro.
+function reactorNames(p, me, ctx) {
+  const ids = Object.entries(p.reactions || {}).filter(([, r]) => r).map(([id]) => id);
+  const names = ids.includes(me.id) ? ['você'] : [];
+  for (const id of ids) { if (names.length >= 3) break; if (id === me.id) continue; const name = ctx.accountsById.get(id)?.name; if (name) names.push(name); }
+  return names;
+}
 function projectPost(p, me, state, ctx) {
   const aKey = authorKeyOf(p);
   const author = ctx.accountsById.get(p.authorId);
@@ -126,7 +134,8 @@ function projectPost(p, me, state, ctx) {
     shares: p.shares || 0,
     repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file) } : null,
     reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
-    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
+    reactedBy: reactorNames(p, me, ctx),
+    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
       parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(ctx.myKey), own: c.authorKey === ctx.myKey })),
     editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
     poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
@@ -150,6 +159,7 @@ function postMatches(p, params, me, ctx) {
   if (feed === 'discover' && (p.authorId === me.id || isFollowing)) return false;
   if (feed === 'saved' && !(p.saves || []).includes(me.id)) return false;
   if (feed === 'archive' && p.origin !== 'legacy') return false;
+  const id = params.get('id'); if (id && p.id !== id) return false;
   const author = params.get('author'); if (author && aKey !== author) return false;
   const community = params.get('community'); if (community && p.communityId !== community) return false;
   const origin = params.get('origin'); if (origin && origin !== 'all' && (p.origin || 'preview') !== origin) return false;
@@ -192,10 +202,48 @@ function peopleFor(state, me, ctx, pagePosts, counts) {
   const keys = new Set([ctx.myKey, ...ctx.friends, ...(state.friendRequests?.[ctx.myKey] || []), ...ctx.followed]);
   for (const [k, list] of Object.entries(state.friendRequests || {})) if (Array.isArray(list) && list.includes(ctx.myKey)) keys.add(k);
   for (const p of pagePosts) keys.add(p.authorKey);
+  // Sugestões com motivo: quem divide comunidade comigo ou é amizade de amizade vem antes de quem só é popular.
+  const reasons = new Map();
+  for (const c of ctx.communities) if (c.joined) for (const m of c.members || []) if (!reasons.has(m.key)) reasons.set(m.key, `Na comunidade ${c.name}`);
+  for (const f of ctx.friends) { const friend = ctx.accountsById.get(f.slice(3)); if (friend) for (const k of state.friends?.[f] || []) if (!reasons.has(k)) reasons.set(k, `Amizade de ${friend.name}`); }
+  const followers = a => counts.followers.get(`id:${a.id}`) || 0;
   const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a))
-    .sort((a, b) => (counts.followers.get(`id:${b.id}`) || 0) - (counts.followers.get(`id:${a.id}`) || 0)).slice(0, 12);
-  for (const a of suggestions) keys.add(`id:${a.id}`);
-  return [...keys].map(key => personFor(state, me, ctx, key, counts)).filter(Boolean);
+    .sort((a, b) => Number(reasons.has(`id:${b.id}`)) - Number(reasons.has(`id:${a.id}`)) || followers(b) - followers(a)).slice(0, 12);
+  const suggested = new Map(suggestions.map(a => [`id:${a.id}`, reasons.get(`id:${a.id}`) || 'Popular na rede']));
+  for (const key of suggested.keys()) keys.add(key);
+  return [...keys].map(key => { const person = personFor(state, me, ctx, key, counts); if (person && suggested.has(key)) { person.suggested = true; person.reason = suggested.get(key); } return person; }).filter(Boolean);
+}
+// Notificações agregadas por publicação, como nas redes que as pessoas já usam.
+// shortcut: reações e seguidores antigos não têm data gravada (entram pela data da publicação ou do evento de seguir); gravar datas em todas as reações quando houver banco relacional (Fase 3).
+function notificationItems(state, me, ctx) {
+  const seenAt = ctx.accountsById.get(me.id)?.notificationsSeenAt || 0;
+  const nameOf = key => ctx.accountsById.get(String(key).slice(3))?.name || 'Alguém';
+  const others = names => names.length <= 1 ? names[0] || 'Alguém' : names.length === 2 ? `${names[0]} e ${names[1]}` : `${names[0]} e mais ${names.length - 1}`;
+  const excerpt = p => (p.text || '').replace(/\s+/g, ' ').trim().slice(0, 60) || (p.media ? 'sua foto' : 'sua publicação');
+  const items = [];
+  for (const k of state.friendRequests?.[ctx.myKey] || []) items.push({ id: `friend:${k}`, kind: 'friend', key: k, text: `${nameOf(k)} enviou uma solicitação de amizade.`, avatar: avatarOfKey(ctx, k), createdAt: Date.now(), actionable: true });
+  for (const c of ctx.communities) {
+    if (c.invited) items.push({ id: `invite:${c.id}`, kind: 'invite', communityId: c.id, text: `Você foi convidada(o) para a comunidade "${c.name}".`, href: `/grupos/?c=${encodeURIComponent(c.id)}`, createdAt: Date.now(), actionable: true });
+    if (c.canModerate && c.pendingRequests?.length) items.push({ id: `pending:${c.id}`, kind: 'pending', communityId: c.id, text: `${c.pendingRequests.length} ${c.pendingRequests.length === 1 ? 'pedido de entrada pendente' : 'pedidos de entrada pendentes'} em "${c.name}".`, href: `/grupos/?c=${encodeURIComponent(c.id)}`, createdAt: Date.now(), actionable: true });
+  }
+  for (const ev of (state.followEvents || [])) if (ev.to === ctx.myKey) items.push({ id: `follow:${ev.from}:${ev.at}`, kind: 'follow', key: `id:${ev.from}`, text: `${nameOf(`id:${ev.from}`)} começou a seguir você.`, avatar: avatarOfKey(ctx, `id:${ev.from}`), href: `/perfil/?u=${encodeURIComponent(`id:${ev.from}`)}`, createdAt: ev.at });
+  for (const p of state.posts) {
+    if (p.authorId !== me.id && !(p.comments || []).some(c => c.authorKey === ctx.myKey)) continue;
+    if (!visible(p, me, state)) continue;
+    const href = `/#post-${p.id}`;
+    if (p.authorId === me.id) {
+      const reactors = Object.entries(p.reactions || {}).filter(([id, r]) => r && id !== me.id).map(([id]) => `id:${id}`);
+      if (reactors.length) items.push({ id: `react:${p.id}`, kind: 'react', text: `${others(reactors.slice(0, 2).map(nameOf).concat(reactors.length > 2 ? Array(reactors.length - 2).fill('') : []))} ${reactors.length === 1 ? 'reagiu' : 'reagiram'} a "${excerpt(p)}".`, avatar: avatarOfKey(ctx, reactors[0]), href, createdAt: p.reactedAt || p.createdAt });
+      const comments = (p.comments || []).filter(c => c.authorKey !== ctx.myKey);
+      if (comments.length) { const last = comments.at(-1); const authors = [...new Set(comments.map(c => c.authorKey))]; items.push({ id: `comment:${p.id}`, kind: 'comment', text: `${others(authors.slice(0, 2).map(nameOf).concat(authors.length > 2 ? Array(authors.length - 2).fill('') : []))} ${authors.length === 1 ? 'comentou' : 'comentaram'}: "${last.text.slice(0, 80)}"`, avatar: avatarOfKey(ctx, last.authorKey), href, createdAt: last.createdAt }); }
+    } else {
+      const mine = new Set((p.comments || []).filter(c => c.authorKey === ctx.myKey).map(c => c.id));
+      const replies = (p.comments || []).filter(c => c.parentId && mine.has(c.parentId) && c.authorKey !== ctx.myKey);
+      if (replies.length) { const last = replies.at(-1); items.push({ id: `reply:${p.id}`, kind: 'reply', text: `${nameOf(last.authorKey)} respondeu seu comentário: "${last.text.slice(0, 80)}"`, avatar: avatarOfKey(ctx, last.authorKey), href, createdAt: last.createdAt }); }
+    }
+  }
+  items.sort((a, b) => Number(!!b.actionable) - Number(!!a.actionable) || b.createdAt - a.createdAt);
+  return items.slice(0, 60).map(i => ({ ...i, unread: !!i.actionable || i.createdAt > seenAt }));
 }
 function searchView(state, me, params) {
   const ctx = feedContext(state, me);
@@ -245,7 +293,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -327,9 +375,10 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
-      if (['posts', 'search', 'profile'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
+      if (['posts', 'search', 'profile', 'notifications'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
         const view = path.searchParams.get('view');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        if (view === 'notifications') return res.end(JSON.stringify({ items: notificationItems(state, me, feedContext(state, me)) }));
         return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? searchView(state, me, path.searchParams) : profileView(state, me, path.searchParams)));
       }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
@@ -422,7 +471,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !['announcement_dismiss', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -558,7 +607,9 @@ export default async function handler(req, res) {
         }
         case 'react':
           if (!reactions.includes(body.reaction) && body.reaction !== '') fail(400, 'Reação inválida.');
-          post.reactions[me.id] = body.reaction; break;
+          post.reactions[me.id] = body.reaction; if (body.reaction && post.authorId !== me.id) post.reactedAt = Date.now(); break;
+        case 'notifications_seen':
+          currentAccount.notificationsSeenAt = Date.now(); break;
         case 'comment':
           if (post.comments.length >= 60) fail(409, 'Esta publicação atingiu o limite de comentários na homologação.');
           {
@@ -609,6 +660,7 @@ export default async function handler(req, res) {
           state.follows ||= {};
           const list = Array.isArray(state.follows[me.id]) ? state.follows[me.id] : [];
           state.follows[me.id] = list.includes(key) ? list.filter(item => item !== key) : [...list, key].slice(-200);
+          if (!list.includes(key) && key.startsWith('id:')) state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
           break;
         }
         case 'friend': {
