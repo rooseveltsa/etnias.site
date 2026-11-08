@@ -104,6 +104,32 @@ document.querySelectorAll('[data-opy-destination="grupos"] span:not(.opy-pending
  const img=item.querySelector('img');if(img&&icon)img.src=icon.src;const label=[...item.querySelectorAll('span')].find(el=>!el.classList.contains('opy-pending'));if(label)label.textContent='Comunidades';
  merc.before(item);})();
 function postAction(name, label, fn){const b=document.createElement('button');b.type='button';b.className='post-action';b.innerHTML=svg(name);if(label){const span=document.createElement('span');span.textContent=label;b.append(span);}b.addEventListener('click',async event=>{b.disabled=true;try{await fn(event);}catch(e){showError(e.message);}finally{b.disabled=false;}});return b;}
+// Atalho do chat no cabeçalho (telas largas): painel com as conversas recentes, como o Messenger no Facebook. No celular o ícone abre /chat/.
+async function openInboxPopover(event){
+ if(window.innerWidth<1024||document.body.dataset.previewRoute==='messages')return;
+ event.preventDefault();
+ let pop=$('#opy-inbox');
+ if(pop?.open){pop.hidePopover?.();pop.remove();return;}
+ pop=make('div',undefined,'opy-inbox');pop.id='opy-inbox';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','Mensagens recentes');pop.open=true;
+ const head=make('div',undefined,'opy-inbox-head');head.append(make('h2','Mensagens'));const all=make('a','Ver todas','opy-inbox-all');all.href='/chat/';head.append(all);
+ const list=make('ul',undefined,'opy-inbox-list');list.append(make('li','Carregando…','opy-inbox-empty'));pop.append(head,list);
+ document.body.append(pop);
+ const close=e=>{if(e.type==='keydown'&&e.key!=='Escape')return;if(e.type==='click'&&(pop.contains(e.target)||chatHeaderLink().contains(e.target)))return;pop.remove();document.removeEventListener('click',close);document.removeEventListener('keydown',close);};
+ setTimeout(()=>{document.addEventListener('click',close);document.addEventListener('keydown',close);});
+ try{
+  const inbox=await api(null,'?view=chat');const items=(inbox.conversations||[]).filter(c=>!c.archived).slice(0,8);
+  list.replaceChildren();
+  if(!items.length){const empty=make('li',undefined,'opy-inbox-empty');empty.append('Nenhuma conversa ainda. ',Object.assign(make('a','Encontre alguém para conversar'),{href:'/chat/'}));list.append(empty);}
+  for(const c of items){
+   const li=make('li');const a=make('a',undefined,'opy-inbox-item');a.href='/chat/?p='+encodeURIComponent(c.key);
+   const meta=make('span',undefined,'opy-inbox-meta');meta.append(make('strong',c.name),make('small',c.last||(c.group?'Grupo privado':'Conversa privada')));
+   const side=make('span',undefined,'opy-inbox-side');if(c.at)side.append(make('small',date(c.at)));if(c.unread){const u=make('span',String(c.unread),'opy-header-badge');u.setAttribute('aria-label',c.unread+' não lidas');side.append(u);}
+   a.append(avatarNode(c.name,c.avatar,40),meta,side);if(c.unread)a.classList.add('is-unread');li.append(a);list.append(li);
+  }
+  if(inbox.requests?.length){const r=make('li');const ra=make('a',undefined,'opy-inbox-item opy-inbox-requests');ra.href='/chat/';ra.append(make('strong',inbox.requests.length===1?'1 solicitação de conversa':inbox.requests.length+' solicitações de conversa'));r.append(ra);list.append(r);}
+ }catch(error){list.replaceChildren(make('li',error.message,'opy-inbox-empty'));}
+}
+const chatHeaderLink=()=>$('.messages-notification-container a');
 function avatarNode(name, url, size=42){
  const fallback=()=>make('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');
  if(url&&(/^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url)||/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url)||/^\/legado\/upload\/[\w./%-]+\.(jpg|jpeg|png|webp|gif)$/i.test(url))){
@@ -887,6 +913,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   if([...commTarget.options].some(o=>o.value===prev))commTarget.value=prev;
  }
  const chatHeaderLink=$('.messages-notification-container a');
+ if(chatHeaderLink&&!chatHeaderLink.dataset.inbox){chatHeaderLink.dataset.inbox='1';chatHeaderLink.addEventListener('click',openInboxPopover);}
  if(chatHeaderLink){
   let badge=$('.opy-header-badge',chatHeaderLink);
   const count=state.unreadChatCount||0;

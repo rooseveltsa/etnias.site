@@ -915,3 +915,23 @@ body.opy-preview .community-post .preview-post-actions{grid-template-columns:rep
 @media (max-width:600px){.opy-push-card{flex-direction:column;align-items:stretch}}
 #opy-password-dialog h2{margin:0 0 6px;font-size:20px}
 #opy-password-dialog .welcome-error{margin:10px 0 0}
+/* Caixa de entrada do chat: título da seção "Pessoas" e o painel de mensagens recentes do cabeçalho (desktop). */
+.chat-list-heading{padding:14px 8px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#52656c}
+.opy-inbox{position:fixed;top:64px;right:max(12px,calc((100vw - 1180px)/2 + 12px));z-index:70;width:min(380px,calc(100vw - 24px));max-height:min(70vh,560px);display:flex;flex-direction:column;padding:8px;border:1px solid #dde2df;border-radius:16px;background:#fff;box-shadow:0 12px 32px rgba(24,44,52,.16)}
+.opy-inbox-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 6px}
+.opy-inbox-head h2{margin:0;font-size:20px}
+.opy-inbox-all{font-size:14px;color:#991116;font-weight:600;text-decoration:none}
+.opy-inbox-list{margin:0;padding:0;list-style:none;overflow-y:auto}
+.opy-inbox-item{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 10px;border-radius:12px;color:#182c34;text-decoration:none}
+.opy-inbox-item:hover,.opy-inbox-item:focus-visible{background:#f7f8f6}
+.opy-inbox-item .preview-avatar{width:40px;height:40px;flex:0 0 40px;font-size:16px}
+.opy-inbox-meta{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.opy-inbox-meta strong,.opy-inbox-meta small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.opy-inbox-meta small{font-size:13px;color:#52656c}
+.opy-inbox-item.is-unread .opy-inbox-meta small{color:#182c34;font-weight:600}
+.opy-inbox-side{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto}
+.opy-inbox-side small{font-size:12px;color:#52656c}
+.opy-inbox-side .opy-header-badge{position:static;margin:0}
+.opy-inbox-requests{justify-content:center;color:#991116}
+.opy-inbox-empty{padding:14px 10px;font-size:14px;color:#52656c}
+.opy-inbox-empty a{color:#991116}

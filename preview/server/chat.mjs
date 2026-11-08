@@ -19,6 +19,8 @@ function groupOf(state, key) { return state.chatGroups?.find(g => `group:${g.id}
 function blocked(state, a, b) { return !!(state.chatBlocks?.[a]?.includes(b) || state.chatBlocks?.[b]?.includes(a)); }
 const pairKey = (a, b) => [a, b].sort().join('|');
 const follows = (state, who, target) => !!state.follows?.[who.slice(3)]?.includes(target);
+// Mesma regra de foto de perfil de community.mjs (URL própria ou anexo enviado).
+const avatarOf = a => a?.avatarUrl || (a?.avatarId ? `/api/media?id=${a.avatarId}` : '');
 const friends = (state, a, b) => !!state.friends?.[a]?.includes(b);
 const sentTo = (state, from, to) => (state.dms || []).some(m => m.fromKey === from && m.toKey === to && !m.call && !m.deleted);
 // Modelo do Direct: amizade, seguir de volta ou aceite liberam a conversa; sem vínculo, a primeira mensagem vira solicitação.
@@ -78,9 +80,12 @@ export function chatMedia(state, me, id) {
 export function chatSnapshot(state, me, params = new URLSearchParams()) {
   const mine = keyOf(me), key = params.get('key') || '';
   const others = (state.accounts || []).filter(a => a.id !== me.id);
-  const card = a => ({ key:keyOf(a), name:a.name, username:a.username || '', blocked:!!state.chatBlocks?.[mine]?.includes(keyOf(a)), relation:relationOf(state, mine, keyOf(a)) });
+  const card = a => ({ key:keyOf(a), name:a.name, username:a.username || '', avatar:avatarOf(a), blocked:!!state.chatBlocks?.[mine]?.includes(keyOf(a)), relation:relationOf(state, mine, keyOf(a)) });
   // Só contatos com conversa liberada entram em grupos e encaminhamentos; desconhecidos aparecem apenas pela busca.
   const contacts = others.map(card).filter(p => p.relation === 'accepted');
+  // Caixa de entrada no padrão das grandes redes: amigos e quem a pessoa segue ficam à mão para começar a conversar.
+  const people = others.filter(a => friends(state, mine, keyOf(a)) || follows(state, mine, keyOf(a)) || relationOf(state, mine, keyOf(a)) === 'accepted').map(card).filter(p => !p.blocked)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).slice(0, 60);
   const term = text(params.get('find') || '', 60, false).toLocaleLowerCase('pt-BR').replace(/^@/, '');
   const found = term.length >= 2 ? others.filter(a => (a.name + ' ' + (a.username || '')).toLocaleLowerCase('pt-BR').includes(term)).slice(0, 15).map(card) : [];
   const requests = [];
@@ -91,10 +96,11 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
     const list = messagesOf(state, me, k), last = list.at(-1), p = state.chatPreferences?.[mine]?.[k] || {};
     const relation = t.group ? 'accepted' : relationOf(state, mine, k);
     if (relation === 'declined_in') return [];
-    if (relation === 'request_in') { requests.push({ key:k, name:t.name, last: last ? (last.deleted ? 'Mensagem apagada' : last.text || 'Anexo') : '', at:last?.createdAt || 0 }); return []; }
+    const avatar = t.group ? '' : avatarOf(person(state, k));
+    if (relation === 'request_in') { requests.push({ key:k, name:t.name, avatar, last: last ? (last.deleted ? 'Mensagem apagada' : last.text || 'Anexo') : '', at:last?.createdAt || 0 }); return []; }
     const readIndex = p.readId ? (state.dms || []).findIndex(m => m.id === p.readId) : -1;
     const unread = list.filter(m => m.fromKey !== mine && (state.dms || []).indexOf(m) > readIndex).length;
-    return [{ key:k, name:t.name, group:!!t.group, last: last ? (last.deleted ? 'Mensagem apagada' : last.text || 'Anexo') : '', at:last?.createdAt || 0,
+    return [{ key:k, name:t.name, avatar, group:!!t.group, last: last ? (last.deleted ? 'Mensagem apagada' : last.text || 'Anexo') : '', at:last?.createdAt || 0,
       unread:p.unread ? Math.max(1, unread) : unread,
       pinned:!!p.pinned, muted:!!p.muted, archived:!!p.archived, pending: relation === 'request_out', declined: relation === 'declined_out' }];
   }).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||b.at-a.at);
@@ -110,7 +116,7 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
       .map(([k]) => { try { return person(state, k).name; } catch { return ''; } })
       .filter(Boolean);
     const sharedMedia = fullList.filter(m => !m.deleted && m.media).slice(-12).reverse().map(m => ({ id: m.media.id, url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name, at: m.createdAt }));
-    selected = { key, name:t.name, username:otherAcc?.username || '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
+    selected = { key, name:t.name, username:otherAcc?.username || '', avatar:otherAcc ? avatarOf(otherAcc) : '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
       description:t.group?.description || '', typing, sharedMedia,
       relation: t.group ? 'accepted' : relationOf(state, mine, key), blockedByMe: !t.group && !!state.chatBlocks?.[mine]?.includes(key), members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
     list = fullList;
@@ -130,7 +136,7 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
       : r === 'none' ? `Vocês ainda não se conectaram. Sua primeira mensagem chega como solicitação e precisa ser só texto.` : '';
   }
   requests.sort((a, b) => b.at - a.at);
-  return { me:{id:me.id,name:me.name}, contacts, found, requests, conversations, selected, messages:list, hasMore,
+  return { me:{id:me.id,name:me.name}, contacts, people, found, requests, conversations, selected, messages:list, hasMore,
     invitations:(state.chatGroups || []).filter(g=>g.invited.includes(mine)).map(g=>({key:`group:${g.id}`,name:g.name})),
     reports:(state.chatReports || []).filter(r=>r.authorKey===mine).map(r=>({id:r.id,createdAt:r.createdAt,status:'Registrada; revisão humana ainda não conectada'})) };
 }

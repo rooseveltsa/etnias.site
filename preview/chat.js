@@ -3,6 +3,12 @@
 const $ = selector => document.querySelector(selector);
 const node = (tag, value, cls) => { const el=document.createElement(tag); if(value!==undefined)el.textContent=value; if(cls)el.className=cls; return el; };
 const status = message => { $('#chat-status').textContent=message; };
+// Foto de perfil quando existe (mesmas origens aceitas em preview.js), inicial do nome quando não.
+const avatarOk = url => !!url && (/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url) || /^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url) || /^\/legado\/upload\/[\w./%-]+\.(jpg|jpeg|png|webp|gif)$/i.test(url));
+function avatarEl(name, url) {
+ if (avatarOk(url)) { const img=node('img',undefined,'preview-avatar preview-avatar-image'); img.src=url; img.alt=''; img.loading='lazy'; return img; }
+ const el=node('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar'); el.setAttribute('aria-hidden','true'); return el;
+}
 const time = value => new Intl.DateTimeFormat('pt-BR',{timeStyle:'short'}).format(new Date(value));
 const dayKey = value => new Date(value).toDateString();
 function dayLabel(value) {
@@ -162,15 +168,26 @@ function render() {
  const rc=$('#chat-requests-count');rc.hidden=!data.requests.length;rc.textContent=String(data.requests.length);
  for(const p of entries){
   const li=node('li');const b=button('',()=>choose(p.key),li);b.className='chat-person-btn';b.setAttribute('aria-pressed',String(key===p.key));
-  const av=node('span',p.name.slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');av.setAttribute('aria-hidden','true');
+  const av=avatarEl(p.name,p.avatar);
   const meta=node('span',undefined,'chat-person-meta');meta.append(node('strong',p.name),node('small',p.declined?'Não aceitou a conversa':p.pending?'Solicitação enviada · '+(p.last||''):(p.pinned?'Fixada · ':'')+(p.last || (p.group?'Grupo privado':'Conversa privada'))));
   const side=node('span',undefined,'chat-person-side');if(p.at)side.append(node('small',shortWhen(p.at)));if(p.unread){const u=node('span',String(p.unread),'chat-unread');u.setAttribute('aria-label',p.unread+' não lidas');side.append(u);}
   b.append(av,meta,side);list.append(li);
  }
- if(!entries.length)list.append(node('li',box==='requests'?'Nenhuma solicitação. Quando alguém sem vínculo com você mandar mensagem, ela aparece aqui para você aceitar ou recusar.':filter?'Nenhuma conversa com esse nome. Use o lápis para procurar pessoas.':'Nenhuma conversa ainda. Toque no lápis para procurar alguém pelo nome.','chat-list-empty'));
+ // Caixa de entrada: depois das conversas, as pessoas com quem dá para começar a conversar (amigos e quem você segue).
+ const open=new Set(data.conversations.map(c=>c.key));
+ const people=box==='main'?(data.people||[]).filter(p=>!open.has(p.key)).filter(p=>p.name.toLocaleLowerCase('pt-BR').includes(filter)||(p.username||'').toLocaleLowerCase('pt-BR').includes(filter)):[];
+ if(!entries.length)list.append(node('li',box==='requests'?'Nenhuma solicitação. Quando alguém sem vínculo com você mandar mensagem, ela aparece aqui para você aceitar ou recusar.':filter&&!people.length?'Ninguém com esse nome nas suas conversas. Use o lápis para procurar outras pessoas.':people.length?'Nenhuma conversa ainda. Comece com alguém que você já conhece:':'Nenhuma conversa ainda. Toque no lápis para procurar alguém pelo nome.','chat-list-empty'));
+ if(people.length){
+  if(entries.length)list.append(node('li','Pessoas','chat-list-heading'));
+  for(const p of people){
+   const li=node('li');const b=button('',()=>choose(p.key),li);b.className='chat-person-btn';b.setAttribute('aria-pressed',String(key===p.key));
+   const meta=node('span',undefined,'chat-person-meta');meta.append(node('strong',p.name),node('small',(p.username?'@'+p.username+' · ':'')+(p.relation==='accepted'?'Toque para conversar':'Você segue · a primeira mensagem vai como solicitação')));
+   b.append(avatarEl(p.name,p.avatar),meta);list.append(li);
+  }
+ }
  const invites=$('#chat-invitations');invites.replaceChildren();for(const invite of data.invitations){const card=node('div',undefined,'chat-invite');card.append(node('p','Convite: '+invite.name));button('Aceitar',()=>action({action:'chat_group_accept',key:invite.key}),card);button('Recusar',()=>action({action:'chat_group_decline',key:invite.key}),card);invites.append(card);}
  const selected=data.selected;$('#chat-name').textContent=selected?.name || 'Escolha uma conversa';
- const avEl=$('#chat-avatar');if(avEl)avEl.textContent=(selected?.name||'C').slice(0,1).toLocaleUpperCase('pt-BR');
+ const avEl=$('#chat-avatar');if(avEl)avEl.replaceWith(Object.assign(avatarEl(selected?.name||'C',selected?.avatar),{id:'chat-avatar'}));
  const typingNames=selected?.typing||[];
  $('#chat-subtitle').textContent=selected ? (selected.blocked?'Envio bloqueado.':typingNames.length?typingNames.join(', ')+' está digitando…':selected.group?selected.members.length+' participantes':'Conversa privada'+(selected.username?' · @'+selected.username:'')) : 'Encontre alguém pelo nome ou crie um grupo.';
  $('#chat-call-audio').hidden=!selected?.canCall;$('#chat-call-video').hidden=!selected?.canCall;
@@ -244,7 +261,7 @@ $('#chat-new').onclick=()=>dialog('Nova mensagem',panel=>{
   wait=setTimeout(async()=>{const mine=++ask;try{const page=await request(null,{find:term});if(mine!==ask)return;
    if(!page.found.length){results.append(node('li','Ninguém encontrado com esse nome.','chat-list-empty'));return;}
    for(const p of page.found){const li=node('li');const b=button('',async()=>{$('#chat-dialog').close();box='main';await choose(p.key);},li);b.className='chat-person-btn';
-    const av=node('span',p.name.slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');av.setAttribute('aria-hidden','true');
+    const av=avatarEl(p.name,p.avatar);
     const meta=node('span',undefined,'chat-person-meta');meta.append(node('strong',p.name),node('small',(p.username?'@'+p.username+' · ':'')+(p.blocked?'Bloqueado':relationLabel[p.relation]||'')));
     b.append(av,meta);results.append(li);}
   }catch(e){if(mine===ask)hint.hidden=false,hint.textContent=e.message;}},300);};

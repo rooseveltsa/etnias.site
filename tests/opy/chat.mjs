@@ -153,3 +153,16 @@ test('Direct: aceitar, responder ou ser seguido libera a conversa', () => {
  send(t,alice,bob); assert.doesNotThrow(()=>send(t,alice,bob),'quem a pessoa segue fala direto');
  assert.equal(chat.chatSnapshot(t,bob).requests.length,0);
 });
+
+test('caixa de entrada traz fotos e as pessoas com quem dá para começar a conversar', () => {
+ const s=fresh(); s.accounts[1].avatarId='11111111-1111-4111-8111-111111111111'; s.follows={ [alice.id]: ['id:'+randomUUID()] };
+ const v=chat.chatSnapshot(s, alice, new URLSearchParams());
+ assert.deepEqual(v.people.map(p=>p.name).sort(), [bob.name, outsider.name].sort(), 'amigos entram em Pessoas; quem não existe mais não entra');
+ assert.equal(v.people.find(p=>p.key===key(bob)).avatar, '/api/media?id=11111111-1111-4111-8111-111111111111');
+ send(s, bob, alice);
+ const after=chat.chatSnapshot(s, alice, new URLSearchParams({ key:key(bob) }));
+ assert.equal(after.conversations[0].avatar, '/api/media?id=11111111-1111-4111-8111-111111111111', 'a conversa leva a foto da outra pessoa');
+ assert.equal(after.selected.avatar, '/api/media?id=11111111-1111-4111-8111-111111111111');
+ s.chatBlocks={ [key(alice)]: [key(outsider)] };
+ assert.ok(!chat.chatSnapshot(s, alice, new URLSearchParams()).people.some(p=>p.key===key(outsider)), 'bloqueados ficam fora');
+});

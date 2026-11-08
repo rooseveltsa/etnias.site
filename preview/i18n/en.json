@@ -1634,5 +1634,14 @@
  "Os emojis não carregaram. Recarregue a página.": "The emojis did not load. Reload the page.",
  "Recentes": "Recent",
  "Sair": "Sign out",
- "Ver seu perfil": "See your profile"
+ "Ver seu perfil": "See your profile",
+ "1 solicitação de conversa": "1 conversation request",
+ "Encontre alguém para conversar": "Find someone to talk to",
+ "Mensagens recentes": "Recent messages",
+ "Nenhuma conversa ainda.": "No conversations yet.",
+ "Nenhuma conversa ainda. Comece com alguém que você já conhece:": "No conversations yet. Start with someone you already know:",
+ "Ninguém com esse nome nas suas conversas. Use o lápis para procurar outras pessoas.": "No one with that name in your conversations. Use the pencil to search for other people.",
+ "solicitações de conversa": "conversation requests",
+ "Toque para conversar": "Tap to chat",
+ "Você segue · a primeira mensagem vai como solicitação": "You follow · the first message goes as a request"
 }
