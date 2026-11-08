@@ -723,7 +723,7 @@ function renderProfile(){
  const head=make('div',undefined,'pf-head');
  const av=make('div',undefined,'pf-avatar');av.append(avatarNode(person.name,person.avatar,168));
  if(own){const b=button('',()=>$('#profile-avatar-input').click(),av);b.className='pf-avatar-btn';b.setAttribute('aria-label','Trocar foto do perfil');b.title='Trocar foto do perfil';}
- const id=make('div',undefined,'pf-id');const h1=make('h1',person.name);if(person.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');h1.append(' ',v);}id.append(h1);if(person.plan){const chip=make('span',person.plan.nome,'pf-plan-chip');chip.style.setProperty('--plan',person.plan.cor);chip.title='Plano '+person.plan.nome;id.append(chip);}
+ const id=make('div',undefined,'pf-id');const h1=make('h1',person.name);if(person.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');h1.append(' ',v);}if(person.plan){const chip=make('span',person.plan.nome,'pf-plan-chip');chip.style.setProperty('--plan',person.plan.cor);chip.title='Plano '+person.plan.nome;h1.append(' ',chip);}id.append(h1);
  const meta=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.affiliation].filter(Boolean).join(' · ');
  if(meta)id.append(make('p',meta,'pf-meta'));
  const counts=make('p',undefined,'pf-counts');
@@ -1125,11 +1125,14 @@ function openSwitchAccount(){
 }
 $('#opy-switch-account')?.addEventListener('click',openSwitchAccount);
 // Atalhos que o cabeçalho abre por endereço (Recursos e menu pessoal): uma vez, depois da primeira carga; o # sai do endereço.
+// Celular: o botão Postagem da barra de baixo abre a tela Criar (Publicação · Story · Live), como o + do Instagram.
+document.addEventListener('click',e=>{const link=e.target.closest('[data-opy-compose]');if(!link||!window.OpyCreator||!matchMedia('(max-width:700px)').matches||document.body.dataset.previewRoute!=='home')return;e.preventDefault();e.stopImmediatePropagation();window.OpyCreator.open('post');},true);
 function handleHashActions(){
  const h=location.hash,route=document.body.dataset.previewRoute;let done=true;
  if(route==='home'&&h==='#criar'){const t=$('#preview-text');t?.scrollIntoView({block:'center'});t?.focus({preventScroll:true});}
- else if(route==='home'&&h==='#criar-story')$('#compose-story-open')?.click();
- else if(route==='home'&&h==='#criar-live'){const b=$('[data-compose-tool="live"]');b?.scrollIntoView({block:'center'});b?.click();}
+ else if(route==='home'&&h==='#criar-story')window.OpyCreator?window.OpyCreator.open('story'):$('#compose-story-open')?.click();
+ else if(route==='home'&&h==='#criar-live')window.OpyCreator?window.OpyCreator.open('live'):$('[data-compose-tool="live"]')?.click();
+ else if(route==='home'&&h==='#opy-compose'&&matchMedia('(max-width:700px)').matches&&window.OpyCreator)window.OpyCreator.open('post');
  else if(route==='suggested-groups'&&h==='#criar')$('#community-create-open')?.click();
  else if(route==='account'&&h==='#editar')openProfileEdit();
  else done=false;
@@ -1305,7 +1308,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
  renderCommunities();
  const stories=$('#story-list');if(stories&&Array.isArray(state.stories)){
   // Stories em anel: círculo com a foto, borda viva quando ainda não visto, cinza depois. A mídia aparece no visualizador.
-  stories.replaceChildren();const create=button('',()=>openStorySheet(),stories);create.classList.add('story-pill','story-create');
+  stories.replaceChildren();const create=button('',()=>window.OpyCreator?window.OpyCreator.open('story'):openStorySheet(),stories);create.classList.add('story-pill','story-create');
   const myRing=make('span',undefined,'story-ring');myRing.append(avatarNode(state.me.name,state.me.avatar,56),make('b','+','story-plus'));create.append(myRing,make('strong','Seu story'));create.setAttribute('aria-label','Criar story');
   // Quem está ao vivo aparece primeiro no anel, com o selo, e abre a transmissão.
   for(const l of (state.lives||[]).filter(l=>!l.own)){const card=button('',()=>openLiveViewer({id:l.postId,author:l.author,avatar:l.avatar,live:{format:l.format}}),stories);card.classList.add('story-pill','is-live');const ring=make('span',undefined,'story-ring');ring.append(avatarNode(l.author,l.avatar,56),make('b','AO VIVO','story-live'));card.append(ring,make('strong',l.author.split(' ')[0]));card.setAttribute('aria-label',`Assistir à live de ${l.author}`);}
@@ -1622,6 +1625,8 @@ function paintSlot(id, item, clearLabel, clear){
 }
 async function readSlot(file){if(!file)return null;if(file.size>2*1024*1024)throw Error('Escolha um arquivo de até 2 MB.');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file);});return {name:file.name,data:typedDataUrl(file,data),bytes:file.size};}
 function selectFormat(tool){
+ // Live abre na tela Criar em tela cheia (câmera, título e botão de transmitir no padrão do Instagram).
+ if(tool==='live'&&window.OpyCreator){window.OpyCreator.open('live');tool='text';}
  const panel={photo:'compose-photo',video:'compose-video',file:'compose-file',location:'compose-location',live:'compose-live'}[tool];
  ['compose-photo','compose-video','compose-file','compose-location','compose-live'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=id!==panel;});
  if(liveSession&&tool!=='live'){toast('Você está ao vivo. Encerre a live para usar outro formato.');return;}
@@ -1630,7 +1635,7 @@ function selectFormat(tool){
 }
 function selectedFormat(){return all('[data-compose-tool]').find(item=>item.getAttribute('aria-selected')==='true')?.dataset.composeTool||'text';}
 if(publisher){
- $('#compose-story-open')?.addEventListener('click',()=>{openStorySheet();$('#story-form')?.scrollIntoView({behavior:'smooth',block:'nearest'});});
+ $('#compose-story-open')?.addEventListener('click',()=>{if(window.OpyCreator){window.OpyCreator.open('story');return;}openStorySheet();$('#story-form')?.scrollIntoView({behavior:'smooth',block:'nearest'});});
  if($('#publisher-photo'))$('#publisher-photo').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-photo').files[0]);if(!next)return;if(!/^data:image\/(png|jpeg|gif|webp);/.test(next.data))throw Error('A imagem precisa ser PNG, JPG, GIF ou WebP.');photoAttachment=next;paintSlot('photo-slot',next,'Remover foto',()=>{photoAttachment=null;$('#publisher-photo').value='';if($('#photo-status')){$('#photo-status').textContent='';$('#photo-status').hidden=true;}});if($('#photo-status')){$('#photo-status').hidden=false;$('#photo-status').textContent='Foto pronta para publicação.';}}catch(e){showError(e.message);$('#publisher-photo').value='';}finally{busy=false;}};
  $('#publisher-video').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-video').files[0]);if(!next)return;if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4 ou WebM.');const replaced=!!videoAttachment;videoAttachment=next;paintSlot('video-slot',next,'Remover vídeo',()=>{videoAttachment=null;$('#publisher-video').value='';$('#video-status').textContent='';$('#video-status').hidden=true;});const videoStatus=$('#video-status');videoStatus.hidden=false;videoStatus.textContent=replaced?'O vídeo anterior foi trocado. A publicação leva um único vídeo.':'Vídeo pronto. A publicação leva um único vídeo.';}catch(e){showError(e.message);$('#publisher-video').value='';}finally{busy=false;}};
  $('#publisher-document').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-document').files[0]);if(!next)return;if(!/\.(pdf|txt|docx|doc)$/i.test(next.name))throw Error('O arquivo precisa ser PDF, TXT, DOC ou DOCX.');const replaced=!!fileAttachment;fileAttachment=next;paintSlot('file-slot',next,'Remover arquivo',()=>{fileAttachment=null;$('#publisher-document').value='';$('#file-status').textContent='';$('#file-status').hidden=true;});const fileStatus=$('#file-status');fileStatus.hidden=false;fileStatus.textContent=replaced?'O arquivo anterior foi trocado. A publicação leva um único arquivo.':'Arquivo pronto. A publicação leva um único arquivo.';}catch(e){showError(e.message);$('#file-status').textContent=e.message;$('#publisher-document').value='';}finally{busy=false;}};
@@ -1784,7 +1789,7 @@ if(!window.__opyPressBound){
   document.addEventListener('pointercancel',release,{passive:true});
 }
 // Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
-window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),
+window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,recorderMime,readSlot,
  get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
  get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};
 })();

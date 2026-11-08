@@ -26,10 +26,11 @@ async function api(cookie, body) { const r = await fetch(base + '/api/community'
     let postId = '';
 
     await step('1. Ana inicia uma live vertical (9:16) pelo celular', async () => {
-      await pa.goto(base + '/'); await pa.locator('.postText').fill(text);
-      await pa.locator('#compose-tab-live').click(); await pa.locator('[data-live-format="portrait"]').click();
-      await pa.getByRole('button', { name: 'Abrir câmera', exact: true }).click();
-      await pa.getByRole('button', { name: 'Começar a transmitir', exact: true }).click();
+      // Live pela tela Criar (padrão Instagram): título, formato e o botão de transmitir.
+      await pa.goto(base + '/'); await pa.locator('#compose-tab-live').click(); await pa.locator('#opy-creator[open][data-mode="live"]').waitFor();
+      if ((await pa.locator('#creator-format').textContent()).trim() !== '9:16') await pa.locator('#creator-format').click();
+      await pa.waitForFunction(() => { const v = document.getElementById('live-preview'); return v && v.videoWidth > 0; }, null, { timeout: 15000 });
+      await pa.fill('#creator-title', text); await pa.locator('#creator-shutter').click();
       await pa.locator('#live-pill').getByText('AO VIVO').waitFor({ timeout: 25000 });
       const canvas = await pa.evaluate(() => { const c = document.querySelector('#live-canvas'); return [c.width, c.height, c.hidden]; });
       assert.deepEqual(canvas, [720, 1280, false], 'quadro composto vertical visível no estúdio');
@@ -115,8 +116,8 @@ async function api(cookie, body) { const r = await fetch(base + '/api/community'
       await home.getByRole('button', { name: 'Assistir ao vivo', exact: true }).waitFor({ timeout: 10000 }); await home.close();
     });
     await step('20. Encerrar remove os indicadores AO VIVO', async () => {
-      await pa.getByRole('button', { name: 'Encerrar live', exact: true }).click();
-      await pa.locator('#live-status').getByText('Live encerrada').waitFor({ timeout: 25000 });
+      await pa.locator('#live-stop').click();
+      await pa.waitForFunction(() => document.getElementById('live-status').textContent.includes('Live encerrada'), null, { timeout: 25000 });
       await pb.locator('#live-viewer .live-viewer-status').getByText('Esta live terminou').waitFor({ timeout: 10000 });
       const home = await cb.newPage(); await home.goto(base + '/');
       await home.locator('.community-post').first().waitFor(); await home.waitForTimeout(1000);
@@ -124,13 +125,16 @@ async function api(cookie, body) { const r = await fetch(base + '/api/community'
     });
     await step('18. Formato horizontal 16:9', async () => {
       await pb.getByRole('button', { name: 'Fechar', exact: true }).click().catch(() => {});
-      await pa.goto(base + '/'); await pa.locator('#compose-tab-live').click(); await pa.locator('[data-live-format="landscape"]').click();
-      await pa.getByRole('button', { name: 'Abrir câmera', exact: true }).click(); await pa.getByRole('button', { name: 'Começar a transmitir', exact: true }).click();
+      await pa.goto(base + '/'); await pa.locator('#compose-tab-live').click(); await pa.locator('#opy-creator[open][data-mode="live"]').waitFor();
+      if ((await pa.locator('#creator-format').textContent()).trim() !== '16:9') await pa.locator('#creator-format').click();
+      await pa.waitForFunction(() => { const v = document.getElementById('live-preview'); return v && v.videoWidth > 0; }, null, { timeout: 15000 })
+        .catch(async () => { throw new Error('câmera da live: ' + JSON.stringify(await pa.evaluate(() => { const v = document.getElementById('live-preview'); return { w: v.videoWidth, src: !!v.srcObject, live: !!document.querySelector('#opy-creator[data-step="live"]'), msg: document.getElementById('creator-camera-msg').textContent, status: document.getElementById('live-status').textContent }; }))); });
+      await pa.locator('#creator-shutter').click();
       await pa.locator('#live-pill').getByText('AO VIVO').waitFor({ timeout: 25000 });
       assert.deepEqual(await pa.evaluate(() => { const c = document.querySelector('#live-canvas'); return [c.width, c.height]; }), [1280, 720]);
       await pb.goto(base + '/'); await pb.locator(`button[aria-label="Assistir à live de ${ana.name}"]`).first().click();
       await pb.waitForFunction(() => document.querySelector('#live-viewer')?.getAttribute('data-format') === 'landscape', null, { timeout: 10000 });
-      await pa.getByRole('button', { name: 'Encerrar live', exact: true }).click(); await pa.locator('#live-status').getByText('Live encerrada').waitFor({ timeout: 25000 });
+      await pa.locator('#live-stop').click(); await pa.waitForFunction(() => document.getElementById('live-status').textContent.includes('Live encerrada'), null, { timeout: 25000 });
     });
     assert.deepEqual(errors, [], 'erros de página: ' + errors.join(' | '));
   } finally { await browser.close(); }

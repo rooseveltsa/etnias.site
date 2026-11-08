@@ -75,11 +75,12 @@ async function publishWhip(postId,key,stream){
  const pc=new RTCPeerConnection();stream.getTracks().forEach(track=>pc.addTransceiver(track,{direction:'sendonly',streams:[stream]}));preferH264(pc);
  const location=await sdpExchange(pc,'/live/'+postId+'/whip',{Authorization:'Bearer '+key});return {pc,location};
 }
-async function goLive(){
+async function goLive(opts={}){
  const status=$('#live-status');
  if(!S.cameraStream?.active){liveUi('idle');throw Error('A câmera foi fechada. Toque em "Abrir câmera" de novo.');}
  status.textContent='Conectando…';
- await change({action:'live_start',text:$('#preview-text').value.trim().slice(0,300),format:liveFormat,communityId:$('#preview-community-target')?.value||''});
+ // Título e destino vêm da tela Criar (opts) ou, no estúdio clássico, do texto e do destino do compositor.
+ await change({action:'live_start',text:String(opts.title??$('#preview-text').value).trim().slice(0,300),format:liveFormat,communityId:opts.communityId??($('#preview-community-target')?.value||'')});
  const {postId,key}=S.state.live||{};
  const stream=startComposite(liveFormat);
  S.liveSession={postId,key,format:liveFormat,pc:null,location:'',since:0,guestPc:null,guestCandidates:0,timers:[],attempts:0,chat:new Map()};
@@ -321,3 +322,5 @@ async function syncGuestAsGuest(view){
  for(const c of (sig.candidates||[]).slice(v.guestCandidates)){v.guestCandidates++;await v.guestPc.addIceCandidate(c).catch(()=>{});}
 }
 bindLiveStudio();
+// Motor da live para a tela Criar (preview/creator.js): ela só reposiciona o palco e os controles; a transmissão é a mesma.
+window.OpyLive={goLive,endLive,flipCamera,liveUi,get format(){return liveFormat;},setFormat(f){if(S.liveMode==='live'||!['portrait','landscape'].includes(f))return;liveFormat=f;liveUi(S.liveMode);}};

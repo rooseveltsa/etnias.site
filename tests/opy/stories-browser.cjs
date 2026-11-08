@@ -15,7 +15,7 @@ async function api(cookie, body) {
   return { status: r.status, data: await r.json().catch(() => ({})) };
 }
 (async () => {
-  const browser = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'], ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
+  const browser = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'], ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
   const results = [], errors = [];
   const step = async (name, fn) => { try { await fn(); results.push(['OK', name]); } catch (e) { results.push(['FALHOU', name + ' — ' + (e.message || e).toString().split('\n')[0].slice(0, 220)]); } };
   try {
@@ -223,6 +223,63 @@ async function api(cookie, body) {
       assert.equal(((await api(me.cookie)).data.stories || []).some(s => s.id === b1.id), false);
       assert.equal((await api(me.cookie, { action: 'story_seen', storyId: b1.id })).status, 404);
     });
+
+    // Tela Criar (padrão Instagram): câmera em tela cheia com Publicação · Story · Live.
+    const cctx = await browser.newContext({ locale: 'pt-BR', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ['camera', 'microphone'] });
+    const cme = await signIn(cctx, base); const cp = await cctx.newPage(); cp.on('pageerror', e => errors.push(e.message));
+    const mine = async () => ((await api(cme.cookie)).data.stories || []).filter(s => s.own);
+    const waitCam = () => cp.waitForFunction(() => { const v = document.querySelector('#opy-creator[data-mode="live"]') ? document.getElementById('live-preview') : document.getElementById('creator-preview'); return v && v.srcObject && v.videoWidth > 0; }, null, { timeout: 10000 });
+
+    await step('19. Criar: o + do story abre a câmera em tela cheia; tocar tira a foto e "Seu story" publica com legenda', async () => {
+      await cp.goto(base + '/'); await cp.locator('.community-post').first().waitFor();
+      await cp.locator('.story-create').tap(); await cp.locator('#opy-creator[open]').waitFor(); await waitCam();
+      const r = await cp.evaluate(() => { const b = document.getElementById('opy-creator').getBoundingClientRect(); return [b.width, b.height]; }); assert.deepEqual(r, [390, 844]);
+      assert.equal(await cp.locator('[data-cr-mode="story"]').getAttribute('aria-current'), 'true');
+      await cp.locator('#creator-shutter').tap(); await cp.locator('#creator-review img').waitFor();
+      await cp.fill('#creator-caption', 'Foto pela câmera'); await cp.locator('#creator-send').tap();
+      await cp.waitForFunction(() => !document.getElementById('opy-creator').open, null, { timeout: 10000 });
+      assert.ok((await mine()).some(s => s.text === 'Foto pela câmera' && s.media?.kind === 'image'));
+      assert.equal(await cp.evaluate(() => !!document.getElementById('creator-preview').srcObject), false, 'câmera desligada ao fechar');
+    });
+
+    await step('20. Criar: segurar grava vídeo; "Aa Criar" faz story de texto; galeria também entra', async () => {
+      await cp.locator('.story-create').tap(); await cp.locator('#opy-creator[open]').waitFor(); await waitCam();
+      const b = await cp.locator('#creator-shutter').boundingBox();
+      await cp.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await cp.mouse.down(); await cp.waitForTimeout(1600); await cp.mouse.up();
+      await cp.locator('#creator-review video').waitFor({ timeout: 8000 });
+      await cp.locator('#creator-send').tap(); await cp.waitForFunction(() => !document.getElementById('opy-creator').open, null, { timeout: 15000 });
+      assert.ok((await mine()).some(s => s.media?.kind === 'video'), 'story de vídeo');
+      await cp.locator('.story-create').tap(); await cp.locator('#opy-creator[open]').waitFor();
+      await cp.locator('#creator-text-mode').tap(); await cp.fill('#creator-text', 'Bom dia, parentes!'); await cp.locator('#creator-send').tap();
+      await cp.waitForFunction(() => !document.getElementById('opy-creator').open, null, { timeout: 10000 });
+      assert.ok((await mine()).some(s => s.text === 'Bom dia, parentes!' && !s.media));
+    });
+
+    await step('21. Postagem no celular abre Criar em Publicação; foto + legenda vira publicação no feed', async () => {
+      await cp.locator('.opy-bottom [data-opy-compose]').tap(); await cp.locator('#opy-creator[open][data-mode="post"]').waitFor(); await waitCam();
+      await cp.setInputFiles('#creator-file', { name: 'g.png', mimeType: 'image/png', buffer: Buffer.from(pngData.split(',')[1], 'base64') });
+      await cp.locator('#creator-review img').waitFor();
+      const text = 'Publicação pela câmera ' + stamp; await cp.fill('#creator-caption', text); await cp.locator('#creator-send').tap();
+      await cp.waitForFunction(() => !document.getElementById('opy-creator').open, null, { timeout: 10000 });
+      assert.ok(((await api(cme.cookie)).data.posts || []).some(p => p.text === text && p.media?.kind === 'image'));
+    });
+
+    await step('22. Live no Criar: título, "Compartilhar com Todos", transmitir, controles por cima e encerrar devolve o estúdio', async () => {
+      if (!(await api(cme.cookie)).data.liveEnabled) throw new Error('servidor sem live configurada (MediaMTX local)');
+      await cp.locator('.story-create').tap(); await cp.locator('#opy-creator[open]').waitFor();
+      await cp.locator('[data-cr-mode="live"]').tap(); await cp.locator('#creator-title').waitFor({ state: 'visible' }); await waitCam();
+      assert.ok((await cp.locator('#creator-audience').textContent()).includes('Compartilhar com Todos'));
+      assert.equal(await cp.evaluate(() => document.getElementById('live-stage').closest('#opy-creator') !== null), true, 'palco da live dentro do Criar');
+      await cp.fill('#creator-title', 'Live pela câmera nova'); await cp.locator('#creator-shutter').tap();
+      await cp.locator('#opy-creator[data-step="live"]').waitFor({ timeout: 20000 });
+      await cp.locator('#creator-host-tools #live-stop').waitFor({ state: 'visible' });
+      const live = ((await api(cme.cookie)).data.lives || []).find(l => l.own) || ((await api(cme.cookie)).data.posts || []).find(p => p.own && p.live?.active);
+      assert.ok(live, 'live no ar');
+      await cp.locator('#creator-host-tools #live-stop').tap();
+      await cp.waitForFunction(() => !document.getElementById('opy-creator').open, null, { timeout: 15000 });
+      assert.equal(await cp.evaluate(() => !!document.getElementById('live-stage').closest('#compose-live')), true, 'estúdio volta para o compositor');
+    });
+    await cctx.close();
 
     assert.deepEqual(errors.filter(e => !/ResizeObserver/.test(e)), [], 'sem erros de página');
   } catch (e) { results.push(['FALHOU', 'geral — ' + e.message.split('\n')[0]]); }

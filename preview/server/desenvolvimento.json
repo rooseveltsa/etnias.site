@@ -212,6 +212,11 @@
    "data": "2026-11-09",
    "titulo": "Barra superior conforme a documentação funcional: logo da casa abre o OPY e todos os destinos do menu funcionam",
    "detalhe": "O logo da casa Etnias virou o botão do menu OPY (no celular, só a casa). Blogs (77), Páginas (33), Mercado (39), Eventos (13), Filmes (1), Empregos (1) e Coleta (2) abrem páginas reais com o conteúdo recuperado do Etnias 1.0: lista com busca e categorias, detalhe com fotos e ações reais (falar com quem vende ou organiza, candidatar-se pelo chat, adicionar evento à agenda, assistir ao filme). Menu OPY com seção Criar (publicação, story, comunidade/aldeia) e rótulos do documento (Conexão, Músicas, Coleta). Publicar novos itens nessas áreas fica para a próxima etapa. Validação: header-browser.cjs (14 jornadas, incluindo as 7 áreas)."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Tela Criar no padrão Instagram (Publicação · Story · Live) e correção do nome no perfil",
+   "detalhe": "O + do story, o botão Postagem no celular e Story/Ao vivo do compositor abrem uma câmera em tela cheia com os modos embaixo: toque tira foto, segurar grava vídeo (até 15 s), galeria à esquerda, virar câmera à direita, 'Aa Criar' para story de texto, legenda e 'Seu story'/'Publicar'. Live no mesmo lugar: 'Compartilhar com Todos' (ou comunidade), 'Adicionar um título…', formato 9:16/16:9 e botão de transmitir; durante a live, palco, controles e bate-papo ficam em tela cheia (mesmo motor da live). Perfil: nome sempre abaixo da capa, selo do plano na linha do nome, botões descem em telas médias. Validação: stories-browser.cjs (22 jornadas, 4 da tela Criar com câmera falsa) e live-journeys.cjs pelo fluxo novo."
   }
  ],
  "andamento": [
