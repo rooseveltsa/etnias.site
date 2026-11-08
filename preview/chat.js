@@ -184,7 +184,7 @@ function render() {
  const ids=new Set(data.messages.map(m=>m.id));for(const [id,el] of existing)if(!ids.has(id))el.remove();
  for(const empty of document.querySelectorAll('#chat-log .chat-empty'))empty.remove();
  data.messages.forEach((m,index)=>{const showDay=index===0||dayKey(data.messages[index-1].createdAt)!==dayKey(m.createdAt);let el=existing.get(m.id);const value=JSON.stringify([m,showDay,!!selected?.group]);if(!el||el.dataset.value!==value){const next=message(m,showDay);next.dataset.value=value;if(el){const playing=el.querySelector('audio,video'),replacement=next.querySelector('audio,video');if(playing&&replacement&&playing.src===replacement.src)replacement.replaceWith(playing);el.replaceWith(next);}el=next;}if(log.children[index]!==el)log.insertBefore(el,log.children[index]||null);});
- if(!data.messages.length)log.append(node('p',query?'Nenhuma mensagem encontrada.':'A conversa começa com sua primeira mensagem.','chat-empty'));if(older)log.scrollTop=scroll+log.scrollHeight-height;else if(nearBottom)log.scrollTop=log.scrollHeight;}
+ if(!data.messages.length)log.append(node('p',query?'Nenhuma mensagem encontrada.':data.selected?'A conversa começa com sua primeira mensagem.':'Escolha uma conversa ao lado ou toque no lápis para começar uma nova.','chat-empty'));if(older)log.scrollTop=scroll+log.scrollHeight-height;else if(nearBottom)log.scrollTop=log.scrollHeight;}
  paintContext();
  paintDraft();
 }

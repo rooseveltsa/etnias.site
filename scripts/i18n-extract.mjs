@@ -22,6 +22,8 @@ for (const file of [...js, ...server]) {
   for (const m of src.matchAll(/'((?:[^'\\\n]|\\.)*)'/g)) add(m[1].replace(/\\'/g, "'"));
   for (const m of src.matchAll(/`((?:[^`\\]|\\.)*)`/g)) { let i = 0; add(m[1].replace(/\$\{[^}]*\}/g, () => `{${i++}}`)); }
 }
+// Frases montadas em tempo de execução (plural(), tempo relativo) que o varredor não vê.
+for (const extra of ['{0} participante', '{0} participantes', '{0} publicação', '{0} publicações', '{0} comentário', '{0} comentários', '{0} seguidor', '{0} seguidores', '{0} amigo', '{0} amigos', '{0} membro', '{0} membros', '{0} pessoa', '{0} pessoas']) out.add(extra);
 const list = [...out].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 writeFileSync(join(root, 'preview/i18n/source.json'), JSON.stringify(list, null, 1) + '\n');
 console.log(`${list.length} textos em preview/i18n/source.json`);

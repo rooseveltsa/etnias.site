@@ -41,7 +41,7 @@ body[data-preview-route=admin] .preview-page>h1{display:none}
 .adm-btn.is-primary{border-color:#182c34;background:#182c34;color:#fff}
 .adm-btn.is-danger{border-color:#bd171c;background:#bd171c;color:#fff}
 .adm-btn.is-danger-ghost{border-color:#f0d6d1;color:#991116}
-.adm-btn:focus-visible,.adm-tab:focus-visible{outline:3px solid #176b87;outline-offset:2px}
+.adm-btn:focus-visible,.adm-tab:focus-visible{outline:3px solid #991116;outline-offset:2px}
 .adm-pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#f1f3f0;color:#182c34;font-size:12px;font-weight:700;white-space:nowrap}
 .adm-pill.is-danger{background:#fbefec;color:#991116}
 .adm-pill.is-warn{background:#fdf3d8;color:#7a5200}

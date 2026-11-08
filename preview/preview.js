@@ -11,7 +11,9 @@ const expandedComments=new Set(), openCommentForms=new Set(), replyTargets=new M
 let profileTab='posts', dockChatKey='';
 const seenStories=new Set((()=>{try{return JSON.parse(localStorage.getItem('opy_seen_stories')||'[]');}catch{return[];}})());
 const markStorySeen=id=>{seenStories.add(id);try{localStorage.setItem('opy_seen_stories',JSON.stringify([...seenStories].slice(-200)));}catch{}};
-const date=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
+const fullDate=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
+// Tempo relativo até 7 dias, como nas redes que as pessoas já usam; depois, a data completa.
+const date=value=>{const d=(Date.now()-new Date(value).getTime())/1000;if(d<45)return 'agora';if(d<3600)return `há ${Math.max(1,Math.round(d/60))} min`;if(d<86400)return `há ${Math.round(d/3600)} h`;if(d<172800)return 'ontem';if(d<604800)return `há ${Math.round(d/86400)} dias`;return fullDate(value);};
 function showError(message){let el=$('#community-error');if(!el){el=make('p',undefined,'preview-feedback');el.id='community-error';el.setAttribute('role','alert');$('.middlecol').prepend(el);}el.textContent=message;}
 async function api(body){const response=await fetch('/api/community',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json().catch(()=>({}));if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;throw error;}return data;}
 // Estado vazio com próximo passo: título, explicação e ações (href ou função).
@@ -32,6 +34,8 @@ function toastFor(body){
  if(body.action==='community_leave')return 'Você saiu da comunidade';
  return TOASTS[body.action]||'';
 }
+function closePostMenus(){all('.post-menu').forEach(m=>{m.hidden=true;m.previousElementSibling?.setAttribute('aria-expanded','false');});}
+document.addEventListener('click',closePostMenus);document.addEventListener('keydown',e=>{if(e.key==='Escape')closePostMenus();});
 async function change(body){state=await api(body);render();const msg=toastFor(body);if(msg)toast(msg);}
 function picker(root,target){root.replaceChildren();for(const [symbol,label] of emoji){const b=button(symbol,()=>{const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();root.hidden=true;},root);b.setAttribute('aria-label',label);}root.hidden=false;}
 const glyph={
@@ -49,7 +53,7 @@ const glyph={
 };
 function svg(name){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+glyph[name]+'</svg>';}
 function clock(seconds){if(!Number.isFinite(seconds))return '0:00';const whole=Math.max(0,Math.round(seconds));return Math.floor(whole/60)+':'+String(whole%60).padStart(2,'0');}
-const plural=(n,one,many)=>n+' '+(n===1?one:many);
+const plural=(n,one,many)=>`${n} ${n===1?one:many}`;
 // O menu vem do legado ("Grupos"); na prévia o nome é Comunidades, como no resto da tela.
 document.querySelectorAll('[data-opy-destination="grupos"] span:not(.opy-pending)').forEach(el=>{el.textContent='Comunidades';});
 // Barra do celular: Comunidades ocupa o lugar do Mercado (oculto até existir), mantendo Postagem no centro.
@@ -94,7 +98,11 @@ function renderPost(post, communityContext=null){
  const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42));avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
  const who=make('div');
  const nameBtn=make('button',post.author,'author-name-btn');nameBtn.type='button';nameBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
- const metaLine=make('small',(post.origin==='legacy'?'Acervo público · ':'')+date(post.createdAt)+(post.editedAt?' · editada':'')+(post.audience==='private'?' · Somente eu':post.audience==='friends'?' · Amigos':''));
+ const metaLine=make('small');metaLine.title=fullDate(post.createdAt);
+ if(post.origin==='legacy')metaLine.append(make('span','Acervo público'),' · ');
+ const when=make('time',date(post.createdAt));when.dateTime=new Date(post.createdAt).toISOString();metaLine.append(when);
+ if(post.editedAt)metaLine.append(' ',make('span','· editada'));
+ if(post.audience==='private')metaLine.append(' ',make('span','· Somente eu'));else if(post.audience==='friends')metaLine.append(' ',make('span','· Amigos'));
  who.append(nameBtn);
  if(post.communityId&&post.communityName){
   const commLink=make('a','Comunidade · '+post.communityName,'post-community-badge');
@@ -120,8 +128,8 @@ function renderPost(post, communityContext=null){
  const sharesCount=post.shares||0;
  const form=make('form',undefined,'preview-comment-form');form.hidden=!openCommentForms.has(post.id);form.id='comment-'+post.id;
  const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário (até 500 caracteres)';input.setAttribute('aria-label','Seu comentário');
- const charCount=make('small','0/500','comment-char-count');
- input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';});
+ const charCount=make('small','0/500','comment-char-count');charCount.hidden=true;
+ input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';charCount.hidden=input.value.length<400;});
  const submit=make('button','Enviar','preview-secondary');submit.type='submit';submit.setAttribute('aria-label','Enviar comentário');
  const target=replyTargets.get(post.id);
  if(target){const chip=make('p',undefined,'comment-reply-chip');chip.append(make('span','Respondendo a '+target.author));const x=button('Cancelar',()=>{replyTargets.delete(post.id);render();},chip);x.className='pf-link';form.append(chip);input.placeholder='Escreva sua resposta…';}
@@ -168,18 +176,26 @@ function renderPost(post, communityContext=null){
  shareBtn.setAttribute('aria-expanded','false');
  const save=postAction('save','',()=>change({action:'save',postId:post.id}));save.classList.add('post-action-quiet');save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
  actions.append(reactWrap,commentBtn,heart,shareBtn,save);card.append(actions,repostForm);
- if(post.own){const edit=make('button','Editar','post-delete post-edit');edit.type='button';edit.addEventListener('click',()=>{
-  if(card.querySelector('.post-edit-form'))return;
-  const f=make('form',undefined,'post-edit-form');const ta=make('textarea');ta.value=post.text||'';ta.maxLength=5000;ta.rows=4;ta.setAttribute('aria-label','Editar publicação');
-  const save=make('button','Salvar','opy-primary');save.type='submit';const cancel=button('Cancelar',()=>f.remove(),f);f.prepend(ta);f.append(save);f.append(cancel);
-  f.addEventListener('submit',async ev=>{ev.preventDefault();save.disabled=true;try{await change({action:'post_edit',postId:post.id,text:ta.value});}catch(err){showError(err.message);save.disabled=false;}});
-  edit.after(f);ta.focus();
- });card.append(edit);}
- if(post.own){const remove=make('button','Excluir minha publicação','post-delete');remove.type='button';remove.addEventListener('click',async()=>{if(!confirm('Excluir esta publicação?'))return;try{await change({action:'delete',postId:post.id});}catch(e){showError(e.message);}});card.append(remove);}
- else if(communityContext?.canModerate&&post.communityId===communityContext.id){
-  const modRemove=make('button','Moderação: remover publicação da comunidade','post-delete');modRemove.type='button';
-  modRemove.addEventListener('click',async()=>{if(!confirm('Remover esta publicação da comunidade?'))return;try{await change({action:'community_moderate_post',communityId:communityContext.id,postId:post.id});}catch(e){showError(e.message);}});
-  card.append(modRemove);
+ // Ações da própria pessoa (e da moderação) ficam num menu ⋯ no cabeçalho, como nas redes que as pessoas já usam.
+ const menuItems=[];
+ if(post.own){
+  menuItems.push(['Editar',()=>{
+   if(card.querySelector('.post-edit-form'))return;
+   const f=make('form',undefined,'post-edit-form');const ta=make('textarea');ta.value=post.text||'';ta.maxLength=5000;ta.rows=4;ta.setAttribute('aria-label','Editar publicação');
+   const save=make('button','Salvar','opy-primary');save.type='submit';const cancel=button('Cancelar',()=>f.remove(),f);f.prepend(ta);f.append(save);f.append(cancel);
+   f.addEventListener('submit',async ev=>{ev.preventDefault();save.disabled=true;try{await change({action:'post_edit',postId:post.id,text:ta.value});}catch(err){showError(err.message);save.disabled=false;}});
+   actions.before(f);ta.focus();
+  }]);
+  menuItems.push(['Excluir publicação',async()=>{if(!confirm('Excluir esta publicação?'))return;try{await change({action:'delete',postId:post.id});}catch(e){showError(e.message);}}]);
+ }else if(communityContext?.canModerate&&post.communityId===communityContext.id){
+  menuItems.push(['Remover da comunidade (moderação)',async()=>{if(!confirm('Remover esta publicação da comunidade?'))return;try{await change({action:'community_moderate_post',communityId:communityContext.id,postId:post.id});}catch(e){showError(e.message);}}]);
+ }
+ if(menuItems.length){
+  const more=make('div',undefined,'post-more');const mb=make('button','⋯','post-more-btn');mb.type='button';mb.setAttribute('aria-label','Mais opções');mb.setAttribute('aria-haspopup','menu');mb.setAttribute('aria-expanded','false');
+  const menu=make('div',undefined,'post-menu');menu.setAttribute('role','menu');menu.hidden=true;
+  for(const [label,fn] of menuItems){const it=make('button',label,'post-menu-item'+(/^(Excluir|Remover)/.test(label)?' is-danger':''));it.type='button';it.setAttribute('role','menuitem');it.onclick=()=>{closePostMenus();fn();};menu.append(it);}
+  mb.onclick=e=>{e.stopPropagation();const open=menu.hidden;closePostMenus();menu.hidden=!open;mb.setAttribute('aria-expanded',String(open));};
+  more.append(mb,menu);head.append(more);
  }
  const COMMENT_LIMIT=2;
  const tops=post.comments.filter(c=>!c.parentId);
@@ -220,7 +236,7 @@ function paintCommunity(){
   const link=make('a',undefined,'rail-community-link');link.href='/grupos/?c='+encodeURIComponent(c.id);
   link.append(make('span',(c.name||'C').slice(0,1).toLocaleUpperCase('pt-BR'),'rail-community-mark'));
   const info=make('span',undefined,'rail-community-info');
-  const n=c.membersCount||0;info.append(make('strong',c.name),make('small',[n+(n===1?' participante':' participantes'),c.visibility==='private'?'privada':''].filter(Boolean).join(' · ')));link.title=c.category?c.name+' · '+c.category:c.name;
+  const small=make('small',plural(c.membersCount||0,'participante','participantes'));if(c.visibility==='private')small.append(' · ',make('span','Privada'));info.append(make('strong',c.name),small);link.title=c.category?c.name+' · '+c.category:c.name;
   link.append(info);li.append(link);
   if(!c.joined){
    const join=make('button',c.pending?'Pedido enviado':c.visibility==='private'?'Pedir entrada':'Participar','rail-community-join');join.type='button';join.disabled=!!c.pending;
@@ -506,7 +522,7 @@ function renderCommunities(){
     });
    },actionBar);
   }
-  button('Denunciar',()=>{
+  const reportBtn=button('Denunciar',()=>{
    openCommunityDialog('Denunciar comunidade '+current.name,'Registrar denúncia',body=>{
     const lbl=make('label','Descreva o motivo da denúncia para revisão da moderação');
     const ta=make('textarea');ta.name='reason';ta.required=true;ta.minLength=5;ta.maxLength=500;ta.rows=3;ta.placeholder='Ex.: Descumprimento das regras de convivência ou exposição indevida…';
@@ -514,7 +530,7 @@ function renderCommunities(){
    },async form=>{
     await change({action:'community_report',communityId:current.id,reason:form.elements.reason.value});
    });
-  },actionBar);
+  },actionBar);reportBtn.className='post-delete';
   headBody.append(titleRow,desc,leaderText,actionBar);
   hero.append(cover,headBody);
   detail.append(hero);
@@ -675,9 +691,6 @@ function renderCommunities(){
    top.append(av,meta);
    const desc=make('p',c.description,'community-card-desc');
    const foot=make('div',undefined,'community-card-actions');
-   const openBtn=make('button','Abrir comunidade','preview-secondary');openBtn.type='button';
-   openBtn.onclick=()=>openCommunityDetail(c.id);
-   foot.append(openBtn);
    const jLabel=c.joined?(c.id==='avaliacao-casa-opy'?'Sair da comunidade':'Participando ✓'):isPending?'Pedido enviado':isPrivate?'Pedir entrada':'Participar';
    const jBtn=button(jLabel,()=>joinCommunity(c),foot);
    jBtn.className=c.joined||isPending?'preview-secondary':'opy-primary';
