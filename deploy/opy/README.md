@@ -12,8 +12,8 @@ Validado localmente em 2026-11-07: imagem construída, container servindo com CS
 - **HTTPS:** bloco `opy.179-66-136-125.sslip.io` acrescentado a `/srv/etnias/deploy/Caddyfile` (cópia anterior em `Caddyfile.bak-20261107-201940`), apontando para `casa-opy-opy-1:8101` pela rede `etnias_frontend`.
 - **TURN:** coturn em rede do host, 3478 UDP/TCP e 49160–49260 UDP, sem TLS. Testado com `turnutils_uclient` (12 pacotes retransmitidos, 0 perdidos).
 - **Acesso:** chave `~/.ssh/casa_opy_deploy` (comentário `casa-opy-deploy`) em `/root/.ssh/authorized_keys`. Para revogar: `sed -i '/casa-opy-deploy/d' /root/.ssh/authorized_keys`.
-- **Atualizar** (da raiz do repositório, depois de exportar as páginas). Sempre envie a lista completa e **sem `--delete`**, senão arquivos irmãos de `preview/` somem no servidor:
 - **Atalho:** `bash deploy/opy/publicar.sh` faz os três passos abaixo (gerar páginas, enviar, subir) e mostra os containers no fim.
+- **Atualizar** (da raiz do repositório, depois de exportar as páginas). Sempre envie a lista completa e **sem `--delete`**, senão arquivos irmãos de `preview/` somem no servidor:
   ```bash
   rsync -az -e "ssh -i ~/.ssh/casa_opy_deploy" --relative preview/package.json preview/package-lock.json preview/server preview/middleware.js preview/public-posts.json preview/i18n preview/dist/public scripts/opy-preview-server.mjs scripts/opy-import-legacy.mjs deploy/opy/Dockerfile deploy/opy/Dockerfile.dockerignore deploy/opy/compose.yaml deploy/opy/compose.vps-caddy.yaml deploy/opy/mediamtx.yml root@179.66.136.125:/srv/casa-opy/
   ssh -i ~/.ssh/casa_opy_deploy root@179.66.136.125 'cd /srv/casa-opy/deploy/opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d --build'
