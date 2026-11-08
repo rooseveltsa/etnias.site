@@ -162,6 +162,11 @@
    "data": "2026-11-08",
    "titulo": "Chat no formato caixa de entrada, stories com interação e auditoria de usabilidade",
    "detalhe": "Fotos e seção Pessoas no chat, painel de mensagens recentes no cabeçalho; stories com carregamento visível, barra guiada pela mídia, reações rápidas, resposta pelo chat e 'Visto por'; auditoria automática de 87 telas (zero estouros, zero falhas sérias de acessibilidade) e auditoria de caminhos de clique com 30 achados corrigidos (congelamento do chat após enviar ou abrir histórico, live fantasma sem câmera, feed redesenhado a cada 20 s pausando mídia, rascunhos perdidos no painel, entre outros)."
+  },
+  {
+   "data": "2026-11-08",
+   "titulo": "Social Experience Excellence — desempenho e fluidez no celular",
+   "detalhe": "Home em Slow 4G: LCP 9,9 s → 1,9 s, CLS 0,36 → 0, 2,2 MB → 0,5 MB (cache imutável, gzip, ícones recomprimidos, preload da API). Feed redesenha só o cartão que mudou; curtir/salvar otimistas; voltar do perfil restaura a posição; stories com gestos completos, pré-carregamento e pausa fora da aba; compartilhamento nativo; teclado não cobre campos. 12 jornadas reais no celular validadas (tests/opy/journeys-mobile.cjs) e medição em tests/opy/vitals.cjs. Relatório: docs/ETNIAS_SOCIAL_EXPERIENCE.md."
   }
  ],
  "andamento": [
@@ -286,8 +291,8 @@
    "descricao": "Matriz de homologação dos 47 itens do documento 'Etnias 2.0' (estado de 2026-11-06; muitos itens avançaram desde então e a matriz será reconciliada com este painel)."
   },
   {
-   "arquivo": "docs/ETNIAS_QA_REPORT.md, docs/ETNIAS_UX_AUDIT.md, docs/ETNIAS_AUDIT.md",
-   "descricao": "Relatórios de testes, auditoria de usabilidade e auditoria técnica."
+   "arquivo": "docs/ETNIAS_QA_REPORT.md, docs/ETNIAS_UX_AUDIT.md, docs/ETNIAS_AUDIT.md, docs/ETNIAS_SOCIAL_EXPERIENCE.md",
+   "descricao": "Relatórios de testes, auditoria de usabilidade, auditoria técnica e o ciclo de fluidez/desempenho no celular (linha de base × resultado, jornadas)."
   },
   {
    "arquivo": "docs/ETNIAS_DESIGN_SYSTEM.md, docs/ETNIAS_UX_ARCHITECTURE.md, docs/ETNIAS_REFERENCIA_FACEBOOK.md",

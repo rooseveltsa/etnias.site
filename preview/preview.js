@@ -56,13 +56,24 @@ function closePostMenus(){all('.post-menu').forEach(m=>{m.hidden=true;m.previous
 document.addEventListener('click',closePostMenus);document.addEventListener('keydown',e=>{if(e.key==='Escape')closePostMenus();});
 // Uma atualização periódica que começou antes de uma ação não pode sobrescrever o resultado dela.
 let feedGen=0;
+// Reação e salvar: mostra o resultado na hora e confirma com o servidor; se falhar, volta ao estado anterior.
+async function optimistic(post,patch,body){
+ const before={reaction:post.reaction,reactions:{...post.reactions},saved:post.saved};
+ Object.assign(post,patch);for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,post);render();
+ try{await change(body);}catch(error){Object.assign(post,before);for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,post);render();throw error;}
+}
+function reactPatch(post,next){const reactions={...post.reactions};if(post.reaction)reactions[post.reaction]=Math.max(0,(reactions[post.reaction]||1)-1);if(next)reactions[next]=(reactions[next]||0)+1;return {reaction:next,reactions};}
 async function change(body){const next=await api(body);feedGen++;const touched=next.touched;delete next.touched;state=next;
  if(touched){for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,touched);if(feed.pinned?.id===touched.id)feed.pinned=touched;}
  else if(body.action==='delete'||body.action==='community_moderate_post'){dropPost(body.postId);if(feed.pinned?.id===body.postId)feed.pinned=null;}
  if(['friend','follow','community_accept_invite','community_decline_invite','community_approve','community_reject'].includes(body.action))notifData.loaded=false;
  // Só a publicação própria volta ao topo do feed; excluir e repostar já atualizam o que está carregado (sem perder a paginação).
  if(body.action==='publish'){feed.key='';profileData.key='';communityPosts.id='';}
- if(body.action==='follow'){const d=(state.directory||[]).find(p=>p.key===body.authorKey);for(const l of [feed.posts,profileData.posts,communityPosts.posts])(l||[]).forEach(p=>{if(p.authorKey===body.authorKey&&d)p.following=d.following;});}
+ if(body.action==='follow'){const d=(state.directory||[]).find(p=>p.key===body.authorKey);const person=profileData.key===body.authorKey?profileData.person:null;
+  // A pessoa pode não estar no diretório (top 20): sem ela, a resposta do servidor é o inverso do estado anterior.
+  const following=d?d.following:person?!person.following:undefined;
+  if(following!==undefined){for(const l of [feed.posts,profileData.posts,communityPosts.posts])(l||[]).forEach(p=>{if(p.authorKey===body.authorKey)p.following=following;});
+   if(person&&person.following!==following){person.following=following;person.followersCount=Math.max(0,(person.followersCount||0)+(following?1:-1));profileSignature='';}}}
  render();const msg=toastFor(body);if(msg)toast(msg);}
 // Seletor de emojis com busca, categorias e recentes. `onPick` fecha o que o abriu (caixa do comentário, diálogo do chat).
 function picker(root,target,onPick=()=>{root.hidden=true;}){
@@ -159,7 +170,7 @@ function bindMediaTaps(box,item,onTap){
  box.addEventListener('click',e=>{
   if(e.target.closest('.post-media-counter'))return;
   const now=Date.now();
-  if(now-last<320){clearTimeout(timer);last=0;heartBurst(box);if(item.id&&item.reaction!=='heart')change({action:'react',postId:item.id,reaction:'heart'}).catch(err=>showError(err.message));return;}
+  if(now-last<320){clearTimeout(timer);last=0;heartBurst(box);if(item.id&&item.reaction!=='heart')optimistic(item,reactPatch(item,'heart'),{action:'react',postId:item.id,reaction:'heart'}).catch(err=>showError(err.message));return;}
   last=now;timer=setTimeout(()=>{last=0;onTap();},320);
  });
 }
@@ -179,11 +190,14 @@ function mediaBlock(item,urls){
  bindMediaTaps(box,item,()=>openLightbox(urls,current(),item.author));
  return box;
 }
-let videoObserver=null;
+let nearObserver=null;let videoObserver=null;
 function autoplayWhenVisible(video){
  if(!('IntersectionObserver' in window)||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
  videoObserver||=new IntersectionObserver(entries=>{for(const e of entries){const v=e.target;if(e.intersectionRatio>=0.6){if(v.paused&&!v.dataset.userPaused)v.play().catch(()=>{});}else if(!v.paused){v.dataset.autoPaused='1';v.pause();}}},{threshold:[0,0.6]});
  videoObserver.observe(video);
+ // Perto da tela, carrega só os metadados (tamanho e duração): o quadro ganha a altura certa antes de aparecer, sem baixar o vídeo inteiro.
+ nearObserver||=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){e.target.preload='metadata';nearObserver.unobserve(e.target);}},{rootMargin:'900px'});
+ nearObserver.observe(video);
  video.addEventListener('pause',()=>{if(video.dataset.autoPaused)delete video.dataset.autoPaused;else video.dataset.userPaused='1';});
  video.addEventListener('play',()=>{delete video.dataset.userPaused;all('video.preview-post-video').forEach(o=>{if(o!==video&&!o.paused){o.dataset.autoPaused='1';o.pause();}});});
 }
@@ -197,7 +211,7 @@ function liveBlock(item){
 }
 function videoBlock(item){
  const box=make('div',undefined,'post-media post-media-video');box.dataset.count='1';
- const video=document.createElement('video');video.className='preview-post-video';video.src=item.media.url;video.controls=true;video.preload='metadata';video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label','Vídeo da publicação de '+item.author);
+ const video=document.createElement('video');video.className='preview-post-video';video.src=item.media.url;video.controls=true;video.preload='none';video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label','Vídeo da publicação de '+item.author);
  box.append(video);autoplayWhenVisible(video);return box;
 }
 function openLightbox(urls,index,author){
@@ -286,6 +300,7 @@ function renderPost(post, communityContext=null){
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
  const repostInput=make('input');repostInput.maxLength=1000;repostInput.placeholder='Adicione um comentário ao repostar (opcional)…';repostInput.setAttribute('aria-label','Comentário do repost');
  const repostSubmit=make('button','Repostar agora','opy-primary');repostSubmit.type='submit';
+ if(navigator.share){const shareNative=make('button','Compartilhar…','preview-secondary');shareNative.type='button';shareNative.onclick=()=>navigator.share({title:'Casa Opy · '+post.author,text:(post.text||'').slice(0,140),url:location.origin+'/#post-'+post.id}).catch(()=>{});repostForm.append(shareNative);}
  const copyLink=make('button','Copiar link','preview-secondary');copyLink.type='button';
  copyLink.onclick=async()=>{const url=location.origin+'/#post-'+post.id;try{await navigator.clipboard.writeText(url);copyLink.textContent='Link copiado ✓';setTimeout(()=>{copyLink.textContent='Copiar link';},1800);}catch{prompt('Link da publicação:',url);}};
  repostForm.append(repostInput,repostSubmit,copyLink);
@@ -312,19 +327,19 @@ function renderPost(post, communityContext=null){
  const reactWrap=make('div',undefined,'post-react');
  // O botão mostra a reação escolhida (Curti, Amei, Haha…); tocar de novo desfaz; segurar abre a bandeja.
  const chosen=reactions.find(([id])=>id===post.reaction);
- const like=postAction(chosen?chosen[0]:'like',chosen?chosen[2]:'Curtir',()=>{if(like.dataset.held==='1'){like.dataset.held='';return;}return change({action:'react',postId:post.id,reaction:post.reaction?'':'like'});});
+ const like=postAction(chosen?chosen[0]:'like',chosen?chosen[2]:'Curtir',()=>{if(like.dataset.held==='1'){like.dataset.held='';return;}return optimistic(post,reactPatch(post,post.reaction?'':'like'),{action:'react',postId:post.id,reaction:post.reaction?'':'like'});});
  like.classList.add('post-react-main');if(chosen)like.classList.add('is-'+chosen[0]);
  like.setAttribute('aria-pressed',String(!!post.reaction));like.setAttribute('aria-haspopup','true');
  let hold;like.addEventListener('pointerdown',()=>{like.dataset.held='';hold=setTimeout(()=>{like.dataset.held='1';reactWrap.classList.add('is-open');},450);});
  const endHold=()=>clearTimeout(hold);like.addEventListener('pointerup',endHold);like.addEventListener('pointercancel',endHold);like.addEventListener('contextmenu',event=>event.preventDefault());
  const tray=make('div',undefined,'post-react-tray');tray.setAttribute('role','group');tray.setAttribute('aria-label','Reações');
- for(const [id,icon,label] of [['like','like','Curti'],['heart','heart','Amei'],['laugh','laugh','Haha'],['wow','wow','Surpresa'],['sad','sad','Triste']]){const choice=postAction(icon,'',()=>change({action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));tray.append(choice);}
+ for(const [id,icon,label] of [['like','like','Curti'],['heart','heart','Amei'],['laugh','laugh','Haha'],['wow','wow','Surpresa'],['sad','sad','Triste']]){const choice=postAction(icon,'',()=>optimistic(post,reactPatch(post,post.reaction===id?'':id),{action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));tray.append(choice);}
  reactWrap.append(like,tray);
  const commentBtn=postAction('comment','Comentar',()=>{form.hidden=!form.hidden;if(form.hidden)openCommentForms.delete(post.id);else openCommentForms.add(post.id);commentBtn.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)input.focus();});
  commentBtn.setAttribute('aria-expanded',String(!form.hidden));commentBtn.setAttribute('aria-controls',form.id);
  const shareBtn=postAction('share','Repostar',()=>{repostForm.hidden=!repostForm.hidden;shareBtn.setAttribute('aria-expanded',String(!repostForm.hidden));if(!repostForm.hidden)repostInput.focus();});
  shareBtn.setAttribute('aria-expanded','false');
- const save=postAction('save','',()=>change({action:'save',postId:post.id}));save.classList.add('post-action-quiet');save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
+ const save=postAction('save','',()=>optimistic(post,{saved:!post.saved},{action:'save',postId:post.id}));save.classList.add('post-action-quiet');save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
  actions.append(reactWrap,commentBtn,shareBtn,save);card.append(actions,repostForm);
  // Ações da própria pessoa (e da moderação) ficam num menu ⋯ no cabeçalho, como nas redes que as pessoas já usam.
  const menuItems=[];
@@ -464,8 +479,9 @@ async function loadMoreFeed(){
 }
 // Comunicados da administração no topo do feed e atalho para o Centro de gestão de quem modera.
 // Primeiros passos de quem chegou agora: some quando tudo está feito ou quando a pessoa fecha.
-function paintWelcome(){
- const feed=$('#preview-feed');if(!feed||!state?.me)return;
+// Entra como primeiro cartão do feed (no lugar do esqueleto), para não empurrar a página quando os dados chegam.
+function welcomeCard(){
+ if(!state?.me)return null;
  const key='opy-welcome-closed-'+state.me.id;let closed=false;try{closed=localStorage.getItem(key)==='1';}catch{}
  const steps=[
   ['Coloque uma foto no perfil',!!state.me.avatar,'/perfil/'],
@@ -475,9 +491,8 @@ function paintWelcome(){
   ['Faça sua primeira publicação',((state.directory||[]).find(p=>p.own)?.postsCount||0)>0||state.posts.some(p=>p.own),()=>{const t=$('#opy-compose textarea');t?.scrollIntoView({block:'center'});t?.focus();}]
  ];
  const done=steps.filter(s=>s[1]).length;
- let box=$('#opy-welcome');
- if(closed||done===steps.length){box?.remove();return;}
- if(!box){box=make('section',undefined,'opy-welcome');box.id='opy-welcome';box.setAttribute('aria-labelledby','opy-welcome-title');($('.feed-chips')||feed).before(box);}
+ if(closed||done===steps.length)return null;
+ const box=make('section',undefined,'opy-welcome');box.id='opy-welcome';box.setAttribute('aria-labelledby','opy-welcome-title');box.dataset.sig=done+'|'+steps.map(s=>Number(s[1])).join('');
  const head=make('div',undefined,'opy-welcome-head');const h=make('h2',`Boas-vindas à Casa Opy, ${state.me.name.split(' ')[0]}`);h.id='opy-welcome-title';
  const close=make('button','✕','opy-welcome-close');close.type='button';close.setAttribute('aria-label','Fechar primeiros passos');close.onclick=()=>{try{localStorage.setItem(key,'1');}catch{}box.remove();};
  head.append(h,close);
@@ -485,6 +500,7 @@ function paintWelcome(){
  const list=make('ol',undefined,'opy-welcome-steps');
  for(const [label,ok,go] of steps){const li=make('li',undefined,ok?'is-done':'');const el=ok?make('span',label):typeof go==='string'?make('a',label):make('button',label);if(!ok){if(typeof go==='string')el.href=go;else{el.type='button';el.onclick=go;}}li.append(el);list.append(li);}
  box.replaceChildren(head,make('p',`${done} de ${steps.length} passos para aproveitar a rede.`,'opy-welcome-sub'),bar,list);
+ return box;
 }
 function paintAnnouncements(){
  if((state?.me?.role||state?.i18n?.translates?.length)&&!$('.opy-admin-link')){const anchor=$('.notification-container');if(anchor){const a=make('a',state.me.role?'Gestão':'Traduções','opy-admin-link');a.href=state.me.role?'/admin/':'/admin/#traducoes';a.title='Centro de gestão';anchor.before(a);}}
@@ -932,7 +948,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   else if(badge)badge.remove();
  }
  paintCommunity();
- paintAnnouncements();paintWelcome();
+ paintAnnouncements();
  renderCommunities();
  const stories=$('#story-list');if(stories&&Array.isArray(state.stories)){
   // Stories em anel: círculo com a foto, borda viva quando ainda não visto, cinza depois. A mídia aparece no visualizador.
@@ -965,12 +981,23 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   const posts=fs.posts;
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
-  const feedSig=JSON.stringify([key,saved,suggestionsClosed,fs.loading,fs.hasMore,view,fs.pinned?.id,(state.directory||[]).map(p=>p.key+p.following),posts.map(p=>[p.id,p.reaction,p.comments?.length,p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id])]);
-  if(feedEl.dataset.sig!==feedSig){feedEl.dataset.sig=feedSig;
+  const welcome=!key&&!saved?welcomeCard():null;
+  const postSig=p=>JSON.stringify([p.reaction,p.comments?.length,p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
+  const frameSig=JSON.stringify([key,saved,suggestionsClosed,fs.loading,fs.hasMore,view,fs.pinned?.id,welcome?.dataset.sig||'',posts.map(p=>p.id)]);
+  const sugSig=JSON.stringify((state.directory||[]).map(p=>p.key+p.following));
+  const feedSig=frameSig+sugSig+posts.map(postSig).join('');
+  // Só a publicação que mudou (curtida, comentário, edição) é trocada no lugar: o resto do feed e a posição de leitura ficam como estão.
+  if(feedEl.dataset.sig!==feedSig&&feedEl.dataset.frame===frameSig&&feedEl._sigs){
+   for(const p of posts){const sig=postSig(p);if(feedEl._sigs.get(p.id)!==sig){const card=document.getElementById('post-'+p.id);if(card){const draft=$('.preview-comment-form input',card)?.value||'';const fresh=renderPost(p);const input=$('.preview-comment-form input',fresh);if(input&&draft&&!input.value)input.value=draft;card.replaceWith(fresh);}feedEl._sigs.set(p.id,sig);}}
+   if(feedEl.dataset.sug!==sugSig){feedEl.dataset.sug=sugSig;const old=$('.opy-suggest',feedEl);const sug=!key&&!saved&&!suggestionsClosed?suggestionsRow():null;if(old&&sug)old.replaceWith(sug);else if(old)old.remove();}
+   feedEl.dataset.sig=feedSig;
+  }
+  if(feedEl.dataset.sig!==feedSig){feedEl.dataset.sig=feedSig;feedEl.dataset.frame=frameSig;feedEl.dataset.sug=sugSig;feedEl._sigs=new Map(posts.map(p=>[p.id,postSig(p)]));
   const drafts=new Map(all('.community-post',feedEl).map(card=>[card.id,{text:$('.preview-comment-form input',card)?.value||'',open:!$('.preview-comment-form',card)?.hidden}]));
   const feed=feedEl;
   const cards=posts.map(p=>renderPost(p));
   if(!key&&!saved&&!suggestionsClosed){const sug=suggestionsRow();if(sug)cards.splice(Math.min(2,cards.length),0,sug);}
+  if(welcome)cards.unshift(welcome);
   if(fs.pinned&&!posts.some(p=>p.id===fs.pinned.id)){const wrap=make('section',undefined,'opy-pinned');wrap.setAttribute('aria-label','Publicação aberta pelo link');const bar=make('div',undefined,'opy-pinned-bar');bar.append(make('strong','Publicação'));const back=button('Ver feed',()=>{fs.pinned=null;history.replaceState(null,'',location.pathname+location.search);render();},bar);back.className='pf-link';wrap.append(bar,renderPost(fs.pinned));cards.unshift(wrap);}
   feed.replaceChildren(...cards);
   if(fs.loading&&!posts.length)feed.append(make('div',undefined,'opy-skeleton'),make('div',undefined,'opy-skeleton'));
@@ -983,6 +1010,10 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
     :view==='discover'?emptyState('Você já segue todo mundo','Quem publicou por aqui já está no seu feed.',[['Ver tudo',()=>showView('news')]])
     :emptyState('Nada neste filtro','Ainda não há publicações deste tipo.',[['Ver tudo',()=>showView('news')]]));
   }
+  if(fs.restoreY){const y=fs.restoreY,anchor=fs.restoreAnchor;fs.restoreY=0;fs.restoreAnchor=null;
+   // Alinha a publicação âncora e repete enquanto fotos e vídeos acima ganham altura; para se a pessoa já rolou.
+   let placed=null;const align=()=>{if(placed!==null&&Math.abs(window.scrollY-placed)>2)return;const card=anchor&&document.getElementById(anchor.id);const target=card?Math.max(0,card.getBoundingClientRect().top+window.scrollY-anchor.top):y;window.scrollTo(0,target);placed=window.scrollY;};
+   requestAnimationFrame(align);[400,1200,2500].forEach(ms=>setTimeout(align,ms));}
   if(posts.length&&fs.hasMore){const more=button('Ver publicações anteriores',loadMoreFeed,feed);more.className='feed-more';more.id='feed-more';if('IntersectionObserver' in window){new IntersectionObserver((entries,obs)=>{if(entries[0].isIntersecting){obs.disconnect();more.click();}},{rootMargin:'600px 0px'}).observe(more);}}
   }
  }
@@ -1114,7 +1145,21 @@ function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-regi
  login.onsubmit=event=>{event.preventDefault();submit(login,'login');};
  register.onsubmit=event=>{event.preventDefault();submit(register,'register');};
 }
-async function refresh(){try{const g=feedGen;const next=await api();if(g!==feedGen)return;state=next;if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(state.me?.mustChangePassword)openPasswordDialog(true);if(!all('#preview-feed input, #preview-feed textarea').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
+// Ao voltar de um perfil ou publicação, o feed reaparece como estava (mesmas publicações, mesma posição), sem recarregar do zero.
+const FEED_RESTORE='opy_feed_restore';
+if(document.body.dataset.previewRoute==='home'){
+ try{history.scrollRestoration='manual';}catch{}
+ // Guarda a publicação que estava no alto da tela (e não só os pixels): as imagens carregam em outra ordem na volta.
+ window.addEventListener('pagehide',()=>{try{if(!feed.posts.length)return;const card=all('.community-post').find(c=>c.getBoundingClientRect().bottom>220)||null;sessionStorage.setItem(FEED_RESTORE,JSON.stringify({posts:feed.posts.slice(0,90),hasMore:feed.hasMore,y:window.scrollY,anchor:card?.id||'',anchorTop:card?card.getBoundingClientRect().top:0,view,at:Date.now()}));}catch{}});
+}
+function restoreFeedFromSession(){
+ if(document.body.dataset.previewRoute!=='home'||feed.posts.length)return;
+ try{const saved=JSON.parse(sessionStorage.getItem(FEED_RESTORE)||'null');sessionStorage.removeItem(FEED_RESTORE);
+  if(!saved||Date.now()-saved.at>15*60*1000||performance.getEntriesByType('navigation')[0]?.type!=='back_forward')return;
+  if(saved.view&&saved.view!==view){view=saved.view;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v.dataset.feedView===view)));}
+  feed.posts=saved.posts;feed.hasMore=saved.hasMore;feed.restoreY=saved.y||1;feed.restoreAnchor=saved.anchor?{id:saved.anchor,top:saved.anchorTop}:null;}catch{}
+}
+async function refresh(){try{const g=feedGen;const next=await api();if(g!==feedGen)return;state=next;restoreFeedFromSession();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(state.me?.mustChangePassword)openPasswordDialog(true);if(!all('#preview-feed input, #preview-feed textarea').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
 all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();});$('#feed-location-query')?.addEventListener('input',()=>render());
 // Barra de modalidades fixa sob o cabeçalho; ganha sombra quando os Stories saem da tela (doc. 5.1 e 6.1).
 (()=>{const bar=$('.feed-chips'),stories=$('.story-section'),top=$('.opy-topbar');if(!bar)return;
@@ -1172,6 +1217,19 @@ function paintStoryActions(item){
  form.onsubmit=async e=>{e.preventDefault();const copy=input.value.trim();if(!copy)return;send.disabled=true;try{await api({action:'story_reply',storyId:item.id,text:copy});input.value='';input.blur();toast('Resposta enviada no chat de '+item.author.split(' ')[0]+'.');storyPaused=false;storyLastTick=performance.now();}catch(error){showError(error.message);}finally{send.disabled=false;}};
  form.append(input,send);box.append(row,form);
 }
+// Deslizar para o lado troca de autor (como entre contas no Instagram); toques trocam de story dentro do mesmo autor.
+function jumpStoryAuthor(dir){
+ const list=activeStories();const current=list[storyIndex];if(!current)return;
+ const authorOf=s=>s.authorKey||s.author;
+ if(dir>0){const next=list.findIndex((s,i)=>i>storyIndex&&authorOf(s)!==authorOf(current));if(next<0){$('#story-viewer')?.close();return;}openStoryAt(next);return;}
+ let i=storyIndex;while(i>0&&authorOf(list[i-1])===authorOf(current))i--;
+ if(i===storyIndex&&i>0){const prevAuthor=authorOf(list[i-1]);while(i>0&&authorOf(list[i-1])===prevAuthor)i--;}
+ openStoryAt(i);
+}
+let storyPreload=null;
+function preloadStory(item){if(!item?.media)return;storyPreload=make(item.media.kind==='video'?'video':'img');if(item.media.kind==='video'){storyPreload.preload='auto';storyPreload.muted=true;}storyPreload.src=item.media.url;}
+document.addEventListener('visibilitychange',()=>{if(!$('#story-viewer')?.open)return;const v=$('#story-viewer-media video');if(document.hidden){storyPaused=true;v?.pause();}else{storyPaused=false;storyLastTick=performance.now();v?.play().catch(()=>{});}});
+$('.story-viewer-who')?.addEventListener('click',()=>{const item=activeStories()[storyIndex];if(item?.authorKey)openProfile(item.authorKey);});
 function openStory(item){
  const list=activeStories();const idx=list.findIndex(s=>s.id===item.id);
  if(idx<0){refresh();return;}
@@ -1208,7 +1266,7 @@ function openStoryAt(index){
   element.addEventListener('error',()=>{ready();media.replaceChildren(make('p','Não foi possível carregar este arquivo. Feche e tente abrir o story novamente.'));});
   media.append(element);
  }
- $('#story-viewer-time').textContent=storyTime(item.createdAt);
+ $('#story-viewer-time').textContent=storyTime(item.createdAt);preloadStory(list[storyIndex+1]);
  const remove=$('#story-delete');remove.hidden=!item.own;remove.onclick=async()=>{if(!confirm('Excluir este story?'))return;remove.disabled=true;try{await change({action:'story_delete',storyId:item.id});viewer.close();}catch(error){showError(error.message);}finally{remove.disabled=false;}};
  storyExpiry=setTimeout(()=>{viewer.close();refresh();},Math.max(1000,item.expiresAt-Date.now()));
  if(!viewer.open)viewer.showModal();
@@ -1230,6 +1288,7 @@ const releaseStoryHold=event=>{
  if(event?.type==='pointerup'){
   const dy=event.clientY-swipeStartY,dx=event.clientX-swipeStartX;
   if(dy>75&&Math.abs(dy)>Math.abs(dx)*1.4){suppressTap=true;$('#story-viewer')?.close();return;}
+  if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.4){suppressTap=true;jumpStoryAuthor(dx<0?1:-1);return;}
  }
  if(held>=200)suppressTap=true;
 };

@@ -109,7 +109,7 @@ function Etnias_OpyIcon($name) {
         'etnia' => 'icons/etnia.png'
     );
     if (isset($pictures[$name])) {
-        return '<img class="opy-icon opy-picture" src="' . Etnias_OpyEscape(Etnias_OpyAsset($pictures[$name])) . '" alt="" width="64" height="64">';
+        return '<img class="opy-icon opy-picture" src="' . Etnias_OpyEscape(Etnias_OpyAsset($pictures[$name])) . '" alt="" width="64" height="64" loading="lazy" decoding="async">';
     }
     $paths = array(
         'apps' => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',

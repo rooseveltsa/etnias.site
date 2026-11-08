@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { gzipSync } from 'node:zlib';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
 import handler from '../preview/server/community.mjs';
@@ -49,6 +50,20 @@ async function serveLegacy(req, res, pathname) {
   if (!file) return notFound();
   sendFile(req, res, file, info, legacyTypes[extname(file).toLowerCase()]);
 }
+// Respostas de texto (JSON da API, JS, CSS, HTML) saem comprimidas quando o navegador aceita: o snapshot do feed cai de ~250 KB
+// para ~40 KB, o que em rede lenta é a diferença entre a tela aparecer em 6 s ou em 2 s. Arquivos de mídia seguem como estão.
+function compressText(req, res) {
+  if (!/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return;
+  const end = res.end.bind(res);
+  res.end = (body, ...rest) => {
+    const type = String(res.getHeader('content-type') || '');
+    if (body && (typeof body === 'string' || Buffer.isBuffer(body)) && Buffer.byteLength(body) > 1024 && !res.getHeader('content-encoding') && /json|javascript|css|html|text|svg|manifest/.test(type)) {
+      res.setHeader('Content-Encoding', 'gzip'); res.setHeader('Vary', 'Accept-Encoding'); res.removeHeader('Content-Length');
+      return end(gzipSync(body), ...rest);
+    }
+    return end(body, ...rest);
+  };
+}
 const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json','.json':'application/json; charset=utf-8' };
 const port = Number(process.env.PORT) || 8101;
 // Na VPS o container precisa ouvir 0.0.0.0; o proxy HTTPS do host fica na frente. Localmente segue em 127.0.0.1.
@@ -70,6 +85,7 @@ http.createServer(async (req, res) => {
   const pathname = url.pathname;
   const path = pathname.replace(/\/$/, '') || '/';
   if (pathname.startsWith('/legado/')) return await serveLegacy(req, res, pathname);
+  compressText(req, res);
   if (pathname.startsWith('/live/') && !pathname.startsWith('/live/recordings/')) return await proxyLive(req, res, pathname);
   if (path === '/api/community' || path === '/api/media' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
     if (req.method === 'POST') {
@@ -82,7 +98,10 @@ http.createServer(async (req, res) => {
   if (gate) { res.writeHead(gate.status, Object.fromEntries(gate.headers)); return res.end(); }
   const file = resolve(root, '.' + decodeURIComponent(pathname) + (pathname.endsWith('/') ? 'index.html' : ''));
   if (!file.startsWith(root + sep) || !types[extname(file)]) { res.writeHead(404); return res.end(); }
-  try { res.setHeader('Content-Type', types[extname(file)]); res.end(await readFile(file)); } catch { res.writeHead(404); res.end(); }
+  // Assets com versão na URL (?v=) nunca mudam: o navegador guarda por um ano e as páginas seguintes não baixam 1,8 MB de novo.
+  // Páginas HTML são revalidadas a cada visita; o resto fica uma hora.
+  const cache = url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : extname(file) === '.html' ? 'no-cache' : 'public, max-age=3600';
+  try { res.setHeader('Content-Type', types[extname(file)]); res.setHeader('Cache-Control', cache); res.end(await readFile(file)); } catch { res.writeHead(404); res.end(); }
  } catch { if (!res.headersSent) res.writeHead(400); res.end('Requisição inválida.'); }
 }).on('error', error => {
   console.error(error.code === 'EADDRINUSE' ? `A porta ${port} está ocupada. Feche a outra prévia ou use PORT=8102 node scripts/dev-opy.mjs.` : error.message);
