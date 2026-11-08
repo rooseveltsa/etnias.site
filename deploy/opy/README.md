@@ -25,7 +25,7 @@ Validado localmente em 2026-11-07: imagem construída, container servindo com CS
   ```bash
   ssh -i ~/.ssh/casa_opy_deploy root@179.66.136.125 'cd /srv/casa-opy/deploy/opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env stop opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env run --rm -v /srv/casa-opy/legacy-import.json:/import.json:ro opy node scripts/opy-import-legacy.mjs --state /data --input /import.json && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d opy'
   ```
-  A mesclagem é idempotente (ids derivados do `legacyId`); rodar de novo não duplica nada. Contas antigas entram com a senha original (bcrypt) e são migradas para scrypt na primeira entrada.
+  A mesclagem é idempotente (ids derivados do `legacyId`); rodar de novo não duplica nada. Conta antiga cujo @ já existe na Casa Opy é relatada como conflito e fica de fora; se o responsável confirmar que é a mesma pessoa, acrescente `--link user1,user2` e a conta nova herda o conteúdo antigo (senha e foto novas mantidas). Contas antigas entram com a senha original (bcrypt) e são migradas para scrypt na primeira entrada.
 
 ## Backup e reserva na Vercel (2026-11-07)
 

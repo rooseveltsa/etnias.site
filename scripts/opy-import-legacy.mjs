@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Mescla preview/legacy/legacy-import.json (gerado por scripts/import-legacy.py) no community.json da Casa Opy.
 // Idempotente: ids determinísticos a partir do legacyId; nunca remove nada; não toca em contas que não vieram do legado.
-// Uso: node scripts/opy-import-legacy.mjs --state <OPY_LOCAL_DATA_DIR> --input preview/legacy/legacy-import.json [--dry-run]
+// Uso: node scripts/opy-import-legacy.mjs --state <OPY_LOCAL_DATA_DIR> --input preview/legacy/legacy-import.json [--dry-run] [--link user1,user2]
+// --link: usernames em conflito que o responsável confirmou serem a mesma pessoa (a conta nova herda o conteúdo antigo).
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -23,23 +24,31 @@ function initialState() {
 }
 const union = (list, items) => [...new Set([...(Array.isArray(list) ? list : []), ...items])];
 
-export function mergeLegacy(state, input) {
-  const report = { accounts: { created: 0, updated: 0, skipped: 0 }, posts: { created: 0, updated: 0, skipped: 0 }, communities: { created: 0, updated: 0 }, follows: 0, friends: 0, conflicts: [] };
+// options.link: usernames que o responsável confirmou serem a mesma pessoa da conta antiga;
+// a conta existente recebe o legacyId e passa a ser a autora do conteúdo do legado (senha nova mantida).
+export function mergeLegacy(state, input, { link = [] } = {}) {
+  const report = { accounts: { created: 0, updated: 0, skipped: 0, linked: 0 }, posts: { created: 0, updated: 0, skipped: 0 }, communities: { created: 0, updated: 0 }, follows: 0, friends: 0, conflicts: [] };
   state.accounts ||= []; state.posts ||= []; state.communities ||= []; state.follows ||= {}; state.friends ||= {};
   const byId = new Map(state.accounts.map(a => [a.id, a]));
   const byUsername = new Map(state.accounts.map(a => [a.username, a]));
+  const byLegacyId = new Map(state.accounts.filter(a => a.legacyId !== undefined).map(a => [a.legacyId, a]));
+  const linkable = new Set(link);
   const imported = new Map(); // legacyId → conta no estado
 
   for (const a of input.accounts) {
     const id = accountIdOf(a.legacyId);
-    const existing = byId.get(id);
+    let existing = byId.get(id) || byLegacyId.get(a.legacyId);
     const clash = byUsername.get(a.username);
-    if (!existing && clash) { report.conflicts.push({ type: 'username', legacyId: a.legacyId, username: a.username, existingId: clash.id }); report.accounts.skipped++; continue; }
+    if (!existing && clash) {
+      if (!linkable.has(a.username)) { report.conflicts.push({ type: 'username', legacyId: a.legacyId, username: a.username, existingId: clash.id }); report.accounts.skipped++; continue; }
+      existing = clash; report.accounts.linked++;
+    }
     const fields = { username: a.username, name: a.name, bio: a.bio, googleKey: a.googleKey, phone: a.phone, avatarUrl: a.avatarUrl, coverUrl: a.coverUrl, createdAt: a.createdAt, lastSeenAt: a.lastSeenAt, verified: a.verified, legacyId: a.legacyId, legacyPassword: a.legacyPassword };
     if (existing) {
       let changed = false;
       for (const [k, v] of Object.entries(fields)) {
         if (k === 'username' || k === 'legacyPassword') continue;
+        if ((k === 'avatarUrl' && existing.avatarId) || (k === 'coverUrl' && existing.coverId)) continue; // foto enviada na Casa Opy prevalece
         if ((existing[k] === undefined || existing[k] === '' || existing[k] === 0 || existing[k] === null) && v !== '' && v !== 0 && v !== undefined) { existing[k] = v; changed = true; }
       }
       // legacyPassword só enquanto a conta ainda não tem senha própria nem bcrypt.
@@ -131,6 +140,7 @@ async function main() {
   const args = process.argv.slice(2);
   const opt = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   const dir = opt('--state'), inputPath = opt('--input') || 'preview/legacy/legacy-import.json', dryRun = args.includes('--dry-run');
+  const link = (opt('--link') || '').split(',').map(s => s.trim()).filter(Boolean);
   if (!dir) throw new Error('Informe --state <diretório do OPY_LOCAL_DATA_DIR>.');
   const started = Date.now();
   const input = JSON.parse(await readFile(inputPath, 'utf8'));
@@ -138,7 +148,7 @@ async function main() {
   let state, exists = true;
   try { state = JSON.parse(await readFile(statePath, 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; state = initialState(); exists = false; }
-  const report = mergeLegacy(state, input);
+  const report = mergeLegacy(state, input, { link });
   console.log(JSON.stringify({ ...report, conflicts: report.conflicts.length, elapsedMs: Date.now() - started }, null, 2));
   for (const c of report.conflicts.slice(0, 50)) console.log('conflito:', JSON.stringify(c));
   if (report.conflicts.length > 50) console.log(`... e mais ${report.conflicts.length - 50} conflitos`);

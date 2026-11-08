@@ -70,3 +70,22 @@ test('mesclagem: idempotente, conflito de usuário, comunidade, amizade e reaç�
   assert.deepEqual(state.friends['id:' + ana.id], ['id:' + beto.id]);
   assert.deepEqual(state.friends['id:' + beto.id], ['id:' + ana.id]);
 });
+
+test('vínculo confirmado: conta nova herda legacyId, conteúdo e relações; senha e foto novas mantidas', () => {
+  const state = existingState();
+  state.accounts[0].avatarId = 'nova-foto';
+  const withAvatar = { ...input, accounts: input.accounts.map(a => a.legacyId === 3 ? { ...a, avatarUrl: '/legado/upload/photos/old.jpg', bio: 'Bio antiga' } : a) };
+  const first = mergeLegacy(state, withAvatar, { link: ['chefe'] });
+  assert.equal(first.conflicts.length, 0); assert.equal(first.accounts.linked, 1); assert.equal(first.accounts.created, 2);
+  const chefe = state.accounts.find(a => a.username === 'chefe');
+  assert.equal(chefe.id, 'real-1'); assert.equal(chefe.legacyId, 3); assert.equal(chefe.name, 'Chefe');
+  assert.equal(chefe.password, 'x'); assert.equal(chefe.legacyPassword, undefined);
+  assert.equal(chefe.avatarUrl, undefined, 'foto enviada na Casa Opy prevalece'); assert.equal(chefe.bio, 'Bio antiga');
+  const old = state.posts.find(p => p.id === 'legacy-100');
+  assert.equal(old.reactions['real-1'], 'wow', 'reação própria mantida (legado tinha like)');
+  assert.deepEqual(state.follows['real-1'], ['id:' + accountIdOf(1)]);
+  assert.ok(state.communities[0].members.includes('id:real-1'));
+  const snapshot = JSON.stringify(state);
+  const second = mergeLegacy(state, withAvatar); // sem --link: o vínculo já está gravado via legacyId
+  assert.equal(JSON.stringify(state), snapshot); assert.equal(second.conflicts.length, 0); assert.equal(second.accounts.linked, 0);
+});
