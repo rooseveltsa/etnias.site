@@ -1,11 +1,31 @@
 import http from 'node:http';
-import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
 import handler from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
+import { sendFile } from '../preview/server/files.mjs';
 const root = resolve('preview/dist/public');
+// Live (Fase 4): a sinalização WHIP/WHEP do navegador vai por aqui ao MediaMTX (OPY_LIVE_URL), com sessão obrigatória.
+// A mídia em si não passa pelo app (UDP/TCP 8189 direto no MediaMTX). Sem OPY_LIVE_URL o recurso fica desligado.
+const liveUrl = process.env.OPY_LIVE_URL || '';
+const livePath = /^\/live\/[a-f0-9-]{36}\/(?:whip|whep)(?:\/[A-Za-z0-9_-]{1,120})?$/;
+async function proxyLive(req, res, pathname) {
+  if (!liveUrl || !livePath.test(pathname) || !['POST', 'PATCH', 'DELETE', 'OPTIONS'].includes(req.method)) { res.writeHead(404); return res.end(); }
+  if (!await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET)) { res.writeHead(401); return res.end(); }
+  const headers = {};
+  for (const name of ['content-type', 'authorization', 'if-match']) if (req.headers[name]) headers[name] = req.headers[name];
+  const upstream = http.request(new URL(pathname.slice('/live'.length), liveUrl), { method: req.method, headers }, up => {
+    const out = {};
+    for (const name of ['content-type', 'location', 'etag', 'accept-patch']) if (up.headers[name]) out[name] = up.headers[name];
+    // O MediaMTX devolve o endereço da sessão sem o prefixo do proxy.
+    if (out.location && !/^https?:/.test(out.location)) out.location = out.location.startsWith('/') ? '/live' + out.location : pathname + '/' + out.location;
+    res.writeHead(up.statusCode, out);
+    up.pipe(res);
+  });
+  upstream.on('error', () => { if (!res.headersSent) res.writeHead(502); res.end(); });
+  req.pipe(upstream);
+}
 // Fotos, vídeos e arquivos herdados do Etnias antigo, no disco em OPY_LEGACY_MEDIA_DIR (contém a pasta upload/).
 const legacyRoot = process.env.OPY_LEGACY_MEDIA_DIR ? resolve(process.env.OPY_LEGACY_MEDIA_DIR) : '';
 // Miniaturas geradas por scripts/opy-legacy-derivados.sh ficam em OPY_LEGACY_THUMBS_DIR (padrão: pasta thumbs/ dentro da mídia).
@@ -27,21 +47,7 @@ async function serveLegacy(req, res, pathname) {
     try { const found = await stat(candidate); if (found.isFile()) { file = candidate; info = found; break; } } catch {}
   }
   if (!file) return notFound();
-  const type = legacyTypes[extname(file).toLowerCase()];
-  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=31536000, immutable' };
-  // Range é o que permite o vídeo avançar e tocar no iPhone.
-  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
-  if (range && (range[1] || range[2])) {
-    const start = range[1] ? Number(range[1]) : Math.max(0, info.size - Number(range[2]));
-    const end = range[1] && range[2] ? Math.min(Number(range[2]), info.size - 1) : info.size - 1;
-    if (start >= info.size || start > end) { res.writeHead(416, { 'Content-Range': `bytes */${info.size}` }); return res.end(); }
-    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${info.size}`, 'Content-Length': end - start + 1 });
-    if (req.method === 'HEAD') return res.end();
-    return createReadStream(file, { start, end }).pipe(res);
-  }
-  res.writeHead(200, { ...headers, 'Content-Length': info.size });
-  if (req.method === 'HEAD') return res.end();
-  createReadStream(file).pipe(res);
+  sendFile(req, res, file, info, legacyTypes[extname(file).toLowerCase()]);
 }
 const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json','.json':'application/json; charset=utf-8' };
 const port = Number(process.env.PORT) || 8101;
@@ -64,7 +70,8 @@ http.createServer(async (req, res) => {
   const pathname = url.pathname;
   const path = pathname.replace(/\/$/, '') || '/';
   if (pathname.startsWith('/legado/')) return await serveLegacy(req, res, pathname);
-  if (path === '/api/community' || path === '/api/media') {
+  if (pathname.startsWith('/live/') && !pathname.startsWith('/live/recordings/')) return await proxyLive(req, res, pathname);
+  if (path === '/api/community' || path === '/api/media' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
     if (req.method === 'POST') {
       let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 4*1024*1024) { res.writeHead(413); return res.end(); } }
       try { req.body = JSON.parse(raw); } catch { res.writeHead(400); return res.end(); }

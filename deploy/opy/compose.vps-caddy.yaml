@@ -10,6 +10,7 @@ services:
       OPY_LEGACY_MEDIA_DIR: /legacy-media
     volumes:
       - opy-data:/data
+      - live-recordings:/recordings:ro
       - /srv/casa-opy/legacy-media:/legacy-media:ro
   turn:
     volumes: !reset

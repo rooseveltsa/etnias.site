@@ -1,0 +1,34 @@
+# MediaMTX da Casa Opy (Fase 4): só WebRTC. Publicação WHIP e leitura WHEP passam pelo app (proxy em /live/<postId>/…),
+# a autenticação é do app (/api/live/auth) e cada live fica gravada em /recordings/<postId>/.
+logLevel: info
+api: no
+metrics: no
+pprof: no
+playback: no
+rtsp: no
+rtmp: no
+hls: no
+srt: no
+moq: no
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcAllowOrigins: ['*']
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+webrtcIPsFromInterfaces: no
+# IP público (ou 127.0.0.1 no desenvolvimento) vem de MTX_WEBRTCADDITIONALHOSTS no compose.
+webrtcAdditionalHosts: []
+authMethod: http
+authHTTPAddress: http://opy:8101/api/live/auth
+pathDefaults:
+  record: yes
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f_%z
+  recordFormat: fmp4
+  recordPartDuration: 1s
+  recordMaxPartSize: 50M
+  # shortcut: uma live com mais de 24 h vira mais de um arquivo e só o primeiro entra na publicação; rever se houver lives tão longas.
+  recordSegmentDuration: 24h
+  recordDeleteAfter: 0s
+paths:
+  all_others:

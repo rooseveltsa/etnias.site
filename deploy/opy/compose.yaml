@@ -20,8 +20,24 @@ services:
       OPY_VAPID_PUBLIC_KEY: ${OPY_VAPID_PUBLIC_KEY:-}
       OPY_VAPID_PRIVATE_KEY: ${OPY_VAPID_PRIVATE_KEY:-}
       OPY_VAPID_SUBJECT: ${OPY_VAPID_SUBJECT:-https://etnias.site}
+      # Live (Fase 4): sinalização WHIP/WHEP vai por proxy ao MediaMTX; gravações ficam no volume compartilhado.
+      OPY_LIVE_URL: http://live:8889
+      OPY_LIVE_RECORDINGS_DIR: /recordings
     volumes:
       - opy-data:/data
+      - live-recordings:/recordings:ro
+  live:
+    # Servidor de vídeo ao vivo (WebRTC). Só a porta de mídia é pública; a sinalização entra pelo app. Config: mediamtx.yml.
+    image: bluenviron/mediamtx:1.21.3
+    restart: unless-stopped
+    ports:
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${OPY_PUBLIC_IP:?Configure deploy/opy/.env}
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+      - live-recordings:/recordings
   turn:
     # TURN/STUN próprio para as chamadas atravessarem redes móveis (CGNAT). Rede do host: o TURN precisa do IP público e da faixa UDP.
     image: coturn/coturn:4.6
@@ -33,3 +49,4 @@ services:
     command: ["-c", "/etc/coturn/turnserver.conf", "--static-auth-secret=${OPY_TURN_SECRET:?Configure deploy/opy/.env}", "--external-ip=${OPY_PUBLIC_IP:?Configure deploy/opy/.env}", "--realm=${OPY_TURN_REALM:?Configure deploy/opy/.env}"]
 volumes:
   opy-data:
+  live-recordings:

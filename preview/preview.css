@@ -239,6 +239,21 @@ button.opy-primary:active,button.opy-primary.opy-pressed{background:#991116;colo
 .live-stage{position:relative;margin:10px 0}
 .live-preview-pill{position:absolute;top:10px;left:10px;z-index:2;padding:4px 10px;border-radius:var(--radius-pill);background:#182c34d9;color:#fff;font-size:11px;font-weight:700}
 #live-preview{display:block;width:100%;max-height:260px;background:#182c34;border-radius:var(--radius-md);object-fit:cover}
+.live-preview-pill.is-live,.live-on{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:var(--radius-pill);background:#bd171c;color:#fff;font-size:11px;font-weight:700;letter-spacing:.04em}
+.live-preview-pill.is-live::before,.live-on::before{content:'';width:7px;height:7px;border-radius:50%;background:#fff;animation:live-pulse 1.2s ease-in-out infinite}
+@keyframes live-pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.live-preview-pill.is-live::before,.live-on::before{animation:none}}
+.post-live{display:grid;justify-items:center;align-content:center;gap:10px;min-height:200px;padding:20px;background:#182c34;color:#fff;text-align:center}
+.post-live-title{font-size:16px}
+.post-live .opy-primary{display:inline-flex;align-items:center;min-height:44px;padding:0 18px}
+.post-live-note{display:block;margin:0 16px 6px;font-size:12px;color:#52656c}
+#live-viewer{width:min(720px,96vw);max-width:none;max-height:none;border:0;border-radius:16px;padding:0;background:#000;color:#fff;overflow:hidden}
+#live-viewer::backdrop{background:#000c}
+.live-viewer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px}
+.live-viewer-who{display:flex;align-items:center;gap:10px;min-width:0}
+.live-viewer-who strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#live-viewer video{display:block;width:100%;max-height:78vh;min-height:200px;background:#000;object-fit:contain}
+.live-viewer-status{margin:0;padding:8px 12px;font-size:13px;color:#dfe7ea}.live-viewer-status:empty{display:none}
 .preview-publish-selectors{display:flex;flex-wrap:wrap;gap:12px;flex:1 1 auto}
 .preview-publish-selectors label{flex:1 1 180px;min-width:0}
 .preview-publish-selectors select{width:100%}

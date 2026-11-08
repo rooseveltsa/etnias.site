@@ -10,6 +10,8 @@ import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
+import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile } from './live.mjs';
+import { sendFile } from './files.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -119,7 +121,7 @@ function projectPost(p, me, state, ctx) {
     id: p.id, text: p.text, author: p.author, authorKey: aKey, following: ctx.followed.has(aKey), friendStatus: friendStatusOf(state, ctx.myKey, aKey),
     origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', images: Array.isArray(p.images) && p.images.length > 1 ? p.images : [],
     avatar: archiveAvatar(p) || personAvatar(author), verified: !!author?.verified, attachmentMissing: !!p.attachmentMissing,
-    media: mapMedia(p.media), file: mapMedia(p.file), link: p.link || null, location: p.location || '',
+    media: mapMedia(p.media), file: mapMedia(p.file), link: p.link || null, location: p.location || '', live: projectLive(p),
     communityId: p.communityId || '', communityName: p.communityId ? (ctx.communityNames.get(p.communityId) || p.communityName || '') : '',
     audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
     shares: p.shares || 0,
@@ -218,6 +220,7 @@ function notificationItems(state, me, ctx) {
     if (c.canModerate && c.pendingRequests?.length) items.push({ id: `pending:${c.id}`, kind: 'pending', communityId: c.id, text: `${c.pendingRequests.length} ${c.pendingRequests.length === 1 ? 'pedido de entrada pendente' : 'pedidos de entrada pendentes'} em "${c.name}".`, href: `/grupos/?c=${encodeURIComponent(c.id)}`, createdAt: Date.now(), actionable: true });
   }
   for (const ev of (state.followEvents || [])) if (ev.to === ctx.myKey) items.push({ id: `follow:${ev.from}:${ev.at}`, kind: 'follow', key: `id:${ev.from}`, text: `${nameOf(`id:${ev.from}`)} começou a seguir você.`, avatar: avatarOfKey(ctx, `id:${ev.from}`), href: `/perfil/?u=${encodeURIComponent(`id:${ev.from}`)}`, createdAt: ev.at });
+  for (const p of state.posts) if (p.live && !p.live.endedAt && p.authorId !== me.id && ctx.followed.has(authorKeyOf(p))) items.push({ id: `live:${p.id}`, kind: 'live', text: `${p.author} está ao vivo agora.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.startedAt });
   for (const p of state.posts) {
     if (p.authorId !== me.id && !(p.comments || []).some(c => c.authorKey === ctx.myKey)) continue;
     if (!visible(p, me, state)) continue;
@@ -284,7 +287,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -342,14 +345,27 @@ export default async function handler(req, res) {
   let upload, fileUpload;
   try {
     const secret = sessionSecret();
+    const pathname = new URL(req.url, 'http://local').pathname;
+    // Webhook do MediaMTX, que só chega pela rede interna do Docker (pelo Caddy viria com X-Forwarded-For).
+    if (pathname === '/api/live/auth') {
+      if (req.method !== 'POST' || req.headers['x-forwarded-for']) fail(404, 'Não encontrado.');
+      res.statusCode = liveAuth((await readState()).data, req.body) ? 200 : 401;
+      return res.end();
+    }
     const session = await verifySession(sessionCookie(req), secret);
-    if (req.method === 'GET') {
+    if (req.method === 'GET' || (req.method === 'HEAD' && pathname.startsWith('/live/recordings/'))) {
       const state = (await readState()).data;
       const account = sessionAccount(state, session);
       if (!account) fail(401, 'Entre para ver a Casa Opy.');
       if (isSuspended(account)) fail(403, suspensionMessage(account));
       const me = member(account);
       const path = new URL(req.url, 'http://local');
+      if (pathname.startsWith('/live/recordings/')) {
+        const post = state.posts.find(p => p.media?.url === pathname && visible(p, me, state));
+        const found = await recordingFile(post, pathname);
+        if (!found) fail(404, 'Gravação não encontrada.');
+        return sendFile(req, res, found.file, found.info, 'video/mp4');
+      }
       if (path.searchParams.get('view') === 'i18n' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(i18nView(state, account)));
@@ -462,7 +478,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -499,7 +515,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], callResult = null, adminResult = null, pushNotice = null;
+    let removedIds = [], callResult = null, adminResult = null, pushNotice = null, liveResult = null;
     const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
@@ -513,7 +529,9 @@ export default async function handler(req, res) {
       state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
       settleCalls(state);
+      settleLives(state);
       if (callActions.includes(body.action)) { callResult = callAction(state, me, body); return; }
+      if (liveActions.includes(body.action)) { liveResult = liveAction(state, me, body); if (liveResult.notify?.length) pushNotice = { to: liveResult.notify, payload: liveResult.push }; return; }
       if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
@@ -759,6 +777,9 @@ export default async function handler(req, res) {
     fileUpload = null;
     // Entrega em segundo plano: a resposta não espera os serviços de push.
     if (pushNotice) sendPush({ readState, transact }, pushNotice.to, pushNotice.payload).catch(error => console.error('push:', error.message));
+    // Gravação da live encerrada entra na publicação assim que o MediaMTX fecha o arquivo (ao parar, e nas escritas seguintes).
+    if (body.action === 'live_stop') await attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
+    else attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
@@ -766,10 +787,12 @@ export default async function handler(req, res) {
     if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams()), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));
-    const out = snapshot(data, activeMe);
+    const fresh = body.action === 'live_stop' ? (await readState()).data : data;
+    const out = snapshot(fresh, activeMe);
+    if (liveResult) out.live = { postId: liveResult.postId, key: liveResult.key || '' };
     // A publicação alterada pode estar fora da primeira página do feed: devolvê-la mantém a tela do cliente atualizada.
-    const touched = typeof body.postId === 'string' ? data.posts.find(p => p.id === body.postId) : null;
-    if (touched && visible(touched, activeMe, data)) out.touched = projectPost(touched, activeMe, data, feedContext(data, activeMe));
+    const touched = typeof body.postId === 'string' ? fresh.posts.find(p => p.id === body.postId) : null;
+    if (touched && visible(touched, activeMe, fresh)) out.touched = projectPost(touched, activeMe, fresh, feedContext(fresh, activeMe));
     return res.end(JSON.stringify(out));
   } catch (error) {
     if (upload) await deleteMedia(upload.id).catch(() => {});

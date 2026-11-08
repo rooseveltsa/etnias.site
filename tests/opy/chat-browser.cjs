@@ -82,7 +82,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   // 3. Composer reconstruído, diagnóstico honesto de Live e publicação com foto
   await pa.goto(base+'/');
   await pa.locator('#compose-tab-live').click();
-  await pa.locator('#compose-live').getByText('SEM SERVIDOR RTMP/WHIP ATIVO').waitFor();
+  await pa.locator('#compose-live').getByText('Sua live, direto do aparelho').waitFor();
   await pa.locator('#compose-tab-photo').click();
   await pa.locator('#publisher-photo').setInputFiles({name:'foto-qa.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6UVsAAAAASUVORK5CYII=','base64')});
   await pa.locator('#photo-slot img.compose-slot-preview').waitFor();
