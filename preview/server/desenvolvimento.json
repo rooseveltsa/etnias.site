@@ -167,6 +167,11 @@
    "data": "2026-11-08",
    "titulo": "Social Experience Excellence — desempenho e fluidez no celular",
    "detalhe": "Home em Slow 4G: LCP 9,9 s → 1,9 s, CLS 0,36 → 0, 2,2 MB → 0,5 MB (cache imutável, gzip, ícones recomprimidos, preload da API). Feed redesenha só o cartão que mudou; curtir/salvar otimistas; voltar do perfil restaura a posição; stories com gestos completos, pré-carregamento e pausa fora da aba; compartilhamento nativo; teclado não cobre campos. 12 jornadas reais no celular validadas (tests/opy/journeys-mobile.cjs) e medição em tests/opy/vitals.cjs. Relatório: docs/ETNIAS_SOCIAL_EXPERIENCE.md."
+  },
+  {
+   "data": "2026-11-08",
+   "titulo": "Live Experience — formatos, interação em tempo real, convidados e descoberta",
+   "detalhe": "Lives em 9:16 ou 16:9; bate-papo com modo lento, silenciar, fixar e apagar; reações rápidas; contagem real de audiência; tempo decorrido; tela cheia; compartilhar e seguir dentro da live; convites com validade e pedidos para participar; convidado com prévia de câmera e microfone entra por WebRTC direto e o anfitrião compõe o quadro (sem infraestrutura nova); descoberta no anel de stories, no perfil e no feed; aviso a quem segue. 20 jornadas validadas em tests/opy/live-journeys.cjs."
   }
  ],
  "andamento": [

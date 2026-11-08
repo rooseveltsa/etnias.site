@@ -201,14 +201,6 @@ function autoplayWhenVisible(video){
  video.addEventListener('pause',()=>{if(video.dataset.autoPaused)delete video.dataset.autoPaused;else video.dataset.userPaused='1';});
  video.addEventListener('play',()=>{delete video.dataset.userPaused;all('video.preview-post-video').forEach(o=>{if(o!==video&&!o.paused){o.dataset.autoPaused='1';o.pause();}});});
 }
-// Live em andamento: o card mostra o selo e abre o visualizador ao tocar (a conexão WebRTC nasce e morre com o diálogo,
-// não com o card, que é redesenhado a cada atualização do feed).
-function liveBlock(item){
- const box=make('div',undefined,'post-media post-live');box.dataset.count='1';
- const watch=make('button','Assistir à live','opy-primary');watch.type='button';watch.onclick=()=>openLiveViewer(item);
- box.append(make('span','AO VIVO','live-on'),make('strong',item.own?'Você está ao vivo':item.author+' está ao vivo agora','post-live-title'),watch);
- return box;
-}
 function videoBlock(item){
  const box=make('div',undefined,'post-media post-media-video');box.dataset.count='1';
  const video=document.createElement('video');video.className='preview-post-video';video.src=item.media.url;video.controls=true;video.preload='none';video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label','Vídeo da publicação de '+item.author);
@@ -551,6 +543,7 @@ function renderProfile(){
  const actions=make('div',undefined,'pf-actions');
  if(own){const e=button('Editar perfil',openProfileEdit,actions);e.className='opy-primary';}
  else{
+  const liveOn=(state.lives||[]).find(l=>l.authorKey===key);if(liveOn){const w=button('Assistir ao vivo',()=>openLiveViewer({id:liveOn.postId,author:person.name,avatar:person.avatar,live:{format:liveOn.format}}),actions);w.className='opy-primary live-profile-btn';}
   const f=button(person.following?'Seguindo':'Seguir',()=>change({action:'follow',authorKey:key}),actions);f.className=person.following?'preview-secondary':'opy-primary';f.setAttribute('aria-pressed',String(!!person.following));
   if(key.startsWith('id:')){
    const m=button('Mensagem',()=>openPrivateChat(key),actions);m.className='preview-secondary';
@@ -954,6 +947,8 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   // Stories em anel: círculo com a foto, borda viva quando ainda não visto, cinza depois. A mídia aparece no visualizador.
   stories.replaceChildren();const create=button('',()=>openStorySheet(),stories);create.classList.add('story-pill','story-create');
   const myRing=make('span',undefined,'story-ring');myRing.append(avatarNode(state.me.name,state.me.avatar,56),make('b','+','story-plus'));create.append(myRing,make('strong','Seu story'));create.setAttribute('aria-label','Criar story');
+  // Quem está ao vivo aparece primeiro no anel, com o selo, e abre a transmissão.
+  for(const l of (state.lives||[]).filter(l=>!l.own)){const card=button('',()=>openLiveViewer({id:l.postId,author:l.author,avatar:l.avatar,live:{format:l.format}}),stories);card.classList.add('story-pill','is-live');const ring=make('span',undefined,'story-ring');ring.append(avatarNode(l.author,l.avatar,56),make('b','AO VIVO','story-live'));card.append(ring,make('strong',l.author.split(' ')[0]));card.setAttribute('aria-label',`Assistir à live de ${l.author}`);}
   const byAuthor=new Map();for(const item of state.stories){const k=item.authorKey||item.author;if(!byAuthor.has(k))byAuthor.set(k,[]);byAuthor.get(k).push(item);}
   for(const [,group] of byAuthor){
    const item=group[0];const allSeen=group.every(s=>seenStories.has(s.id));
@@ -1301,67 +1296,7 @@ $('#story-viewer')?.addEventListener('keydown',event=>{
 let cameraStream=null,storyMedia=null,storyRecorder=null,photoAttachment=null;
 // Live (Fase 4): a mídia vai por WebRTC ao MediaMTX; a sinalização WHIP (quem transmite) e WHEP (quem assiste) passa pelo app em /live/<id>/….
 let liveSession=null,liveMode='idle',liveViewer=null;
-function liveUi(mode){
- const el=id=>$('#'+id);if(!el('compose-live'))return;liveMode=mode;
- if(state&&!state.liveEnabled){el('live-intro').textContent='A transmissão ao vivo ainda não está ativa neste servidor. Enquanto isso, publique um vídeo ou um Story.';['live-start','live-flip','live-cancel','live-stop'].forEach(id=>{el(id).hidden=true;});el('live-stage').hidden=true;return;}
- el('live-start').hidden=mode==='live';el('live-start').textContent=mode==='preview'?'Começar a transmitir':'Abrir câmera';
- el('live-flip').hidden=mode!=='preview';el('live-cancel').hidden=mode!=='preview';el('live-stop').hidden=mode!=='live';
- el('live-stage').hidden=mode==='idle';el('live-pill').textContent=mode==='live'?'AO VIVO':'PRÉVIA · FORA DO AR';el('live-pill').classList.toggle('is-live',mode==='live');
-}
-async function waitIce(pc){if(pc.iceGatheringState==='complete')return;await new Promise(resolve=>{const timer=setTimeout(resolve,2500);pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete'){clearTimeout(timer);resolve();}});});}
-// Oferta SDP completa (sem trickle) → resposta do MediaMTX. Devolve o endereço da sessão, usado para encerrar (DELETE).
-async function sdpExchange(pc,url,headers){await pc.setLocalDescription(await pc.createOffer());await waitIce(pc);const response=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/sdp',...headers},body:pc.localDescription.sdp});if(response.status!==201)throw Error(response.status===401||response.status===404?'Esta live não está mais no ar.':'Não foi possível conectar ao servidor de vídeo. Tente de novo em instantes.');await pc.setRemoteDescription({type:'answer',sdp:await response.text()});return response.headers.get('Location')||'';}
-// H.264 primeiro: é o que o MP4 da gravação aceita e o que o iPhone toca depois.
-function preferH264(pc){const t=pc.getTransceivers().find(x=>x.sender?.track?.kind==='video');if(!t?.setCodecPreferences||!window.RTCRtpSender?.getCapabilities)return;const rank=c=>/h264/i.test(c.mimeType)?0:/vp9/i.test(c.mimeType)?1:/vp8/i.test(c.mimeType)?2:3;t.setCodecPreferences([...RTCRtpSender.getCapabilities('video').codecs].sort((a,b)=>rank(a)-rank(b)));}
-async function goLive(){
- const status=$('#live-status');
- // A câmera pode ter sido fechada por outro painel (Story, foto). Sem ela, nada é criado no servidor.
- if(!cameraStream?.active){liveUi('idle');throw Error('A câmera foi fechada. Toque em "Abrir câmera" de novo.');}
- status.textContent='Conectando…';
- await change({action:'live_start',text:$('#preview-text').value.trim().slice(0,300)});
- const {postId,key}=state.live||{};
- const pc=new RTCPeerConnection();
- cameraStream.getTracks().forEach(track=>pc.addTransceiver(track,{direction:'sendonly',streams:[cameraStream]}));
- preferH264(pc);
- liveSession={pc,postId,location:''};
- try{liveSession.location=await sdpExchange(pc,'/live/'+postId+'/whip',{Authorization:'Bearer '+key});}
- catch(error){liveSession=null;pc.close();await change({action:'delete',postId}).catch(()=>{});throw error;}
- pc.onconnectionstatechange=()=>{if(liveSession?.pc===pc&&pc.connectionState==='failed')status.textContent='A conexão com o servidor de vídeo caiu. Encerre a live e tente de novo.';};
- liveUi('live');status.textContent='Você está ao vivo. Quem segue você foi avisado.';
-}
-async function endLive(){
- const s=liveSession;if(!s)return;
- try{if(s.location)await fetch(s.location,{method:'DELETE',credentials:'same-origin'});}catch{}
- s.pc.close();liveSession=null;stopCamera();liveUi('idle');
- const status=$('#live-status');status.textContent='Encerrando e guardando a gravação…';
- // Sem resposta do servidor a publicação ficaria "ao vivo": tenta de novo sozinho até confirmar.
- for(let attempt=0;attempt<3;attempt++){
-  try{await change({action:'live_stop',postId:s.postId});status.textContent='Live encerrada. A gravação ficou na sua publicação.';return;}
-  catch(error){status.textContent=error.message+(attempt<2?' Tentando encerrar de novo…':' Abra a publicação no feed e exclua-a se continuar "ao vivo".');await new Promise(r=>setTimeout(r,3000));}
- }
-}
-function closeLiveViewer(){const v=liveViewer;if(!v)return;liveViewer=null;if(v.location)fetch(v.location,{method:'DELETE',credentials:'same-origin'}).catch(()=>{});v.pc.close();const video=$('#live-viewer video');if(video){video.pause();video.srcObject=null;}}
-async function openLiveViewer(post){
- let dlg=$('#live-viewer');
- if(!dlg){
-  dlg=make('dialog');dlg.id='live-viewer';dlg.setAttribute('aria-label','Transmissão ao vivo');
-  const head=make('div',undefined,'live-viewer-head');head.append(make('div',undefined,'live-viewer-who'));
-  const close=make('button','Fechar','story-icon-btn');close.type='button';close.onclick=()=>dlg.close();head.append(close);
-  const video=make('video');video.autoplay=true;video.playsInline=true;video.setAttribute('playsinline','');video.controls=true;
-  const status=make('p',undefined,'live-viewer-status');status.setAttribute('role','status');
-  dlg.append(head,video,status);dlg.addEventListener('close',closeLiveViewer);document.body.append(dlg);
- }
- closeLiveViewer();
- $('.live-viewer-who',dlg).replaceChildren(make('span','AO VIVO','live-on'),make('strong',post.author));
- const video=$('video',dlg),status=$('.live-viewer-status',dlg);status.textContent='Conectando à transmissão…';
- if(!dlg.open)dlg.showModal();
- const pc=new RTCPeerConnection();pc.addTransceiver('video',{direction:'recvonly'});pc.addTransceiver('audio',{direction:'recvonly'});
- const viewer={pc,location:''};liveViewer=viewer;
- const stream=new MediaStream();
- pc.ontrack=event=>{if(liveViewer!==viewer)return;stream.addTrack(event.track);if(video.srcObject!==stream){video.srcObject=stream;video.muted=false;video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});status.textContent='Toque no vídeo para ativar o som.';});}};
- pc.onconnectionstatechange=()=>{if(liveViewer!==viewer)return;if(pc.connectionState==='connected')status.textContent='';else if(['failed','disconnected','closed'].includes(pc.connectionState))status.textContent='A transmissão terminou ou caiu.';};
- try{viewer.location=await sdpExchange(pc,'/live/'+post.id+'/whep',{});if(liveViewer!==viewer&&viewer.location)fetch(viewer.location,{method:'DELETE',credentials:'same-origin'}).catch(()=>{});}catch(error){if(liveViewer===viewer)status.textContent=error.message;}
-}
+// Estúdio, convidado e visualizador da live vivem em preview/live.js (carregado depois deste arquivo).
 function stopCamera(){if(liveSession)return;if(liveMode==='preview')liveUi('idle');if(storyRecorder){storyRecorder.onstop=null;if(storyRecorder.state==='recording')storyRecorder.stop();storyRecorder=null;$('#story-record')&&($('#story-record').textContent='Gravar');}cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;all('video[data-live]').forEach(video=>{video.srcObject=null;});}
 async function startCamera(video,withAudio){if(liveSession&&video!==$('#live-preview'))throw Error('Encerre a live antes de usar a câmera em outro lugar.');stopCamera();if(!navigator.mediaDevices?.getUserMedia)throw Error('Este navegador não abre a câmera. Use a galeria.');const picture={facingMode:cameraFacing};try{cameraStream=await navigator.mediaDevices.getUserMedia(withAudio?{video:picture,audio:true}:{video:picture});}catch(error){if(!withAudio||error.name==='NotAllowedError'||error.name==='NotFoundError')throw Error('Não foi possível abrir a câmera. Permita o acesso ou use a galeria.');cameraStream=await navigator.mediaDevices.getUserMedia({video:picture});}video.srcObject=cameraStream;video.muted=true;try{await video.play();}catch(error){if(video.srcObject!==cameraStream)return;throw error;}}
 function snapPhoto(video){const canvas=document.createElement('canvas');const width=video.videoWidth||720,height=video.videoHeight||1280,scale=Math.min(1,1280/Math.max(width,height));canvas.width=Math.round(width*scale);canvas.height=Math.round(height*scale);canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(new File([blob],'foto.jpg',{type:'image/jpeg'})):reject(Error('Não foi possível guardar a foto.')),'image/jpeg',0.82));}
@@ -1478,19 +1413,7 @@ if(publisher){
  $('#compose-camera-close').onclick=()=>{stopCamera();$('#compose-camera').hidden=true;};
  $('#compose-shutter').onclick=async()=>{try{const file=await snapPhoto($('#compose-preview'));photoAttachment=await readSlot(file);stopCamera();$('#compose-camera').hidden=true;selectFormat('text');paintSlot('photo-slot',photoAttachment,'Remover foto',()=>{photoAttachment=null;});}catch(error){$('#compose-camera-status').textContent=error.message;}};
  $('#choose-file').onclick=()=>$('#publisher-document').click();
- $('#live-start')?.addEventListener('click',async()=>{
-  const status=$('#live-status'),button=$('#live-start');button.disabled=true;
-  try{
-   if(liveMode==='idle'){cameraFacing='user';await startCamera($('#live-preview'),true);liveUi('preview');status.textContent=cameraStream.getAudioTracks().length?'Confira o enquadramento e toque em "Começar a transmitir".':'Sem microfone: a live sai sem som. Confira o enquadramento e toque em "Começar a transmitir".';return;}
-   await goLive();
-  }catch(error){status.textContent=error.message;if(!liveSession){stopCamera();liveUi('idle');}}
-  finally{button.disabled=false;}
- });
- $('#live-flip')?.addEventListener('click',async()=>{cameraFacing=cameraFacing==='environment'?'user':'environment';try{await startCamera($('#live-preview'),true);}catch(error){$('#live-status').textContent=error.message;}});
- $('#live-cancel')?.addEventListener('click',()=>{stopCamera();liveUi('idle');$('#live-status').textContent='';});
- $('#live-stop')?.addEventListener('click',()=>{$('#live-stop').disabled=true;endLive().finally(()=>{$('#live-stop').disabled=false;});});
- // Fechar a aba no meio da live encerra a publicação no servidor (a gravação é guardada do mesmo jeito).
- window.addEventListener('pagehide',()=>{if(liveSession)fetch('/api/community',{method:'POST',keepalive:true,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'live_stop',postId:liveSession.postId})}).catch(()=>{});});
+ // Botões do estúdio da live: preview/live.js (bindLiveStudio).
  publisher.onsubmit=async e=>{
   e.preventDefault();const status=$('#preview-form-status');
   if(busy){status.textContent='Aguarde o vídeo ou o arquivo terminar de entrar.';return;}
@@ -1621,4 +1544,8 @@ if(!window.__opyPressBound){
   document.addEventListener('pointerup',release,{passive:true});
   document.addEventListener('pointercancel',release,{passive:true});
 }
+// Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
+window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,
+ get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
+ get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};
 })();

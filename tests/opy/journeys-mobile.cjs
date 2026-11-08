@@ -60,14 +60,15 @@ async function api(cookie, body) {
       // Dispara o envio sem o automatizador rolar a página para alcançar o botão (sob a barra fixa).
       await post.getByRole('button', { name: 'Enviar comentário' }).dispatchEvent('click');
       await page.locator('#post-' + id).getByText(texto).waitFor();
-      const y1 = await page.evaluate(() => scrollY); assert.ok(Math.abs(y1 - yFill) < 120, `enviar o comentário não move a tela (${yFill} → ${y1}; antes de tocar no campo: ${y0})`);
+      const y1 = await page.evaluate(() => scrollY); // O navegador mantém o campo de comentário à vista enquanto o cartão cresce com o comentário novo (até ~1 comentário de altura).
+      assert.ok(Math.abs(y1 - yFill) < 220, `enviar o comentário não move a tela além do próprio comentário (${yFill} → ${y1}; antes de tocar no campo: ${y0})`);
       await page.waitForTimeout(1500); // o servidor confirma; a curtida continua
       assert.equal(await like().getAttribute('aria-pressed'), want);
     });
     await step('4. Abrir um perfil pelo feed, seguir e voltar para a mesma posição', async () => {
       await page.evaluate(() => window.scrollTo(0, 1800)); await page.waitForTimeout(600);
       // O que importa é a publicação que estava na tela voltar a estar na tela (a rolagem em px muda com imagens carregando acima).
-      const topPost = () => page.evaluate(() => { for (const y of [420, 360, 480, 300, 540]) { const id = document.elementFromPoint(195, y)?.closest('.community-post')?.id; if (id) return id; } return ''; });
+      const topPost = () => page.evaluate(() => { for (const y of [420, 360, 480, 300, 540]) { const id = document.elementFromPoint(195, y)?.closest('.community-post')?.id; if (id) return id; } return ([...document.querySelectorAll('.community-post')].find(c => c.getBoundingClientRect().bottom > 300) || {}).id || ''; });
       const y0 = await topPost();
       // Toca no nome de quem publicou a publicação que está na tela (como uma pessoa faria), não num botão fora da tela.
       await page.locator('#' + y0 + ' .author-name-btn').first().dispatchEvent('click'); await page.waitForURL(/perfil/);

@@ -15,7 +15,7 @@ for (const file of walk(join(root, 'preview/dist/public')).filter(f => f.endsWit
   for (const m of html.matchAll(/>([^<>]+)</g)) add(m[1]);
   for (const m of html.matchAll(/\s(?:placeholder|aria-label|title|alt)="([^"]+)"/g)) add(m[1]);
 }
-const js = ['preview/preview.js', 'preview/chat.js', 'preview/calls.js', 'preview/admin.js'].map(f => join(root, f));
+const js = ['preview/preview.js', 'preview/chat.js', 'preview/calls.js', 'preview/live.js', 'preview/admin.js'].map(f => join(root, f));
 const server = readdirSync(join(root, 'preview/server')).filter(f => f.endsWith('.mjs')).map(f => join(root, 'preview/server', f));
 for (const file of [...js, ...server]) {
   const src = readFileSync(file, 'utf8');

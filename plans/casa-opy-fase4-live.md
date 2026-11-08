@@ -39,3 +39,17 @@ Testes: `tests/opy/live.mjs` (regras do módulo), `tests/opy/live-browser.cjs` (
 - Navegador sem H.264 (Firefox sem OpenH264) publica VP8 e a gravação não é gerada; a live ao vivo funciona.
 - Áudio Opus dentro de MP4 pode não tocar em iPhones antigos (iOS < 17) na gravação; a live ao vivo não é afetada. Se incomodar, recodificar com ffmpeg ao encerrar (imagem `-ffmpeg` do MediaMTX).
 - Rede corporativa que bloqueia UDP: o cliente cai para TCP 8189; se também bloqueado, a live não conecta.
+
+## Live Experience (2026-11-08, segunda etapa)
+
+Missão colada pelo usuário: formatos, interação em tempo real, convidados, notificações, descoberta. Tudo sem infraestrutura nova.
+
+**Arquitetura dos convidados (decisão).** O MediaMTX entrega um para muitos, mas não mistura participantes. Em vez de um SFU novo (LiveKit) mais um serviço de composição (Egress com Chrome headless, pesado para a VPS), o navegador do anfitrião faz a composição: recebe o convidado por WebRTC direto (1:1, baixa latência, TURN próprio já existente), desenha os dois num canvas (9:16 em cima/embaixo, 16:9 lado a lado), mistura o áudio pela Web Audio e publica o quadro único por WHIP. Espectadores seguem por WHEP, com a gravação intacta. Trade-offs: CPU e upload do aparelho do anfitrião (720p a 24 fps + receber o convidado); 1 convidado funcional agora.
+
+**Extensão para 3 e 4 participantes.** O servidor já modela `post.live.guest` como um slot; para N convidados vira `post.live.guests[]` (cada um com chave, sinal e estado de mídia) e o anfitrião abre uma conexão WebRTC por convidado (estrela com centro no anfitrião). A composição no canvas ganha as grades (3: um grande + dois pequenos; 4: 2×2). Limite prático na estrela do anfitrião: 4 participantes em celular médio; acima disso o caminho é um SFU. Não anunciado até ser implementado e validado.
+
+**Tempo real.** Bate-papo, reações, audiência, convites e sinalização usam a visão `?view=live` a cada 2 s (incremental por `since`), sem WebSocket. Batimento de audiência a cada 15 s (contagem = batimentos dos últimos 30 s). Reações rápidas em janela de 60 s; mensagens repetidas em 5 s e reações em 0,7 s são ignoradas no servidor. Respostas das ações frequentes são leves (sem snapshot).
+
+**Segurança da participação.** Convite expira em 2 min; só quem aceita um convite válido recebe a chave de participação; sem a chave nenhum sinal WebRTC é aceito; só o anfitrião envia a oferta, só o convidado a resposta; publicar no MediaMTX continua exigindo a chave da live. Fila de pedidos limitada (20) e convites pendentes (5).
+
+**Validação.** `tests/opy/live.mjs` (regras), `tests/opy/live-browser.cjs` (transmitir, assistir, gravar) e `tests/opy/live-journeys.cjs` (20 cenários da missão com três navegadores e câmera falsa; não automatizados: queda de conexão e push no aparelho).

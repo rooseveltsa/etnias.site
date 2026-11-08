@@ -51,7 +51,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
     assert.equal(head.status, 200); assert.equal(head.type, 'video/mp4'); assert.ok(head.size > 1000, 'gravação com conteúdo: ' + head.size + ' bytes');
     const anon = await fetch(base + src, { method: 'HEAD' });
     assert.equal(anon.status, 401, 'gravação exige sessão');
-    assert.deepEqual(errors, []);
+    assert.deepEqual(errors, [], "erros de página: " + errors.join(" | "));
     console.log('live-browser: OK (gravação', head.size, 'bytes, quadro', size.join('x') + ')');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });
