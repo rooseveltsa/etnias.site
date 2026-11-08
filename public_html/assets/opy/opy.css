@@ -6,7 +6,7 @@
     --opy-muted: #52656c;
     --opy-paper: #ffffff;
     --opy-ground: #f5f5f1;
-    --opy-line: #dde2df;
+    --opy-line: var(--opy-line);
     --opy-focus: #176b87;
     background-color: var(--opy-ground);
     padding-bottom: 118px;
@@ -40,7 +40,7 @@
 .opy-interactivity-chevron .opy-icon { width: 12px; height: 12px; transform: rotate(90deg); }
 .opy-interactivity[aria-expanded="true"] { background: #fbefec; border-color: var(--opy-red); color: var(--opy-red); }
 .opy-menu-toggle { color: var(--opy-red); background: #fbefec; }
-.opy-menu-toggle:hover, .opy-interactivity:hover { background: #f1f3f0; }
+.opy-menu-toggle:hover, .opy-interactivity:hover { background: var(--opy-hover, #f1f3f0); }
 .opy-search { display: flex; align-items: center; gap: 4px; flex: 1 1 320px; min-width: 130px; border: 1px solid #c4cdca; border-radius: 8px; background: #f7f8f6; margin: 0; }
 .opy-search input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--opy-ink); padding: 12px 4px 12px 16px; height: 46px; font: inherit; font-size: 16px; }
 .opy-search input::placeholder { color: var(--opy-muted); opacity: 1; }
@@ -50,7 +50,7 @@
 .opy-enabled .opy-member-controls #head_menu_rght { float: none !important; display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .opy-enabled .opy-member-controls #head_menu_rght > li { float: none; margin: 0; position: relative; }
 .opy-enabled .opy-member-controls #head_menu_rght > li > a { display: flex; align-items: center; gap: 6px; padding: 10px; min-width: 44px; min-height: 44px; border-radius: 8px; background: transparent; color: var(--opy-ink); font-size: 13px; line-height: 1.2; }
-.opy-enabled .opy-member-controls #head_menu_rght > li > a:hover { background: #f1f3f0; }
+.opy-enabled .opy-member-controls #head_menu_rght > li > a:hover { background: var(--opy-hover, #f1f3f0); }
 .opy-enabled .opy-member-controls #head_menu_rght > li > a svg { width: 22px; height: 22px; color: var(--opy-ink); }
 .opy-enabled .opy-member-controls #head_menu_rght > li > a img.opy-picture { width: 30px; height: 30px; flex: 0 0 30px; object-fit: contain; max-width: none; }
 .opy-enabled .opy-member-controls .user-avatar { display: grid; place-items: center; background: #eee8e1; color: #5e3a29; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; }
@@ -86,7 +86,7 @@
 .opy-enabled .publisher-box input[type="file"] { max-width: 100%; }
 .opy-enabled .publisher-box .postText::placeholder { opacity: 1; }
 .opy-enabled .publisher-box [hidden] { display: none !important; }
-.opy-more { border: 1px solid #c4cdca; border-radius: 7px; background: #fff; color: var(--opy-ink); min-height: 44px; padding: 8px 14px; font: inherit; font-size: 13px; }
+.opy-more { border: 1px solid #c4cdca; border-radius: 7px; background: var(--opy-paper); color: var(--opy-ink); min-height: 44px; padding: 8px 14px; font: inherit; font-size: 13px; }
 .opy-enabled .publisher-box .sun_pub_mid_foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .opy-enabled .btn-main { background-color: var(--opy-red); color: white; }
 .opy-enabled .btn-main:hover { background-color: var(--opy-red-hover); color: white; }
@@ -102,7 +102,7 @@
 .opy-dialog-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
 .opy-dialog h2 { margin: 0; color: var(--opy-ink); font: inherit; font-size: 24px; line-height: 1.3; font-weight: 650; letter-spacing: -.02em; }
 .opy-dialog-heading p { color: var(--opy-muted); margin: 8px 0 0; line-height: 1.6; }
-.opy-dialog-heading button { color: var(--opy-ink); border: 0; border-radius: 8px; background: #f1f3f0; flex: 0 0 44px; width: 44px; height: 44px; }
+.opy-dialog-heading button { color: var(--opy-ink); border: 0; border-radius: 8px; background: var(--opy-hover, #f1f3f0); flex: 0 0 44px; width: 44px; height: 44px; }
 .opy-drawer { margin: 0; inset: 0 auto 0 0; height: 100dvh; max-height: 100dvh; width: min(370px, calc(100% - 24px)); border-radius: 0 16px 16px 0; padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); }
 .opy-enabled dialog.opy-dialog { position: fixed; margin: auto; border: 0; background: var(--opy-paper); color: var(--opy-ink); max-width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow: auto; transform: none; }
 .opy-enabled dialog.opy-drawer { inset: 0 auto 0 0; margin: 0; height: 100dvh; max-height: 100dvh; width: min(370px, calc(100% - 24px)); max-width: min(370px, calc(100% - 24px)); border-radius: 0 16px 16px 0; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); overflow: auto; overscroll-behavior: contain; transform: none; }
@@ -277,7 +277,7 @@ body.opy-scroll-lock { position: fixed; left: 0; right: 0; width: 100%; overflow
 .opy-module-dl dd { margin: 0; color: var(--opy-muted); }
 .opy-module-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .opy-secondary-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid #c4cdca; border-radius: 7px; background: var(--opy-paper); color: var(--opy-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.opy-secondary-btn:hover { background: #f1f3f0; }
+.opy-secondary-btn:hover { background: var(--opy-hover, #f1f3f0); }
 .opy-secondary-btn[aria-pressed="true"] { background: #fbefec; color: #991116; border-color: var(--opy-red); }
 .opy-module-form-section { border-top: 1px solid var(--opy-line); padding-top: 20px; margin-top: 20px; }
 .opy-module-form-section h2 { font-family: inherit; font-size: 19px; font-weight: 650; margin: 0 0 6px; color: var(--opy-ink); }
@@ -309,8 +309,8 @@ body.opy-scroll-lock { position: fixed; left: 0; right: 0; width: 100%; overflow
     .opy-form-footer .opy-primary, .opy-module-actions .opy-secondary-btn { width: 100%; }
 }
 /* V2: one navigation system per screen size; creation tools stay with the composer. */
-body.opy-preview .preview-composer textarea.postText{height:auto!important;min-height:48px;border:0;border-radius:24px;background:#f1f3f0;padding:12px 16px}
-body.opy-preview .feed-float{direction:ltr!important;display:flex;flex-wrap:wrap;gap:6px;padding:6px;border-radius:999px;background:#fff;border:1px solid var(--opy-line)}
+body.opy-preview .preview-composer textarea.postText{height:auto!important;min-height:48px;border:0;border-radius:24px;background: var(--opy-hover, #f1f3f0);padding:12px 16px}
+body.opy-preview .feed-float{direction:ltr!important;display:flex;flex-wrap:wrap;gap:6px;padding:6px;border-radius:999px;background: var(--opy-paper);border:1px solid var(--opy-line)}
 body.opy-preview .feed-float button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 12px;background:transparent;color:var(--opy-muted);font:800 13px/1 var(--opy-font);cursor:pointer}
 body.opy-preview .feed-float button[aria-pressed="true"]{background:var(--opy-green);color:#fff}
 body.opy-preview .feed-filter-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:rgba(23,59,46,.1);color:inherit;font-size:11px;font-weight:900}
@@ -339,7 +339,7 @@ body.opy-preview .story-viewer::backdrop{background:rgba(8,14,11,.86);backdrop-f
 body.opy-preview .story-frame{position:relative;aspect-ratio:9/16;max-height:88vh;width:100%;background:#0e1713;color:#fff;border-radius:20px;overflow:hidden;display:grid;grid-template-rows:auto auto 1fr auto;box-shadow:0 24px 60px rgba(0,0,0,.45)}
 body.opy-preview .story-progress{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:10px 12px 4px;z-index:4}
 body.opy-preview .story-bar{height:3px;border-radius:999px;background:rgba(255,255,255,.28);overflow:hidden}
-body.opy-preview .story-bar-fill{display:block;height:100%;width:0%;background:#fff;transition:width 60ms linear}
+body.opy-preview .story-bar-fill{display:block;height:100%;width:0%;background: var(--opy-paper);transition:width 60ms linear}
 body.opy-preview .story-viewer-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;z-index:4}
 body.opy-preview .story-author-btn{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;color:#fff;cursor:pointer;padding:0;text-align:left}
 body.opy-preview .story-author-avatar{width:34px;height:34px;border-radius:999px;background:var(--opy-green);color:#fff;display:grid;place-items:center;font-weight:900}
@@ -367,9 +367,9 @@ body.opy-preview .story-studio-controls{display:flex;align-items:center;justify-
 body.opy-preview .story-shutter{min-height:42px;padding:0 18px;border:3px solid #fff;border-radius:999px;background:var(--opy-clay);color:#fff;font:900 13px/1 var(--opy-font);cursor:pointer}
 body.opy-preview .story-modes{display:flex;justify-content:center;gap:6px;flex-wrap:wrap}
 body.opy-preview .story-modes button{border:0;border-radius:999px;padding:6px 12px;background:rgba(255,255,255,.12);color:#fff;font:800 12px/1 var(--opy-font);cursor:pointer}
-body.opy-preview .story-modes button.is-active{background:#fff;color:#101b16}
+body.opy-preview .story-modes button.is-active{background: var(--opy-paper);color:#101b16}
 body.opy-preview .story-studio-foot{display:flex;justify-content:flex-end}
-body.opy-preview .profile-sheet{border:0;border-radius:20px;padding:0;max-width:640px;width:94vw;background:#fff;color:var(--opy-ink);box-shadow:0 24px 64px rgba(0,0,0,.32)}
+body.opy-preview .profile-sheet{border:0;border-radius:20px;padding:0;max-width:640px;width:94vw;background: var(--opy-paper);color:var(--opy-ink);box-shadow:0 24px 64px rgba(0,0,0,.32)}
 body.opy-preview .profile-sheet::backdrop{background:rgba(15,25,20,.62);backdrop-filter:blur(4px)}
 body.opy-preview .profile-card{display:grid;gap:14px;padding-bottom:18px;max-height:86vh;overflow-y:auto}
 body.opy-preview .profile-cover{height:110px;background:linear-gradient(125deg,#173b2e,#2c6b53,#b24a2b);display:flex;justify-content:flex-end;align-items:flex-start;padding:12px}
@@ -385,7 +385,7 @@ body.opy-preview .profile-posts{display:grid;gap:12px;padding:0 18px}
 body.opy-preview .chat-messenger{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;align-items:start}
 body.opy-preview .chat-sidebar{border:1px solid var(--opy-line);border-radius:14px;padding:10px;background:#faf8f3;display:grid;gap:8px}
 body.opy-preview .chat-people{display:grid;gap:6px;max-height:420px;overflow-y:auto}
-body.opy-preview .chat-person{display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px;align-items:center;padding:8px;border:1px solid transparent;border-radius:10px;background:#fff;cursor:pointer;text-align:left}
+body.opy-preview .chat-person{display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px;align-items:center;padding:8px;border:1px solid transparent;border-radius:10px;background: var(--opy-paper);cursor:pointer;text-align:left}
 body.opy-preview .chat-person.is-active{border-color:var(--opy-green);background:#eef5f0}
 body.opy-preview .chat-person-avatar{width:36px;height:36px;border-radius:999px;background:var(--opy-green);color:#fff;display:grid;place-items:center;font-weight:900}
 body.opy-preview .chat-person-body{display:grid;min-width:0}
@@ -395,13 +395,13 @@ body.opy-preview .chat-thread{display:grid;gap:10px;min-width:0}
 body.opy-preview .chat-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--opy-line)}
 body.opy-preview .chat-head p{margin:2px 0 0;font-size:12px;color:var(--opy-muted)}
 body.opy-preview .chat-item.is-mine{background:#eef5f0;border-color:#cfe0d6}
-body.opy-preview .chat-dock{position:fixed;right:18px;bottom:14px;width:330px;max-width:calc(100vw - 24px);background:#fff;border:1px solid var(--opy-line);border-radius:16px;box-shadow:0 18px 42px rgba(0,0,0,.22);z-index:90;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+body.opy-preview .chat-dock{position:fixed;right:18px;bottom:14px;width:330px;max-width:calc(100vw - 24px);background: var(--opy-paper);border:1px solid var(--opy-line);border-radius:16px;box-shadow:0 18px 42px rgba(0,0,0,.22);z-index:90;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
 body.opy-preview .chat-dock[hidden]{display:none!important}
 body.opy-preview .chat-dock-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--opy-green);color:#fff}
 body.opy-preview .chat-dock-user{border:0;background:transparent;color:#fff;font:900 14px/1.2 var(--opy-font);cursor:pointer;padding:0;text-align:left}
 body.opy-preview .chat-dock-head .opy-ghost{min-height:28px;padding:4px 10px;background:rgba(255,255,255,.16);color:#fff;border:0}
 body.opy-preview .chat-dock-log{max-height:240px;min-height:140px;overflow-y:auto;padding:10px;display:grid;gap:8px;background:#faf8f3}
-body.opy-preview .chat-dock-form{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px;border-top:1px solid var(--opy-line);background:#fff}
+body.opy-preview .chat-dock-form{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px;border-top:1px solid var(--opy-line);background: var(--opy-paper)}
 body.opy-preview .chat-dock-form input{min-height:36px;border:1px solid var(--opy-line);border-radius:999px;padding:0 12px;font:600 13px/1.2 var(--opy-font)}
 @media (max-width:760px){body.opy-preview .chat-messenger{grid-template-columns:1fr}body.opy-preview .preview-post-actions{grid-template-columns:repeat(3,minmax(0,1fr))}body.opy-preview .preview-repost-form{grid-template-columns:1fr}}
 
@@ -410,10 +410,18 @@ body.opy-preview .chat-dock-form input{min-height:36px;border:1px solid var(--op
 .opy-enabled .opy-member-controls .opy-account { position: relative; }
 .opy-enabled .opy-member-controls .opy-account > summary { list-style: none; display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 4px; border-radius: 8px; cursor: pointer; }
 .opy-enabled .opy-member-controls .opy-account > summary::-webkit-details-marker { display: none; }
-.opy-enabled .opy-member-controls .opy-account[open] > summary, .opy-enabled .opy-member-controls .opy-account > summary:hover { background: #f1f3f0; }
-.opy-account-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 250px; padding: 8px; border: 1px solid var(--opy-line); border-radius: 14px; background: #fff; box-shadow: 0 12px 32px rgba(24, 44, 52, .16); }
+.opy-enabled .opy-member-controls .opy-account[open] > summary, .opy-enabled .opy-member-controls .opy-account > summary:hover { background: var(--opy-hover, #f1f3f0); }
+.opy-account-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 250px; padding: 8px; border: 1px solid var(--opy-line); border-radius: 14px; background: var(--opy-paper); box-shadow: 0 12px 32px rgba(24, 44, 52, .16); }
 .opy-account-menu a, .opy-account-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--opy-ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
-.opy-account-menu a:hover, .opy-account-menu button:hover, .opy-account-menu a:focus-visible, .opy-account-menu button:focus-visible { background: #f1f3f0; }
+.opy-account-menu a:hover, .opy-account-menu button:hover, .opy-account-menu a:focus-visible, .opy-account-menu button:focus-visible { background: var(--opy-hover, #f1f3f0); }
 .opy-account-menu hr { margin: 6px 0; border: 0; border-top: 1px solid var(--opy-line); }
 .opy-account-menu .opy-account-head strong { display: block; }
 .opy-account-menu .opy-account-head small { color: var(--opy-muted); font-size: 12px; }
+
+/* Tema escuro para a camada compartilhada (cabeçalho, menu, diálogos). */
+[data-theme=dark] .opy-enabled { --opy-ink: #eef3f2; --opy-muted: #b4c3c7; --opy-paper: #182a31; --opy-ground: #101c20; --opy-line: #2f4850; --opy-hover: #274049; color-scheme: dark; }
+[data-theme=dark] .opy-enabled .opy-topbar, [data-theme=dark] .opy-enabled .opy-account-menu { background: var(--opy-paper); }
+[data-theme=dark] .opy-enabled .opy-member-controls .user-avatar { background: #274049; color: #eef3f2; }
+[data-theme=dark] .opy-enabled .opy-member-controls #head_menu_rght > li > a:hover, [data-theme=dark] .opy-account-menu a:hover, [data-theme=dark] .opy-account-menu button:hover { background: var(--opy-hover); }
+
+[data-theme=dark] .opy-enabled img[src*="etnias-logo"], [data-theme=dark] .opy-brand img { filter: brightness(0) invert(.92); }

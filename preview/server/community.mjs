@@ -70,7 +70,7 @@ function phoneOf(value) {
 }
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
-  return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '',
+  return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', belonging: account.belonging || '', povo: account.povo || '', phone: account.phone || '', googleKey: account.googleKey || '',
     avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, role: roleOf(account), mustChangePassword: !!account.mustChangePassword };
 }
 function authorKeyOf(post) {
@@ -94,6 +94,8 @@ const PAGE_SIZE = 30;
 const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '' } : null;
 const personAvatar = acc => acc?.avatarUrl || profileUrl(acc?.avatarId);
+// Povos já declarados na rede, para sugerir na edição do perfil (sem lista fechada: a pessoa escreve como se nomeia).
+function povosOf(state) { const count = new Map(); for (const a of state.accounts || []) if (a.belonging === 'indigena' && a.povo) count.set(a.povo, (count.get(a.povo) || 0) + 1); return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 80).map(([name]) => name); }
 // Reações rápidas aos stories (como nas redes que as pessoas já usam); a resposta em texto vai pelo chat.
 const storyReactions = ['❤️', '😂', '😮', '😢', '👏', '🙏'];
 // Contexto por requisição: tudo que a projeção de um post ou de uma pessoa precisa, calculado uma vez.
@@ -185,7 +187,7 @@ function personFor(state, me, ctx, key, counts) {
   if (key.startsWith('id:')) {
     const acc = ctx.accountsById.get(key.slice(3));
     if (!acc) return null;
-    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, own: acc.id === me.id };
+    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, own: acc.id === me.id };
   }
   // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
@@ -296,7 +298,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -575,9 +577,13 @@ export default async function handler(req, res) {
           const nextName = personName(body.name);
           const nextBio = text(String(body.bio ?? ''), 280, false);
           const nextAffiliation = text(String(body.affiliation ?? ''), 80, false);
+          // Pertencimento é autodeclarado e opcional; o povo só faz sentido para quem se declara indígena.
+          if (body.belonging !== undefined && !['indigena', 'nao_indigena', ''].includes(body.belonging)) fail(400, 'Opção de pertencimento inválida.');
+          const nextPovo = text(String(body.povo ?? ''), 80, false);
           currentAccount.name = nextName;
           currentAccount.bio = nextBio;
           currentAccount.affiliation = nextAffiliation;
+          if (body.belonging !== undefined) { currentAccount.belonging = body.belonging; currentAccount.povo = body.belonging === 'indigena' ? nextPovo : ''; }
           for (const p of state.posts || []) {
             if (p.authorId === me.id) p.author = nextName;
           }

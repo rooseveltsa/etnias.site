@@ -180,7 +180,7 @@ function mediaBlock(item,urls){
  const box=make('div',undefined,'post-media');box.dataset.count=String(urls.length);
  const track=make('div',undefined,'post-media-track');
  if(urls.length>1){track.setAttribute('role','group');track.setAttribute('aria-roledescription','carrossel');track.setAttribute('aria-label',plural(urls.length,'imagem','imagens'));}
- urls.forEach((u,i)=>{const slide=make('button',undefined,'post-media-slide');slide.type='button';slide.setAttribute('aria-label',(urls.length>1?`Ampliar imagem ${i+1} de ${urls.length}`:'Ampliar imagem')+' da publicação de '+item.author);const img=make('img');img.src=thumbUrl(u);img.alt='';img.loading='lazy';img.decoding='async';slide.append(img);track.append(slide);});
+ urls.forEach((u,i)=>{const slide=make('button',undefined,'post-media-slide');slide.type='button';slide.setAttribute('aria-label',(urls.length>1?`Ampliar imagem ${i+1} de ${urls.length}`:'Ampliar imagem')+' da publicação de '+item.author);const img=make('img');img.src=thumbUrl(u);img.alt='';img.loading='lazy';img.decoding='async';const ready=()=>img.classList.add('is-loaded');img.onload=ready;img.onerror=ready;if(img.complete&&img.naturalWidth)ready();slide.append(img);track.append(slide);});
  box.append(track);
  const current=()=>urls.length>1?Math.min(urls.length-1,Math.round(track.scrollLeft/Math.max(1,track.clientWidth))):0;
  if(urls.length>1){
@@ -504,7 +504,22 @@ function profileKey(){
  if(document.body.dataset.previewRoute==='profile'){const u=new URLSearchParams(location.search).get('u');if(u)return u;}
  return state?.me?'id:'+state.me.id:'';
 }
-function photoGrid(urls){const g=make('div',undefined,'pf-photos');for(const u of urls){const img=make('img');img.src=u;img.alt='Foto publicada';img.loading='lazy';g.append(img);}return g;}
+// Grade de fotos do perfil: tocar amplia (visualizador com navegação); a própria pessoa pode excluir cada foto, com confirmação.
+function photoGrid(items,{manage=false}={}){
+ const g=make('div',undefined,'pf-photos');const urls=items.map(i=>typeof i==='string'?i:i.url);
+ items.forEach((it,i)=>{const item=typeof it==='string'?{url:it}:it;const cell=make('div',undefined,'pf-photo');const open=make('button',undefined,'pf-photo-open');open.type='button';open.setAttribute('aria-label','Ampliar foto '+(i+1)+' de '+items.length);
+  const img=make('img');img.src=item.url;img.alt='Foto publicada';img.loading='lazy';open.append(img);open.onclick=()=>openLightbox(urls,i,item.author||'');cell.append(open);
+  if(manage&&item.own&&item.postId){const del=make('button','Excluir','pf-photo-delete');del.type='button';del.setAttribute('aria-label','Excluir esta foto');del.onclick=async()=>{if(!confirm('Excluir esta foto? A publicação dela também sai do feed.'))return;del.disabled=true;try{await change({action:'delete',postId:item.postId});profileSignature='';renderProfile();}catch(e){showError(e.message);del.disabled=false;}};cell.append(del);}
+  g.append(cell);});
+ return g;
+}
+async function addProfilePhoto(input){
+ const file=input.files[0];if(!file)return;
+ try{if(file.size>2*1024*1024)throw Error('Escolha uma imagem de até 2 MB.');if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type))throw Error('A foto precisa ser PNG, JPG, GIF ou WebP.');
+  const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Não foi possível ler a imagem.'));r.readAsDataURL(file);});
+  await change({action:'publish',text:'',audience:'public',communityId:'',media:{name:file.name,data},file:null,location:''});profileData.key='';render();toast('Foto adicionada ao seu perfil.');}
+ catch(e){showError(e.message);}finally{input.value='';}
+}
 function openProfileEdit(){const d=$('#profile-edit-dialog');if(d&&!d.open)d.showModal();}
 let profileSignature='';
 // Perfil no padrão de rede social: capa, foto, identidade, ações, abas e apresentação.
@@ -518,9 +533,9 @@ function renderProfile(){
  }
  if(profileData.loading&&!profileData.person)return;
  const base=profileData.person||personByKey(key);
- const person=own?{...base,name:state.me.name,username:state.me.username,bio:state.me.bio,affiliation:state.me.affiliation,avatar:state.me.avatar,cover:state.me.cover,joinedAt:state.me.joinedAt,own:true}:base;
+ const person=own?{...base,name:state.me.name,username:state.me.username,bio:state.me.bio,affiliation:state.me.affiliation,belonging:state.me.belonging,povo:state.me.povo,avatar:state.me.avatar,cover:state.me.cover,joinedAt:state.me.joinedAt,own:true}:base;
  const posts=profileData.posts;
- const photos=posts.flatMap(p=>[p.media?.kind==='image'?p.media.url:'',p.image||''].filter(Boolean));
+ const photoItems=posts.flatMap(p=>[p.media?.kind==='image'?p.media.url:'',p.image||''].filter(Boolean).map(url=>({url,postId:p.id,own:p.own,author:p.author})));const photos=photoItems.map(i=>i.url);
  const comms=(state.communities||[]).filter(c=>own?c.joined:(c.members||[]).some(m=>m.key===key));
  const ea=$('#profile-edit-avatar');if(ea)ea.replaceChildren(avatarNode(state.me.name,state.me.avatar,72));
  const ec=$('#profile-edit-cover');if(ec){ec.replaceChildren();if(state.me.cover){const im=make('img');im.src=state.me.cover;im.alt='';ec.append(im);}}
@@ -562,7 +577,7 @@ function renderProfile(){
  if(person.joinedAt)facts.append(make('li','Na rede desde '+new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(person.joinedAt))));
  facts.append(make('li',comms.length+(comms.length===1?' comunidade':' comunidades')));
  intro.append(facts);side.append(intro);
- if(photos.length){const pc=make('section',undefined,'pf-card');const h=make('div',undefined,'pf-card-head');h.append(make('h2','Fotos'));const more=button('Ver todas',()=>{profileTab='photos';renderProfile();},h);more.className='pf-link';pc.append(h,photoGrid(photos.slice(0,9)));side.append(pc);}
+ if(photos.length){const pc=make('section',undefined,'pf-card');const h=make('div',undefined,'pf-card-head');h.append(make('h2','Fotos'));const more=button('Ver todas',()=>{profileTab='photos';renderProfile();},h);more.className='pf-link';pc.append(h,photoGrid(photoItems.slice(0,9)));side.append(pc);}
  const main=make('div',undefined,'pf-main');
  if(profileTab==='posts'){
   if(own){const c=make('a',undefined,'pf-compose');c.href='/#opy-compose';c.append(avatarNode(person.name,person.avatar,40),make('span','No que você está pensando?'));main.append(c);}
@@ -572,11 +587,13 @@ function renderProfile(){
  }else if(profileTab==='about'){
   const c=make('section',undefined,'pf-card');c.append(make('h2','Sobre'));const dl=make('dl',undefined,'pf-about');
   const row=(t,v)=>{if(v)dl.append(make('dt',t),make('dd',v));};
-  row('Nome',person.name);row('Usuário',person.username?'@'+person.username:'');row('Povo, território ou organização',person.affiliation);row('Apresentação',person.bio);
+  row('Nome',person.name);row('Usuário',person.username?'@'+person.username:'');row('Pertencimento',person.belonging==='indigena'?'Indígena'+(person.povo?' · '+person.povo:''):person.belonging==='nao_indigena'?'Não indígena':'');row('Povo, território ou organização',person.affiliation);row('Apresentação',person.bio);
   row('Na rede desde',person.joinedAt?new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(new Date(person.joinedAt)):'');
   c.append(dl);main.append(c);
  }else if(profileTab==='photos'){
-  const c=make('section',undefined,'pf-card');c.append(make('h2','Fotos'),photos.length?photoGrid(photos):make('p','Nenhuma foto publicada.','pf-empty'));main.append(c);
+  const c=make('section',undefined,'pf-card');const head=make('div',undefined,'pf-card-head');head.append(make('h2','Fotos'));
+  if(own){const lab=make('label','Adicionar foto','preview-secondary pf-file');const inp=make('input');inp.type='file';inp.accept='image/jpeg,image/png,image/webp,image/gif';inp.hidden=true;inp.onchange=()=>addProfilePhoto(inp);lab.append(inp);head.append(lab);}
+  c.append(head,photos.length?photoGrid(photoItems,{manage:own}):make('p',own?'Você ainda não publicou fotos. Toque em "Adicionar foto".':'Nenhuma foto publicada.','pf-empty'));main.append(c);
  }else{
   const c=make('section',undefined,'pf-card');c.append(make('h2','Comunidades'));
   if(!comms.length)c.append(make('p',own?'Você ainda não participa de comunidades.':'Nenhuma comunidade pública.','pf-empty'));
@@ -909,11 +926,33 @@ function renderCommunities(){
   if(!items.length)grid.append(emptyState('Nenhuma comunidade neste filtro','Tente outra categoria ou crie uma comunidade para reunir quem compartilha esse tema.',[['Criar comunidade',()=>$('#community-create-open')?.click()]]));
  }
 }
-function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveMode);
+// Tema claro/escuro (preferência guardada no aparelho; preview/theme.js aplica antes da pintura).
+function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-pressed',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',theme==='dark'?'#101c20':'#ffffff');}
+$('#opy-theme-toggle')?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+$('#opy-theme-toggle')?.setAttribute('aria-pressed',String(document.documentElement.dataset.theme==='dark'));
+// Contas deste aparelho (só nome, @ e foto; nunca senha): trocar exige entrar de novo, por segurança.
+const knownAccounts=()=>{try{return JSON.parse(localStorage.getItem('opy-accounts')||'[]');}catch{return [];}};
+function rememberAccount(me){if(!me?.username)return;const list=knownAccounts().filter(a=>a.username!==me.username);list.unshift({username:me.username,name:me.name,avatar:me.avatar||''});try{localStorage.setItem('opy-accounts',JSON.stringify(list.slice(0,6)));}catch{}}
+function openSwitchAccount(){
+ const dlg=make('dialog');dlg.className='opy-dialog live-dialog';dlg.setAttribute('aria-label','Trocar de conta');
+ dlg.append(make('h2','Trocar de conta'),make('p','A conta atual sai e você entra na outra com a senha dela. Nada fica misturado: cada conta tem suas mensagens e avisos.','chat-hint'));
+ const list=make('ul',undefined,'opy-switch-list');const others=knownAccounts().filter(a=>a.username!==state.me.username);
+ if(!others.length)list.append(make('li','Nenhuma outra conta usada neste aparelho ainda.','chat-list-empty'));
+ for(const a of others){const li=make('li');li.append(avatarNode(a.name,a.avatar,36));const who=make('strong',a.name);who.append(make('small','@'+a.username));li.append(who);
+  const go=button('Entrar',async()=>{await api({action:'logout'});location.replace('/entrar/?user='+encodeURIComponent(a.username));},li);go.className='opy-primary';
+  const rm=button('Remover',()=>{try{localStorage.setItem('opy-accounts',JSON.stringify(knownAccounts().filter(x=>x.username!==a.username)));}catch{}li.remove();},li);rm.setAttribute('aria-label','Remover '+a.name+' deste aparelho');list.append(li);}
+ dlg.append(list);const row=make('div',undefined,'adm-dialog-actions');
+ const add=button('Adicionar outra conta',async()=>{await api({action:'logout'});location.replace('/entrar/');},row);add.className='opy-primary';
+ const close=make('button','Fechar','preview-secondary');close.type='button';close.onclick=()=>dlg.close();row.append(close);dlg.append(row);
+ dlg.addEventListener('close',()=>dlg.remove());document.body.append(dlg);dlg.showModal();
+}
+$('#opy-switch-account')?.addEventListener('click',openSwitchAccount);
+function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
  if(pForm&&!pForm.contains(document.activeElement)){
   if($('#profile-edit-name'))$('#profile-edit-name').value=state.me.name||'';
+  if($('#profile-edit-povo')){const b=state.me.belonging||'';all('#profile-edit-form input[name=belonging]').forEach(r=>{r.checked=r.value===b;r.onchange=()=>{$('#profile-edit-povo-label').hidden=r.value!=='indigena';if(r.value==='indigena')$('#profile-edit-povo').focus();};});$('#profile-edit-povo').value=state.me.povo||'';$('#profile-edit-povo-label').hidden=b!=='indigena';const dl=$('#povos-list');if(dl&&dl.children.length!==(state.povos||[]).length)dl.replaceChildren(...(state.povos||[]).map(n=>new Option(n)));}
   if($('#profile-edit-affiliation'))$('#profile-edit-affiliation').value=state.me.affiliation||'';
   if($('#profile-edit-bio'))$('#profile-edit-bio').value=state.me.bio||'';
  }
@@ -1135,6 +1174,7 @@ function openPasswordDialog(forced){
 }
 function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-register');const tabs=[$('#tab-login'),$('#tab-register')];function show(which){login.hidden=which!=='login';register.hidden=which!=='register';tabs[0].setAttribute('aria-selected',String(which==='login'));tabs[1].setAttribute('aria-selected',String(which==='register'));$('#welcome-error').hidden=true;}
  tabs[0].onclick=()=>show('login');tabs[1].onclick=()=>show('register');
+ const presetUser=new URLSearchParams(location.search).get('user');if(presetUser&&$('#login-username')){$('#login-username').value=presetUser.slice(0,80);show('login');setTimeout(()=>$('#login-password')?.focus(),50);}
  all('[data-toggle-password]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.togglePassword);const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Mostrar senha':'Ocultar senha';button.setAttribute('aria-pressed',String(!visible));});
  async function submit(form,action){const statusButton=$('[type=submit]',form);statusButton.disabled=true;const original=statusButton.textContent;statusButton.textContent=action==='login'?'Entrando…':'Criando conta…';try{await api({action,name:form.elements.name?.value,username:form.elements.username.value,password:form.elements.password.value,googleKey:form.elements.googleKey?.value,phone:form.elements.phone?.value});location.replace(safeNext(new URLSearchParams(location.search).get('next')));}catch(error){showWelcomeError(error.message);statusButton.disabled=false;statusButton.textContent=original;}}
  login.onsubmit=event=>{event.preventDefault();submit(login,'login');};
@@ -1362,7 +1402,8 @@ $('#profile-edit-form')?.addEventListener('submit',async e=>{
  e.preventDefault();const form=e.target;const submit=$('[type=submit]',form);const status=$('#profile-edit-status');
  submit.disabled=true;if(status)status.textContent='Salvando perfil…';
  try{
-  await change({action:'profile_update',name:$('#profile-edit-name').value,affiliation:$('#profile-edit-affiliation').value,bio:$('#profile-edit-bio').value});
+  const belonging=$('#profile-edit-form input[name=belonging]:checked')?.value||'';
+  await change({action:'profile_update',name:$('#profile-edit-name').value,affiliation:$('#profile-edit-affiliation').value,bio:$('#profile-edit-bio').value,belonging,povo:belonging==='indigena'?$('#profile-edit-povo').value:''});
   if(status)status.textContent='Perfil atualizado com sucesso.';
  }catch(err){if(status)status.textContent=err.message;else showError(err.message);}
  finally{submit.disabled=false;}

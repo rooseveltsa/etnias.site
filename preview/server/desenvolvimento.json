@@ -172,6 +172,11 @@
    "data": "2026-11-08",
    "titulo": "Live Experience — formatos, interação em tempo real, convidados e descoberta",
    "detalhe": "Lives em 9:16 ou 16:9; bate-papo com modo lento, silenciar, fixar e apagar; reações rápidas; contagem real de audiência; tempo decorrido; tela cheia; compartilhar e seguir dentro da live; convites com validade e pedidos para participar; convidado com prévia de câmera e microfone entra por WebRTC direto e o anfitrião compõe o quadro (sem infraestrutura nova); descoberta no anel de stories, no perfil e no feed; aviso a quem segue. 20 jornadas validadas em tests/opy/live-journeys.cjs."
+  },
+  {
+   "data": "2026-11-08",
+   "titulo": "Conta e experiência — Prioridade 1 (sair, trocar de conta, tema claro/escuro, fotos do perfil, pertencimento)",
+   "detalhe": "Tema claro/escuro com sol/lua no cabeçalho, guardado no aparelho e aplicado antes da primeira pintura (sem piscar); sair e trocar de conta pelo menu da foto (lista das contas já usadas no aparelho, entrar com o @ preenchido, nunca guarda senha); aba Fotos do perfil com adicionar, ampliar e excluir a própria foto com confirmação; aba Sobre funcional; campo opcional de pertencimento no perfil (indígena com povo/etnia, ou não indígena) com resumo no painel de administração (Quem está na rede). Validação: tests/opy/accounts-browser.cjs (8 passos, incluindo testes negativos de autorização) e tests/opy/community-integration.mjs."
   }
  ],
  "andamento": [

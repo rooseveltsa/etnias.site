@@ -116,6 +116,11 @@ const views = {
       kpiCard('Mensagens', k.messages.total, k.messages.now, k.messages.before), kpiCard('Chamadas', k.calls.total, k.calls.now, k.calls.before, k.calls.minutes + ' min no total'),
       kpiCard('Comunidades', k.communities.total, undefined, undefined, k.communities.members + ' participações'), kpiCard('Stories no ar', k.stories.active));
     box.append(grid);
+    // Quem está na rede: pertencimento autodeclarado e povos mais presentes (dado do perfil, opcional).
+    const b = k.belonging || { indigena: 0, naoIndigena: 0, semInfo: 0 }; const bc = el('section', undefined, 'adm-card'); bc.append(el('h3', 'Quem está na rede (autodeclaração no perfil)'));
+    bc.append(table(['Pertencimento', 'Pessoas'], [['Indígenas', b.indigena], ['Não indígenas', b.naoIndigena], ['Não informaram', b.semInfo]]));
+    if (k.povos?.length) { bc.append(el('h4', 'Povos mais presentes')); bc.append(table(['Povo / etnia', 'Pessoas'], k.povos.map(p => [p.name, p.count]))); } else bc.append(el('p', 'Ninguém informou o povo ainda. O campo está em Editar perfil → Pertencimento.', 'adm-muted'));
+    box.append(bc);
     const charts = el('div', undefined, 'adm-charts'); charts.append(chart('Novos membros', data.series.members, data.series.days), chart('Publicações', data.series.posts, data.series.days), chart('Mensagens', data.series.messages, data.series.days)); box.append(charts);
     const lower = el('div', undefined, 'adm-two');
     const al = el('section', undefined, 'adm-card'); al.append(el('h3', 'Alertas que pedem atenção'));

@@ -77,7 +77,12 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
   const kpi = (list, field) => ({ now: range(list, field, now - 7 * DAY, now + 1), before: range(list, field, now - 14 * DAY, now - 7 * DAY) });
   const activeKeys = (from, to = now + 1) => new Set([...posts.filter(p => between(p.createdAt, from, to) && p.authorId).map(p => 'id:' + p.authorId), ...comments.filter(c => between(c.createdAt, from, to)).map(c => c.authorKey), ...msgs.filter(m => between(m.createdAt, from, to)).map(m => m.fromKey)]);
   const newPosts = posts.filter(p => p.origin !== 'legacy');
+  const belonging = { indigena: accounts.filter(a => a.belonging === 'indigena').length, naoIndigena: accounts.filter(a => a.belonging === 'nao_indigena').length };
+  belonging.semInfo = accounts.length - belonging.indigena - belonging.naoIndigena;
+  const povoCount = new Map(); for (const a of accounts) if (a.belonging === 'indigena' && a.povo) povoCount.set(a.povo, (povoCount.get(a.povo) || 0) + 1);
+  const povos = [...povoCount.entries()].sort((x, y) => y[1] - x[1]).slice(0, 15).map(([name, n]) => ({ name, count: n }));
   const kpis = {
+    belonging, povos,
     members: { total: accounts.length, ...kpi(accounts, 'createdAt') },
     active: { now: activeKeys(now - 7 * DAY).size, before: activeKeys(now - 14 * DAY, now - 7 * DAY).size },
     posts: { total: newPosts.length, ...kpi(newPosts, 'createdAt') },

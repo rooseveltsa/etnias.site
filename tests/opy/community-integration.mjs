@@ -304,6 +304,13 @@ try {
   assert.equal((await api({ action:'push_unsubscribe', endpoint:'https://push.example/dispositivo-1' }, login.cookie)).status, 200);
   assert.equal(state.pushSubscriptions[(await api(null, login.cookie)).data.me.id].length, 0);
   assert.equal((await api(null, login.cookie)).data.pushPublicKey, '', 'sem chaves, o cliente não oferece avisos');
+  // Pertencimento no perfil: autodeclaração opcional; o povo só vale para quem se declara indígena; valores fora da lista são recusados; a rede vê o campo e o resumo de povos.
+  assert.equal((await api({ action:'profile_update', name:'Primeiro', belonging:'outro' }, login.cookie)).status, 400);
+  const declared = await api({ action:'profile_update', name:'Primeiro', belonging:'indigena', povo:'Guarani Mbya' }, login.cookie);
+  assert.equal(declared.status, 200); assert.equal(declared.data.me.belonging, 'indigena'); assert.equal(declared.data.me.povo, 'Guarani Mbya');
+  assert.deepEqual(declared.data.povos, ['Guarani Mbya']);
+  assert.equal((await api({ action:'profile_update', name:'Primeiro', belonging:'nao_indigena', povo:'Ignorado' }, login.cookie)).data.me.povo, '', 'povo não fica guardado para quem não é indígena');
+  assert.equal((await api({ action:'profile_update', name:'Terceiro', belonging:'' }, third.cookie)).data.me.belonging, '');
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }
