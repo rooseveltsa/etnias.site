@@ -935,3 +935,19 @@ body.opy-preview .community-post .preview-post-actions{grid-template-columns:rep
 .opy-inbox-requests{justify-content:center;color:#991116}
 .opy-inbox-empty{padding:14px 10px;font-size:14px;color:#52656c}
 .opy-inbox-empty a{color:#991116}
+/* Stories: carregamento visível, reações rápidas e resposta pelo chat (como nas redes que as pessoas já usam). */
+.story-stage.is-loading::after{content:'';position:absolute;z-index:3;width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:story-spin .9s linear infinite}
+@keyframes story-spin{to{transform:rotate(360deg)}}
+.story-actions{display:flex;flex-direction:column;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom));background:#0e1713;color:#fff}
+.story-actions:empty{display:none}
+.story-react-row{display:flex;gap:4px}
+.story-react-row button{flex:1;min-height:44px;padding:0;border:0;border-radius:12px;background:rgba(255,255,255,.1);font-size:22px;line-height:1;transition:transform .15s}
+.story-react-row button:hover,.story-react-row button:focus-visible{background:rgba(255,255,255,.22)}
+.story-react-row button[aria-pressed=true]{background:rgba(255,255,255,.32);transform:scale(1.1)}
+.story-reply{display:flex;gap:8px;margin:0}
+.story-reply input{flex:1;min-width:0;min-height:44px;padding:8px 14px;border:1px solid rgba(255,255,255,.35);border-radius:999px;background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:16px}
+.story-reply input::placeholder{color:#cfd6d3}
+.story-reply button{min-width:44px;min-height:44px;padding:0 14px;border:0;border-radius:999px;background:#bd171c;color:#fff;font:inherit;font-weight:600}
+.story-reply button:disabled{opacity:.5}
+.story-summary{margin:0;font-size:14px;line-height:1.4;color:#fff}
+.story-summary small{display:block;color:#cfd6d3;font-size:12px}

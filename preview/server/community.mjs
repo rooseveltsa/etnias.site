@@ -94,6 +94,8 @@ const PAGE_SIZE = 30;
 const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '' } : null;
 const personAvatar = acc => acc?.avatarUrl || profileUrl(acc?.avatarId);
+// Reações rápidas aos stories (como nas redes que as pessoas já usam); a resposta em texto vai pelo chat.
+const storyReactions = ['❤️', '😂', '😮', '😢', '👏', '🙏'];
 // Contexto por requisição: tudo que a projeção de um post ou de uma pessoa precisa, calculado uma vez.
 function feedContext(state, me) {
   const myKey = `id:${me.id}`;
@@ -283,7 +285,13 @@ function snapshot(state, me) {
   const etnia = (Array.isArray(state.etnia?.[me.id]) ? state.etnia[me.id] : []).map(item => ({
     role: item.role, text: item.text, sourceTitle: item.sourceTitle || '', revised: item.revised || '', at: item.createdAt
   }));
-  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now()).map(item => ({ id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, avatar: personAvatar(ctx.accountsById.get(item.authorId)), text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own: item.authorId === me.id, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null }));
+  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now()).map(item => {
+    const own = item.authorId === me.id, given = Object.values(item.reactions || {}), viewerIds = Object.keys(item.views || {});
+    return { id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, avatar: personAvatar(ctx.accountsById.get(item.authorId)), text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null,
+      reactions: storyReactions.map(r => [r, given.filter(v => v === r).length]).filter(([, n]) => n), reaction: item.reactions?.[me.id] || '',
+      // Quem viu só aparece para quem publicou.
+      views: own ? viewerIds.length : 0, viewers: own ? viewerIds.slice(-10).reverse().map(id => ctx.accountsById.get(id)?.name).filter(Boolean) : [] };
+  });
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
@@ -478,7 +486,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -590,6 +598,24 @@ export default async function handler(req, res) {
           if (story.authorId !== me.id) fail(403, 'Somente quem criou pode excluir este story.');
           removedIds = [story.media?.id].filter(Boolean);
           state.stories = state.stories.filter(item => item.id !== story.id);
+          break;
+        }
+        case 'story_seen': case 'story_react': case 'story_reply': {
+          const story = (state.stories || []).find(item => item.id === body.storyId && item.expiresAt > Date.now());
+          if (!story) fail(404, 'Story não encontrado.');
+          if (body.action === 'story_seen') { if (story.authorId !== me.id) { story.views ||= {}; story.views[me.id] ||= Date.now(); } break; }
+          if (story.authorId === me.id) fail(400, 'Reaja e responda aos stories de outras pessoas.');
+          if (body.action === 'story_react') {
+            if (body.reaction !== '' && !storyReactions.includes(body.reaction)) fail(400, 'Reação inválida.');
+            story.reactions ||= {};
+            if (!body.reaction || story.reactions[me.id] === body.reaction) delete story.reactions[me.id];
+            else { story.reactions[me.id] = body.reaction; pushNotice = { to: [story.authorId], payload: { title: `${me.name} reagiu ao seu story`, body: `${body.reaction}${story.text ? ' ' + story.text.slice(0, 60) : ''}`, href: '/', tag: `story-${story.id}` } }; }
+            break;
+          }
+          // A resposta vai como mensagem privada, com as mesmas regras do chat (solicitação quando ainda não há vínculo).
+          const reply = text(body.text, 500);
+          const result = chatAction(state, me, { action: 'dm', toKey: `id:${story.authorId}`, text: `📸 Sobre seu story${story.text ? ` "${story.text.slice(0, 60)}"` : ''}: ${reply}`, clientId: randomUUID() });
+          if (result.notify?.length) pushNotice = { to: result.notify, payload: result.push };
           break;
         }
         case 'publish': {
@@ -784,7 +810,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     // A senha provisória só existe nesta resposta: não fica no estado nem no registro.
-    if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams()), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
+    if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URL(req.url, 'http://local').searchParams), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));
     const fresh = body.action === 'live_stop' ? (await readState()).data : data;

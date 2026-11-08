@@ -72,6 +72,19 @@ try {
   const storyId = story.data.stories[0].id;
   assert.equal((await api(null, second.cookie)).data.stories[0].own, false);
   assert.equal((await api({ action: 'story_delete', storyId }, second.cookie)).status, 403);
+  // Interação no story: visto, reação e resposta (a resposta vira mensagem privada para quem publicou).
+  assert.equal((await api({ action: 'story_seen', storyId }, second.cookie)).status, 200);
+  assert.equal((await api({ action: 'story_react', storyId, reaction: '🍌' }, second.cookie)).status, 400);
+  assert.equal((await api({ action: 'story_react', storyId, reaction: '❤️' }, first.cookie)).status, 400, 'não se reage ao próprio story');
+  const reacted = await api({ action: 'story_react', storyId, reaction: '❤️' }, second.cookie);
+  assert.equal(reacted.data.stories[0].reaction, '❤️');
+  assert.deepEqual(reacted.data.stories[0].reactions, [['❤️', 1]]);
+  assert.equal(reacted.data.stories[0].views, 0, 'quem não publicou não vê quem viu');
+  const mine = (await api(null, first.cookie)).data.stories[0];
+  assert.equal(mine.views, 1); assert.deepEqual(mine.viewers, ['segundo']); assert.deepEqual(mine.reactions, [['❤️', 1]]);
+  assert.equal((await api({ action: 'story_react', storyId, reaction: '❤️' }, second.cookie)).data.stories[0].reactions.length, 0, 'reagir de novo desfaz');
+  assert.equal((await api({ action: 'story_reply', storyId, text: 'Que lindo!' }, second.cookie)).status, 200);
+  assert.ok(state.dms.some(m => m.text.startsWith('📸 Sobre seu story') && m.text.endsWith('Que lindo!')), 'a resposta virou mensagem privada para quem publicou');
   state.stories[0].expiresAt = Date.now() - 1;
   assert.equal((await api(null, first.cookie)).data.stories.length, 0);
   assert.equal((await api({ action: 'story_create', text: '   ' }, first.cookie)).status, 400);
@@ -150,7 +163,8 @@ try {
   const origPost = pub.data.posts[0];
   const repostRes = await api({ action: 'repost', postId: origPost.id, text: 'Repostando na comunidade!' }, second.cookie);
   assert.equal(repostRes.status, 200);
-  assert.equal(repostRes.data.posts[0].repostOf.id, origPost.id);
+  // Publicação e repost podem cair no mesmo milissegundo: procurar pelo vínculo, não pela posição.
+  assert.ok(repostRes.data.posts.some(p => p.repostOf?.id === origPost.id), 'o repost aparece no feed');
   assert.equal(repostRes.data.posts.find(p => p.id === origPost.id).shares, 1);
   const firstKey = 'id:' + login.data.me.id;
   const secondKey = 'id:' + second.data.me.id;
@@ -164,8 +178,9 @@ try {
   const third = await api(profile('terceiro'));
   const dmSent = await api({ action: 'dm', toKey: firstKey, text: 'Oi no privado!' }, second.cookie);
   assert.equal(dmSent.status, 200);
-  assert.equal(dmSent.data.dms.length, 1);
-  assert.equal((await api(null, login.cookie)).data.dms.length, 1);
+  // Duas mensagens entre os dois: a resposta ao story (acima) e esta.
+  assert.equal(dmSent.data.dms.length, 2);
+  assert.equal((await api(null, login.cookie)).data.dms.length, 2);
   assert.equal((await api(null, third.cookie)).data.dms.length, 0, 'Terceiro usuário não vê mensagem privada alheia');
   assert.equal((await api({ action: 'dm', toKey: 'name:Acervo', text: 'não pode' }, second.cookie)).status, 404);
   assert.equal((await api({action:'friend',authorKey:'name:Acervo'},second.cookie)).status,404);

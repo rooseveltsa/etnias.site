@@ -1643,5 +1643,20 @@
  "Ninguém com esse nome nas suas conversas. Use o lápis para procurar outras pessoas.": "No one with that name in your conversations. Use the pencil to search for other people.",
  "solicitações de conversa": "conversation requests",
  "Toque para conversar": "Tap to chat",
- "Você segue · a primeira mensagem vai como solicitação": "You follow · the first message goes as a request"
+ "Você segue · a primeira mensagem vai como solicitação": "You follow · the first message goes as a request",
+ "{0} reagiu ao seu story": "{0} reacted to your story",
+ "A câmera foi fechada. Toque em \"Abrir câmera\" de novo.": "The camera was closed. Tap \"Open camera\" again.",
+ "Abra a publicação no feed e exclua-a se continuar \"ao vivo\".": "Open the post in the feed and delete it if it stays \"live\".",
+ "Aguarde o envio terminar.": "Wait for the message to finish sending.",
+ "Ainda ninguém viu": "No one has seen it yet",
+ "e mais": "and more",
+ "Reagir ao story": "React to the story",
+ "Reaja e responda aos stories de outras pessoas.": "React and reply to other people's stories.",
+ "Responder a": "Reply to",
+ "Responder ao story de": "Reply to the story of",
+ "Resposta enviada no chat de": "Reply sent in the chat with",
+ "Tentando encerrar de novo…": "Trying to end it again…",
+ "Visto por {0}": "Seen by {0}",
+ "Você está ao vivo. Encerre a live para usar outro formato.": "You are live. End the live to use another format.",
+ "Você recusou antes · enviar reabre a conversa": "You declined before · sending reopens the conversation"
 }

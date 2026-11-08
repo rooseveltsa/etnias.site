@@ -56,7 +56,7 @@ function stopRecording() { recordingGeneration++; if(recorder?.state==='recordin
 function stash() { if(key)drafts.set(key,{text:$('#chat-text').value,reply,attachment}); }
 function grow() { const t=$('#chat-text');t.style.height='auto';t.style.height=Math.min(140,t.scrollHeight)+'px'; }
 async function choose(next) {
- if(sending)return;stopRecording();fileGeneration++;stash();key=next;query='';$('#chat-search').value='';$('#chat-search-form').hidden=true;older=false;reply=null;attachment=null;
+ if(sending){status('Aguarde o envio terminar.');return;}stopRecording();fileGeneration++;stash();key=next;query='';$('#chat-search').value='';$('#chat-search-form').hidden=true;older=false;reply=null;attachment=null;
  syncMobileView();
  const saved=drafts.get(key);$('#chat-text').value=saved?.text || '';reply=saved?.reply || null;attachment=saved?.attachment || null;grow();
  history.replaceState(null,'','/chat/'+(key?'?p='+encodeURIComponent(key):''));
@@ -161,9 +161,16 @@ function render() {
  if(!data)return;
  syncMobileView();
  const filter=$('#chat-find').value.trim().toLocaleLowerCase('pt-BR'),showArchived=$('#chat-archives').checked;
- const list=$('#chat-list');list.replaceChildren();
+ const list=$('#chat-list');
  const source=box==='requests'?data.requests:data.conversations;
  const entries=source.filter(p=>!p.archived||showArchived).filter(p=>p.name.toLocaleLowerCase('pt-BR').includes(filter));
+ // Contador do cabeçalho acompanha a leitura, sem esperar a atualização geral da página.
+ const headerBadge=document.querySelector('.messages-notification-container a');if(headerBadge){const unread=data.conversations.reduce((s,c)=>s+(c.unread||0),0)+data.requests.length+data.invitations.length;let b=headerBadge.querySelector('.opy-header-badge');if(unread>0){if(!b){b=node('span',undefined,'opy-header-badge');headerBadge.append(b);}b.textContent=unread>99?'99+':String(unread);}else if(b)b.remove();}
+ const open=new Set(data.conversations.map(c=>c.key));
+ const people=box==='main'?(data.people||[]).filter(p=>!open.has(p.key)).filter(p=>p.name.toLocaleLowerCase('pt-BR').includes(filter)||(p.username||'').toLocaleLowerCase('pt-BR').includes(filter)):[];
+ // A lista só é reconstruída quando muda: a atualização a cada 4 s não derruba o toque nem o foco de quem está escolhendo.
+ const listSig=JSON.stringify([box,filter,showArchived,key,entries,people,data.invitations]);
+ if(list.dataset.sig!==listSig){list.dataset.sig=listSig;list.replaceChildren();
  for(const b of document.querySelectorAll('[data-box]'))b.setAttribute('aria-pressed',String(b.dataset.box===box));
  const rc=$('#chat-requests-count');rc.hidden=!data.requests.length;rc.textContent=String(data.requests.length);
  for(const p of entries){
@@ -174,16 +181,15 @@ function render() {
   b.append(av,meta,side);list.append(li);
  }
  // Caixa de entrada: depois das conversas, as pessoas com quem dá para começar a conversar (amigos e quem você segue).
- const open=new Set(data.conversations.map(c=>c.key));
- const people=box==='main'?(data.people||[]).filter(p=>!open.has(p.key)).filter(p=>p.name.toLocaleLowerCase('pt-BR').includes(filter)||(p.username||'').toLocaleLowerCase('pt-BR').includes(filter)):[];
  if(!entries.length)list.append(node('li',box==='requests'?'Nenhuma solicitação. Quando alguém sem vínculo com você mandar mensagem, ela aparece aqui para você aceitar ou recusar.':filter&&!people.length?'Ninguém com esse nome nas suas conversas. Use o lápis para procurar outras pessoas.':people.length?'Nenhuma conversa ainda. Comece com alguém que você já conhece:':'Nenhuma conversa ainda. Toque no lápis para procurar alguém pelo nome.','chat-list-empty'));
  if(people.length){
   if(entries.length)list.append(node('li','Pessoas','chat-list-heading'));
   for(const p of people){
    const li=node('li');const b=button('',()=>choose(p.key),li);b.className='chat-person-btn';b.setAttribute('aria-pressed',String(key===p.key));
-   const meta=node('span',undefined,'chat-person-meta');meta.append(node('strong',p.name),node('small',(p.username?'@'+p.username+' · ':'')+(p.relation==='accepted'?'Toque para conversar':'Você segue · a primeira mensagem vai como solicitação')));
+   const meta=node('span',undefined,'chat-person-meta');meta.append(node('strong',p.name),node('small',(p.username?'@'+p.username+' · ':'')+(p.relation==='accepted'?'Toque para conversar':p.relation==='declined_in'?'Você recusou antes · enviar reabre a conversa':'Você segue · a primeira mensagem vai como solicitação')));
    b.append(avatarEl(p.name,p.avatar),meta);list.append(li);
   }
+ }
  }
  const invites=$('#chat-invitations');invites.replaceChildren();for(const invite of data.invitations){const card=node('div',undefined,'chat-invite');card.append(node('p','Convite: '+invite.name));button('Aceitar',()=>action({action:'chat_group_accept',key:invite.key}),card);button('Recusar',()=>action({action:'chat_group_decline',key:invite.key}),card);invites.append(card);}
  const selected=data.selected;$('#chat-name').textContent=selected?.name || 'Escolha uma conversa';
@@ -206,16 +212,17 @@ function render() {
  paintDraft();
 }
 async function markRead(){
- if(!key||!data?.selected||data.selected.key!==key||document.hidden||query||older||loading||sending||reading)return;
+ if(!key||!data?.selected||data.selected.key!==key||document.hidden||query||loading||sending||reading)return;
  const log=$('#chat-log');if(log.scrollHeight-log.scrollTop-log.clientHeight>60)return;
  const conv=data.conversations.find(c=>c.key===key),last=data.messages.at(-1);if(!conv?.unread||!last)return;
  reading=true;try{await action({action:'chat_read',key,messageId:last.id});}finally{reading=false;}
 }
-async function refresh(force=false){if((loading&&!force)||sending)return;loading=true;const current=key,version=++generation;try{const next=await request(null,{q:query});if(current!==key||version!==generation)return;if(older){next.messages=data.messages;next.hasMore=data.hasMore;}data=next;render();status(navigator.onLine?'':'Sem conexão.');}catch(e){if(version===generation)status(e.message);}finally{if(version===generation)loading=false;}await markRead().catch(e=>status(e.message));}
+async function refresh(force=false){if((loading&&!force)||sending)return;loading=true;const current=key,version=++generation;try{const next=await request(null,{q:query});if(current!==key||version!==generation)return;if(older){const ids=new Set(next.messages.map(m=>m.id));next.messages=[...data.messages.filter(m=>!ids.has(m.id)),...next.messages];next.hasMore=data.hasMore;}data=next;render();status(navigator.onLine?'':'Sem conexão.');}catch(e){if(version===generation)status(e.message);}finally{if(version===generation)loading=false;}await markRead().catch(e=>status(e.message));}
 async function send(job){
  if(sending||data?.selected?.key!==key)return;const destination=key;const submittedText=$('#chat-text').value,submittedAttachment=attachment,submittedReply=reply;
+ if(!job&&pending.get(key))return;
  if(!job){if(!submittedText.trim()&&!attachment)return;job={action:'dm',toKey:key,text:$('#chat-text').value,clientId:crypto.randomUUID(),replyTo:reply?.id || null,media:attachment?{name:attachment.name,data:attachment.data}:null};}
- generation++;pending.set(destination,job);sending=true;paintDraft();status('Enviando…');
+ generation++;loading=false;pending.set(destination,job);sending=true;paintDraft();status('Enviando…');
  try{data=await request(job);pending.delete(destination);drafts.delete(destination);if(key===destination){if($('#chat-text').value===submittedText&&submittedText===job.text){$('#chat-text').value='';grow();}if(attachment===submittedAttachment&&attachment?.data===job.media?.data){attachment=null;$('#chat-file').value='';}if(reply===submittedReply&&reply?.id===job.replyTo)reply=null;older=false;render();$('#chat-log').scrollTop=$('#chat-log').scrollHeight;}status('');}
  catch(e){status(e.message);}finally{sending=false;paintDraft();}
 }
@@ -242,7 +249,7 @@ $('#chat-text').addEventListener('input',()=>{
 $('#chat-text').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&matchMedia('(pointer:fine)').matches){e.preventDefault();send();}});
 $('#chat-form').onsubmit=e=>{e.preventDefault();send();};
 $('#chat-find').oninput=render;$('#chat-archives').onchange=render;
-$('#chat-search-form').onsubmit=async e=>{e.preventDefault();query=$('#chat-search').value;older=false;await refresh();};
+$('#chat-search-form').onsubmit=async e=>{e.preventDefault();query=$('#chat-search').value;older=false;await refresh(true);};
 $('#chat-plus').onclick=()=>$('#chat-sheet').showModal();
 $('#chat-sheet').addEventListener('click',e=>{if(e.target===$('#chat-sheet'))$('#chat-sheet').close();});
 for(const b of document.querySelectorAll('[data-pick]'))b.onclick=()=>{const input=$('#chat-file');input.accept=accepts[b.dataset.pick];if(b.dataset.pick==='camera')input.setAttribute('capture','environment');else input.removeAttribute('capture');$('#chat-sheet').close();input.click();};
@@ -282,7 +289,7 @@ $('#chat-options').onclick=()=>dialog('Opções da conversa',box=>{
   box.append(node('p',selected.description));
   for(const member of selected.members){const row=node('div',member.name+(member.admin?' · administração':''));if(selected.admin && member.key!=='id:'+data.me.id){button('Remover participante',()=>action({action:'chat_group_remove',key,memberKey:member.key}).then(()=>$('#chat-dialog').close()),row);if(!member.admin)button('Tornar administrador',()=>action({action:'chat_group_admin',key,memberKey:member.key}).then(()=>$('#chat-dialog').close()),row);}box.append(row);}
   if(selected.admin){const name=field(box,'Nome',selected.name),description=field(box,'Descrição',selected.description,true);description.maxLength=500;button('Salvar grupo',async()=>{await action({action:'chat_group_update',key,name:name.value,description:description.value});$('#chat-dialog').close();},box);const target=selectPerson(box,'Convidar pessoa',data.contacts.filter(p=>!selected.members.some(m=>m.key===p.key)));button('Enviar convite',async()=>{await action({action:'chat_group_invite',key,memberKey:target.value});$('#chat-dialog').close();},box);}
-  button('Sair do grupo',async()=>{const old=key;key='';try{await action({action:'chat_group_leave',key:old});$('#chat-dialog').close();}catch(e){key=old;throw e;}},box);
+  button('Sair do grupo',async()=>{await action({action:'chat_group_leave',key});$('#chat-dialog').close();await choose('');},box);
   box.append(node('p','Chamadas em grupo ainda não estão disponíveis. Chamadas de voz e vídeo funcionam em conversas entre duas pessoas.','chat-hint'));
  }
 });
@@ -303,6 +310,6 @@ window.addEventListener('offline',()=>status('Sem conexão. Escreva e tente envi
 window.addEventListener('online',refresh);
 window.addEventListener('opy:call-ended',()=>refresh());
 // shortcut: polling com a tela visível serve à homologação; migrar para eventos (SSE na VPS) antes de ampliar o público.
-setInterval(()=>{if(!document.hidden&&!$('#chat-dialog').open&&!$('#chat-sheet').open&&!older)refresh();},4000);
+setInterval(()=>{if(!document.hidden&&!$('#chat-dialog').open&&!$('#chat-sheet').open)refresh();},4000);
 refresh();
 })();

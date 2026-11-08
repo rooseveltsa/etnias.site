@@ -11,6 +11,8 @@ let data = null, tab = location.hash.replace('#', '') || 'visao', query = '', bu
 const tabs = [['visao', 'Visão geral'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções'], ['desenvolvimento', 'Desenvolvimento']];
 // Painel de traduções (GET /api/community?view=i18n). Quem só traduz entra direto nele.
 let idata = null, ilang = '', ifilter = 'faltando', iquery = '', ipage = 0, translatorOnly = false;
+// Rascunhos de tradução por frase: sobrevivem ao redesenho da lista ao enviar uma sugestão ou buscar.
+const idrafts = new Map();
 async function api18(body) {
   const r = await fetch('/api/community?view=i18n', { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
   const j = await r.json().catch(() => ({}));
@@ -24,14 +26,16 @@ async function api(body) {
   const r = await fetch(url, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
   const j = await r.json().catch(() => ({}));
   if (r.status === 401) { location.href = '/entrar/?next=/admin/'; throw Error('Entre novamente.'); }
-  if (!r.ok) throw Error(j.error || 'Não foi possível concluir.');
+  if (!r.ok) throw Object.assign(Error(j.error || 'Não foi possível concluir.'), { status: r.status });
   return j;
 }
 function toast(msg, bad) { const t = el('p', msg, 'adm-toast' + (bad ? ' is-bad' : '')); t.setAttribute('role', bad ? 'alert' : 'status'); document.body.append(t); setTimeout(() => t.remove(), 4200); }
 async function act(body, done) { if (busy) return; busy = true; try { data = await api(body); render(); toast(done); } catch (e) { toast(e.message, true); } finally { busy = false; } }
 async function load() {
-  try { data = await api(); if (tab === 'traducoes') idata = await api18(); render(); }
+  try { data = await api(); translatorOnly = false; if (tab === 'traducoes') idata = await api18(); render(); }
   catch (e) {
+    // Só quem é apenas tradutor (403 no painel) cai na visão de traduções; falha de rede mantém o painel como está.
+    if (e.status !== 403) { if (data) toast(e.message, true); else root.replaceChildren(el('div', e.message, 'adm-denied')); return; }
     try { idata = await api18(); translatorOnly = true; tab = 'traducoes'; data = { viewer: { name: '' }, role: 'translator', openAlerts: 0 }; render(); }
     catch { root.replaceChildren(el('div', e.message, 'adm-denied')); }
   }
@@ -224,9 +228,9 @@ const views = {
     const mine = idata.suggestions.filter(s => s.status === 'pendente' && s.lang === ilang);
     list.slice(ipage * per, ipage * per + per).forEach(src => {
       const row = el('form', undefined, 'adm-phrase'); row.dataset.noI18n = '';
-      const pt = el('p', src, 'adm-phrase-src'); const ta = el('textarea'); ta.rows = 2; ta.maxLength = 600; ta.value = mine.find(s => s.source === src)?.text || tr[src] || ''; ta.setAttribute('aria-label', 'Tradução para ' + lang.name);
+      const pt = el('p', src, 'adm-phrase-src'); const ta = el('textarea'); ta.rows = 2; ta.maxLength = 600; ta.value = idrafts.get(src) ?? (mine.find(s => s.source === src)?.text || tr[src] || ''); ta.oninput = () => idrafts.set(src, ta.value); ta.setAttribute('aria-label', 'Tradução para ' + lang.name);
       const sb = el('button', mine.some(s => s.source === src) ? 'Atualizar sugestão' : 'Sugerir tradução', 'adm-btn'); sb.type = 'submit';
-      row.append(pt, ta, sb); row.onsubmit = e => { e.preventDefault(); act18({ action: 'i18n_suggest', lang: ilang, source: src, text: ta.value }, idata.canReview ? 'Sugestão enviada. Aprove acima para usar.' : 'Sugestão enviada para a gestão revisar.'); };
+      row.append(pt, ta, sb); row.onsubmit = e => { e.preventDefault(); idrafts.delete(src); act18({ action: 'i18n_suggest', lang: ilang, source: src, text: ta.value }, idata.canReview ? 'Sugestão enviada. Aprove acima para usar.' : 'Sugestão enviada para a gestão revisar.'); };
       box.append(row);
     });
     const nav = el('div', undefined, 'adm-actions');
@@ -236,7 +240,7 @@ const views = {
     return box;
   },
   desenvolvimento() {
-    const d = data.development; if (!d) return views.visao();
+    const d = data.development; if (!d) { tab = 'visao'; return views.visao(); }
     const box = el('div'), card = (title, ...kids) => { const c = el('section', undefined, 'adm-card adm-dev'); c.append(el('h3', title), ...kids); box.append(c); return c; };
     const status = { entregue: ['Entregue', 'is-ok'], parcial: ['Parcial', 'is-warn'], andamento: ['Em andamento', 'is-warn'], pendente: ['Pendente', 'is-danger'], 'nao-iniciado': ['Não iniciado', 'is-danger'], ok: ['Em ordem', 'is-ok'], atenção: ['Atenção', 'is-danger'], confirmar: ['Confirmar', 'is-warn'], agendar: ['A agendar', 'is-warn'], prazo: ['Prazo', 'is-muted'] };
     const pillOf = s => pill(...(status[s] || [s, 'is-muted']));
@@ -279,6 +283,8 @@ function render() {
   const main = el('section', undefined, 'adm-main'); main.tabIndex = -1; main.setAttribute('aria-label', tabs.find(x => x[0] === tab)?.[1] || ''); main.append((views[tab] || views.visao)());
   root.replaceChildren(head, nav, main);
 }
-window.addEventListener('hashchange', () => { tab = location.hash.replace('#', '') || 'visao'; render(); });
-load(); setInterval(() => { if (!document.hidden && !document.querySelector('.adm-dialog[open]') && tab !== 'pessoas' && tab !== 'traducoes') load(); }, 60000);
+const tabFromHash = () => { const next = location.hash.replace('#', '') || 'visao'; if (translatorOnly) return 'traducoes'; if (next === 'desenvolvimento' && !data?.development) return 'visao'; return views[next] ? next : 'visao'; };
+window.addEventListener('hashchange', () => { tab = tabFromHash(); render(); });
+// Não recarrega enquanto alguém digita (comunicado, busca, tradução): o redesenho apagaria o texto.
+load(); setInterval(() => { if (!document.hidden && !document.querySelector('.adm-dialog[open]') && tab !== 'pessoas' && tab !== 'traducoes' && tab !== 'comunicados' && !root.contains(document.activeElement)) load(); }, 60000);
 })();

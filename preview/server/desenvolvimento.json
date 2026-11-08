@@ -157,20 +157,17 @@
    "data": "2026-11-08",
    "titulo": "Painel Desenvolvimento, emojis e menu da conta",
    "detalhe": "Aba de prestação de contas no Centro de gestão; 1.570 emojis do Etnias antigo no compositor, comentários e chat; avatar do cabeçalho abre o menu da conta. Publicados na VPS no mesmo dia."
+  },
+  {
+   "data": "2026-11-08",
+   "titulo": "Chat no formato caixa de entrada, stories com interação e auditoria de usabilidade",
+   "detalhe": "Fotos e seção Pessoas no chat, painel de mensagens recentes no cabeçalho; stories com carregamento visível, barra guiada pela mídia, reações rápidas, resposta pelo chat e 'Visto por'; auditoria automática de 87 telas (zero estouros, zero falhas sérias de acessibilidade) e auditoria de caminhos de clique com 30 achados corrigidos (congelamento do chat após enviar ou abrir histórico, live fantasma sem câmera, feed redesenhado a cada 20 s pausando mídia, rascunhos perdidos no painel, entre outros)."
   }
  ],
  "andamento": [
   {
    "item": "Publicar na VPS as próximas entregas",
    "detalhe": "Stories, live, painel Desenvolvimento, emojis e menu da conta foram publicados em 2026-11-08. Comandos em deploy/opy/README.md; a contratante executa (a automação não tem permissão de publicar em produção)."
-  },
-  {
-   "item": "Menu da foto do perfil (Configurações e Grupos dos quais participo) e chat no formato inbox",
-   "detalhe": "Pedidos de 2026-11-08. Em desenho."
-  },
-  {
-   "item": "Emojis completos do Etnias antigo",
-   "detalhe": "Pedido de 2026-11-08. A base de 1.570 emojis em 8 categorias existe no código legado e será trazida para publicações, comentários e chat."
   }
  ],
  "pendencias": [
