@@ -9,7 +9,7 @@ COPY preview/server preview/server
 COPY preview/i18n preview/i18n
 COPY preview/middleware.js preview/public-posts.json preview/
 COPY preview/dist/public preview/dist/public
-COPY scripts/opy-preview-server.mjs scripts/
+COPY scripts/opy-preview-server.mjs scripts/opy-import-legacy.mjs scripts/
 RUN mkdir -p /data && chown node:node /data
 USER node
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8101 OPY_LOCAL_DATA_DIR=/data

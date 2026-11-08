@@ -5,6 +5,12 @@ services:
   opy:
     ports: !reset []
     networks: [default, caddy]
+    environment:
+      # Fotos e vídeos herdados do Etnias antigo (rsync de public_html/upload para /srv/casa-opy/legacy-media).
+      OPY_LEGACY_MEDIA_DIR: /legacy-media
+    volumes:
+      - opy-data:/data
+      - /srv/casa-opy/legacy-media:/legacy-media:ro
   turn:
     volumes: !reset
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro

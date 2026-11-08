@@ -14,10 +14,18 @@ Validado localmente em 2026-11-07: imagem construída, container servindo com CS
 - **Acesso:** chave `~/.ssh/casa_opy_deploy` (comentário `casa-opy-deploy`) em `/root/.ssh/authorized_keys`. Para revogar: `sed -i '/casa-opy-deploy/d' /root/.ssh/authorized_keys`.
 - **Atualizar** (da raiz do repositório, depois de exportar as páginas). Sempre envie a lista completa e **sem `--delete`**, senão arquivos irmãos de `preview/` somem no servidor:
   ```bash
-  rsync -az -e "ssh -i ~/.ssh/casa_opy_deploy" --relative preview/package.json preview/package-lock.json preview/server preview/middleware.js preview/public-posts.json preview/i18n preview/dist/public scripts/opy-preview-server.mjs root@179.66.136.125:/srv/casa-opy/
+  rsync -az -e "ssh -i ~/.ssh/casa_opy_deploy" --relative preview/package.json preview/package-lock.json preview/server preview/middleware.js preview/public-posts.json preview/i18n preview/dist/public scripts/opy-preview-server.mjs scripts/opy-import-legacy.mjs deploy/opy/Dockerfile deploy/opy/Dockerfile.dockerignore deploy/opy/compose.yaml deploy/opy/compose.vps-caddy.yaml root@179.66.136.125:/srv/casa-opy/
   ssh -i ~/.ssh/casa_opy_deploy root@179.66.136.125 'cd /srv/casa-opy/deploy/opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d --build opy'
   ```
 - **Desfazer:** restaurar o `Caddyfile.bak-*`, rodar `docker exec etnias-caddy-1 caddy reload --config /etc/caddy/Caddyfile` e `docker compose ... down` em `/srv/casa-opy/deploy/opy`.
+
+## Legado do Etnias dentro da Casa Opy (2026-11-08, plano `plans/casa-opy-rede-viva.md`)
+- **Mídia:** `public_html/upload` (só o que o banco referencia e existe no disco, lista gerada por `scripts/import-legacy.py` em `preview/legacy/media-manifest.txt`) vai por `rsync -a --partial --files-from=<manifesto> public_html/ root@…:/srv/casa-opy/legacy-media/`. O container monta essa pasta em `/legacy-media` (só leitura) e serve em `/legado/*` para quem tem sessão.
+- **Dados:** `python3 scripts/import-legacy.py` (banco recuperado local) gera `preview/legacy/legacy-import.json`; copie-o para a VPS (`/srv/casa-opy/legacy-import.json`) e mescle **com o app parado**, dentro do container, que faz backup do `community.json` antes de gravar:
+  ```bash
+  ssh -i ~/.ssh/casa_opy_deploy root@179.66.136.125 'cd /srv/casa-opy/deploy/opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env stop opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env run --rm -v /srv/casa-opy/legacy-import.json:/import.json:ro opy node scripts/opy-import-legacy.mjs --state /data --input /import.json && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d opy'
+  ```
+  A mesclagem é idempotente (ids derivados do `legacyId`); rodar de novo não duplica nada. Contas antigas entram com a senha original (bcrypt) e são migradas para scrypt na primeira entrada.
 
 ## Backup e reserva na Vercel (2026-11-07)
 

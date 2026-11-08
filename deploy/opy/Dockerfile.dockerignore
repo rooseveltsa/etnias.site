@@ -8,3 +8,4 @@
 !preview/public-posts.json
 !preview/dist/public
 !scripts/opy-preview-server.mjs
+!scripts/opy-import-legacy.mjs

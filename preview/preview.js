@@ -7,6 +7,17 @@ const button=(label, fn, root)=>{const b=make('button',label,'preview-secondary'
 const emoji=[['😀','Sorriso'],['❤️','Coração'],['😂','Risada'],['👏','Palmas'],['🙏','Gratidão'],['🌱','Planta'],['💚','Coração verde'],['✨','Brilho']];
 const reactions=[['like','👍','Curti'],['heart','❤️','Amei'],['laugh','😂','Haha'],['wow','😮','Surpresa'],['sad','😢','Triste']];
 let state, filter='all', view='news', videoAttachment=null, fileAttachment=null, busy=false;
+// Feed, perfil, comunidade e busca vêm paginados do servidor; o cliente guarda só o que está na tela.
+const feed={key:'',posts:[],hasMore:false,loading:false};
+const profileData={key:'',person:null,posts:[],hasMore:false,loading:false};
+const communityPosts={id:'',posts:[],hasMore:false,loading:false};
+const searchData={q:null,people:[],posts:[],loading:false};
+function findPost(id){return feed.posts.find(p=>p.id===id)||profileData.posts.find(p=>p.id===id)||communityPosts.posts.find(p=>p.id===id)||(state?.posts||[]).find(p=>p.id===id);}
+function upsertPost(list,post){const i=list.findIndex(p=>p.id===post.id);if(i>=0)list[i]=post;}
+function dropPost(id){for(const l of [feed.posts,profileData.posts,communityPosts.posts,state?.posts||[]]){const i=l.findIndex(p=>p.id===id);if(i>=0)l.splice(i,1);}}
+const byNewest=(a,b)=>b.createdAt-a.createdAt||(a.id<b.id?1:-1);
+function mergePage(list,page){const seen=new Set(page.map(p=>p.id));return [...page,...list.filter(p=>!seen.has(p.id))].sort(byNewest);}
+const apiGet=params=>api(null,'?'+new URLSearchParams(params));
 const expandedComments=new Set(), openCommentForms=new Set(), replyTargets=new Map();
 let profileTab='posts', dockChatKey='';
 const seenStories=new Set((()=>{try{return JSON.parse(localStorage.getItem('opy_seen_stories')||'[]');}catch{return[];}})());
@@ -15,7 +26,7 @@ const fullDate=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeSt
 // Tempo relativo até 7 dias, como nas redes que as pessoas já usam; depois, a data completa.
 const date=value=>{const d=(Date.now()-new Date(value).getTime())/1000;if(d<45)return 'agora';if(d<3600)return `há ${Math.max(1,Math.round(d/60))} min`;if(d<86400)return `há ${Math.round(d/3600)} h`;if(d<172800)return 'ontem';if(d<604800)return `há ${Math.round(d/86400)} dias`;return fullDate(value);};
 function showError(message){let el=$('#community-error');if(!el){el=make('p',undefined,'preview-feedback');el.id='community-error';el.setAttribute('role','alert');$('.middlecol').prepend(el);}el.textContent=message;}
-async function api(body){const response=await fetch('/api/community',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json().catch(()=>({}));if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;throw error;}return data;}
+async function api(body,query=''){const response=await fetch('/api/community'+query,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json().catch(()=>({}));if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;throw error;}return data;}
 // Estado vazio com próximo passo: título, explicação e ações (href ou função).
 function emptyState(title,text,actions=[]){
  const box=make('div',undefined,'opy-empty');box.append(make('strong',title),make('p',text));
@@ -29,14 +40,18 @@ function toast(msg){
 }
 const TOASTS={publish:'Publicado',repost:'Repostado no seu perfil',delete:'Publicação excluída',post_edit:'Alterações salvas',profile_update:'Perfil atualizado',story_create:'Story publicado por 24 horas',community_create:'Comunidade criada',community_invite:'Convite enviado',community_update:'Configurações salvas',community_approve:'Entrada aprovada',community_accept_invite:'Você entrou na comunidade'};
 function toastFor(body){
- if(body.action==='save'){const p=state.posts.find(x=>x.id===body.postId);return p?(p.saved?'Salvo para ler depois':'Removido dos salvos'):'';}
+ if(body.action==='save'){const p=findPost(body.postId);return p?(p.saved?'Salvo para ler depois':'Removido dos salvos'):'';}
  if(body.action==='community_join'){const c=communitiesList().find(x=>x.id===body.communityId);return !c?'':c.joined?'Você entrou em '+c.name:(c.pending||c.requested)?'Pedido enviado à coordenação':'Pedido cancelado';}
  if(body.action==='community_leave')return 'Você saiu da comunidade';
  return TOASTS[body.action]||'';
 }
 function closePostMenus(){all('.post-menu').forEach(m=>{m.hidden=true;m.previousElementSibling?.setAttribute('aria-expanded','false');});}
 document.addEventListener('click',closePostMenus);document.addEventListener('keydown',e=>{if(e.key==='Escape')closePostMenus();});
-async function change(body){state=await api(body);render();const msg=toastFor(body);if(msg)toast(msg);}
+async function change(body){const next=await api(body);const touched=next.touched;delete next.touched;state=next;
+ if(touched){for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,touched);}
+ else if(body.action==='delete'||body.action==='community_moderate_post')dropPost(body.postId);
+ if(['publish','repost','delete','community_moderate_post'].includes(body.action)){feed.key='';profileData.key='';communityPosts.id='';}
+ render();const msg=toastFor(body);if(msg)toast(msg);}
 function picker(root,target){root.replaceChildren();for(const [symbol,label] of emoji){const b=button(symbol,()=>{const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();root.hidden=true;},root);b.setAttribute('aria-label',label);}root.hidden=false;}
 const glyph={
  like:'<path d="M8 10v10H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zm0 0 3.4-6.1A2.2 2.2 0 0 1 15.3 5.2L14 10h5.1a2 2 0 0 1 2 2.4l-1 6.2a2 2 0 0 1-2 1.4H8"/>',
@@ -65,7 +80,7 @@ document.querySelectorAll('[data-opy-destination="grupos"] span:not(.opy-pending
 function postAction(name, label, fn){const b=document.createElement('button');b.type='button';b.className='post-action';b.innerHTML=svg(name);if(label){const span=document.createElement('span');span.textContent=label;b.append(span);}b.addEventListener('click',async event=>{b.disabled=true;try{await fn(event);}catch(e){showError(e.message);}finally{b.disabled=false;}});return b;}
 function avatarNode(name, url, size=42){
  const fallback=()=>make('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');
- if(url&&(/^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url)||/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url))){
+ if(url&&(/^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url)||/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url)||/^\/legado\/upload\/[\w./%-]+\.(jpg|jpeg|png|webp|gif)$/i.test(url))){
   const img=make('img',undefined,'preview-avatar preview-avatar-image');img.src=url;img.alt='Foto de '+name;img.width=size;img.height=size;img.loading='lazy';
   img.addEventListener('error',()=>img.replaceWith(fallback()),{once:true});return img;
  }
@@ -83,7 +98,9 @@ function appendFile(media, parent){const file=document.createElement('a');file.c
 function appendPostBody(item, parent){
  if(item.feeling)parent.append(make('small','Sentindo-se '+item.feeling,'post-feeling'));
  if(item.text&&item.text.trim())parent.append(make('p',item.text,'post-copy'));
- if(item.image&&item.image.startsWith('/assets/archive/')){const img=make('img',undefined,'preview-post-image');img.src=item.image;img.alt='Imagem da publicação de '+item.author;img.loading='lazy';parent.append(img);}
+ if(item.images&&item.images.length>1){const grid=make('div',undefined,'post-images');grid.dataset.count=String(Math.min(item.images.length,4));item.images.slice(0,4).forEach((u,i)=>{const img=make('img');img.src=u;img.alt=`Imagem ${i+1} da publicação de ${item.author}`;img.loading='lazy';if(i===3&&item.images.length>4){const w=make('span',undefined,'post-images-more');w.append(img,make('b','+'+(item.images.length-4)));grid.append(w);}else grid.append(img);});parent.append(grid);}
+ else if(item.image&&(item.image.startsWith('/assets/archive/')||item.image.startsWith('/legado/'))){const img=make('img',undefined,'preview-post-image');img.src=item.image;img.alt='Imagem da publicação de '+item.author;img.loading='lazy';parent.append(img);}
+ if(item.link&&item.link.url){const a=make('a',undefined,'post-link');a.href=item.link.url;a.target='_blank';a.rel='noopener noreferrer';let host='';try{host=new URL(item.link.url).hostname.replace(/^www\./,'');}catch{}a.append(make('strong',item.link.title||host||item.link.url),make('small',host));parent.append(a);}
  if(item.media&&item.media.kind==='audio')mountAudio(item.media,parent);
  else if(item.media&&item.media.kind==='file')appendFile(item.media,parent);
  else if(item.media&&item.media.kind==='video'){const video=document.createElement('video');video.className='preview-post-video';video.src=item.media.url;video.controls=true;video.preload='metadata';video.setAttribute('playsinline','');parent.append(video);}
@@ -253,18 +270,21 @@ function paintCommunity(){
  const status=$('#community-connection');if(status)status.textContent=all.length?'':'Ainda não há comunidades. Crie a primeira em Grupos.';
 }
 const plain=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
-// Modalidades do feed (documento 6.1–6.9). Descobrir alterna autores para dar visibilidade a quem publica pouco ou chegou agora.
-function feedPosts(base){
- const isFollowing=p=>p.following||p.friendStatus==='friends';
- if(view==='following')return base.filter(isFollowing);
- if(view==='discover'){
-  const groups=new Map();for(const p of base.filter(p=>!p.own&&!isFollowing(p))){const k=p.authorKey||p.author;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p);}
-  const out=[];for(let round=0;out.length<base.length;round++){let added=false;for(const list of groups.values())if(list[round]){out.push(list[round]);added=true;}if(!added)break;}return out;
- }
- if(view==='location'){const q=plain($('#feed-location-query')?.value);return base.filter(p=>p.location&&(!q||plain(p.location).includes(q)));}
- if(view==='archive')return base.filter(p=>p.origin==='legacy');
- if(view==='news')return base;
- return base.filter(p=>matchMediaKind(p,view==='files'?'files':view));
+const feedState=()=>feed;
+// Parâmetros do feed resolvidos no servidor; vazio = primeira página padrão, que já vem no snapshot.
+function feedParams(saved){
+ const p={};
+ if(saved)p.feed='saved';else if(['following','discover','archive'].includes(view))p.feed=view;
+ if(['photos','videos','audio','files'].includes(view))p.kind=view;
+ if(view==='location')p.location=$('#feed-location-query')?.value||'';
+ if(filter&&filter!=='all')p.origin=filter;
+ return p;
+}
+async function loadMoreFeed(){
+ const f=feedState();if(f.loading||!f.posts.length)return;f.loading=true;const key=f.key;const last=f.posts.at(-1);
+ try{const d=await apiGet({view:'posts',...feedParams(document.body.dataset.previewRoute==='saved-posts'),before:last.createdAt,beforeId:last.id});if(f.key!==key)return;f.posts=mergePage(f.posts,d.posts);f.hasMore=d.hasMore;}
+ finally{f.loading=false;}
+ render();
 }
 // Comunicados da administração no topo do feed e atalho para o Centro de gestão de quem modera.
 // Primeiros passos de quem chegou agora: some quando tudo está feito ou quando a pessoa fecha.
@@ -276,7 +296,7 @@ function paintWelcome(){
   ['Conte quem você é na apresentação',!!state.me.bio,'/perfil/'],
   ['Entre em uma comunidade',communitiesList().some(c=>c.joined&&c.id!=='avaliacao-casa-opy'),'/grupos/'],
   ['Siga 3 pessoas',(state.directory||[]).filter(p=>p.following).length>=3,()=>$('[data-feed-view="discover"]')?.click()],
-  ['Faça sua primeira publicação',state.posts.some(p=>p.own),()=>{const t=$('#opy-compose textarea');t?.scrollIntoView({block:'center'});t?.focus();}]
+  ['Faça sua primeira publicação',((state.directory||[]).find(p=>p.own)?.postsCount||0)>0||state.posts.some(p=>p.own),()=>{const t=$('#opy-compose textarea');t?.scrollIntoView({block:'center'});t?.focus();}]
  ];
  const done=steps.filter(s=>s[1]).length;
  let box=$('#opy-welcome');
@@ -296,13 +316,6 @@ function paintAnnouncements(){
  let box=$('#opy-announcements');if(!box){box=make('div');box.id='opy-announcements';const host=$('.feed-chips')||feed;host.before(box);}
  box.replaceChildren(...(state.announcements||[]).map(a=>{const card=make('aside',undefined,'opy-announcement');card.setAttribute('aria-label','Comunicado');const body=make('div');body.append(make('strong',a.title),make('p',a.text));if(a.link){const l=make('a','Saiba mais');l.href=a.link;body.append(l);}const close=make('button','✕');close.type='button';close.setAttribute('aria-label','Fechar comunicado');close.onclick=()=>change({action:'announcement_dismiss',id:a.id}).catch(e=>showError(e.message));card.append(body,close);return card;}));
 }
-function matchMediaKind(p, kind){
- if(kind==='photos')return p.media?.kind==='image'||!!p.image||p.repostOf?.media?.kind==='image'||!!p.repostOf?.image;
- if(kind==='videos')return p.media?.kind==='video'||p.repostOf?.media?.kind==='video';
- if(kind==='audio')return p.media?.kind==='audio'||p.repostOf?.media?.kind==='audio';
- if(kind==='files')return p.media?.kind==='file'||!!p.file||p.repostOf?.media?.kind==='file'||!!p.repostOf?.file;
- return true;
-}
 function profileKey(){
  if(document.body.dataset.previewRoute==='profile'){const u=new URLSearchParams(location.search).get('u');if(u)return u;}
  return state?.me?'id:'+state.me.id:'';
@@ -315,14 +328,19 @@ function renderProfile(){
  const root=$('#profile-page');if(!root||!state)return;
  const key=profileKey();if(!key)return;
  const own=key==='id:'+state.me.id;
- const base=personByKey(key);
+ if(profileData.key!==key){profileData.key=key;profileData.person=null;profileData.posts=[];profileData.hasMore=false;profileData.loading=true;profileSignature='';
+  apiGet({view:'profile',key}).then(d=>{if(profileData.key!==key)return;profileData.person=d.person;profileData.posts=d.posts;profileData.hasMore=d.hasMore;profileData.loading=false;renderProfile();}).catch(e=>{profileData.loading=false;root.replaceChildren(emptyState(e.status===404?'Pessoa não encontrada':'Não foi possível carregar o perfil',e.status===404?'Este perfil não existe ou não está disponível.':e.message,[['Voltar ao feed','/']]));});
+  return;
+ }
+ if(profileData.loading&&!profileData.person)return;
+ const base=profileData.person||personByKey(key);
  const person=own?{...base,name:state.me.name,username:state.me.username,bio:state.me.bio,affiliation:state.me.affiliation,avatar:state.me.avatar,cover:state.me.cover,joinedAt:state.me.joinedAt,own:true}:base;
- const posts=state.posts.filter(p=>p.authorKey===key);
+ const posts=profileData.posts;
  const photos=posts.flatMap(p=>[p.media?.kind==='image'?p.media.url:'',p.image||''].filter(Boolean));
  const comms=(state.communities||[]).filter(c=>own?c.joined:(c.members||[]).some(m=>m.key===key));
  const ea=$('#profile-edit-avatar');if(ea)ea.replaceChildren(avatarNode(state.me.name,state.me.avatar,72));
  const ec=$('#profile-edit-cover');if(ec){ec.replaceChildren();if(state.me.cover){const im=make('img');im.src=state.me.cover;im.alt='';ec.append(im);}}
- const signature=JSON.stringify([person,posts.map(p=>[p.id,p.reaction,p.comments?.length,p.saved]),comms.map(c=>c.id),profileTab]);
+ const signature=JSON.stringify([person,posts.map(p=>[p.id,p.reaction,p.comments?.length,p.saved,p.editedAt]),comms.map(c=>c.id),profileTab,profileData.hasMore]);
  if(signature===profileSignature)return;profileSignature=signature;
  document.title=person.name+' · Casa Opy';
  const cover=make('div',undefined,'pf-cover');
@@ -365,6 +383,7 @@ function renderProfile(){
   if(own){const c=make('a',undefined,'pf-compose');c.href='/#opy-compose';c.append(avatarNode(person.name,person.avatar,40),make('span','No que você está pensando?'));main.append(c);}
   main.append(...posts.map(p=>renderPost(p)));
   if(!posts.length)main.append(make('p',own?'Você ainda não publicou. Sua primeira publicação aparece aqui.':'Nenhuma publicação visível para você.','pf-card pf-empty'));
+  if(profileData.hasMore){const more=button('Ver publicações anteriores',async()=>{const last=posts.at(-1);const d=await apiGet({view:'profile',key,before:last.createdAt,beforeId:last.id});if(profileData.key!==key)return;profileData.posts=mergePage(profileData.posts,d.posts);profileData.hasMore=d.hasMore;profileSignature='';renderProfile();},main);more.className='feed-more';}
  }else if(profileTab==='about'){
   const c=make('section',undefined,'pf-card');c.append(make('h2','Sobre'));const dl=make('dl',undefined,'pf-about');
   const row=(t,v)=>{if(v)dl.append(make('dt',t),make('dd',v));};
@@ -510,14 +529,14 @@ function renderCommunities(){
   if(current.joined&&(!isPrivate||current.canModerate)){
    button('Convidar pessoa',()=>{
     openCommunityDialog('Convidar para '+current.name,'Enviar convite',body=>{
-     const lbl=make('label','Escolha uma pessoa com conta na prévia');
-     const sel=make('select');sel.name='memberKey';sel.required=true;
-     const candidates=(state.directory||[]).filter(p=>p.key.startsWith('id:')&&!p.own&&!(current.members||[]).some(m=>m.key===p.key));
-     if(!candidates.length){body.append(make('p','Todas as contas ativas já participam desta comunidade.'));return;}
-     for(const c of candidates){const o=make('option',`${c.name}${c.username?' (@'+c.username+')':''}`);o.value=c.key;sel.append(o);}
-     lbl.append(sel);body.append(lbl);
+     const lbl=make('label','Procure a pessoa pelo nome ou usuário');
+     const q=make('input');q.type='search';q.name='q';q.autocomplete='off';q.placeholder='Nome, @usuário ou povo';lbl.append(q);
+     const hidden=make('input');hidden.type='hidden';hidden.name='memberKey';
+     const list=make('div',undefined,'invite-results');list.setAttribute('role','listbox');
+     let timer;q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(async()=>{const term=q.value.trim();if(term.length<2){list.replaceChildren();return;}try{const d=await apiGet({view:'search',q:term,excludeCommunity:current.id});list.replaceChildren(...d.people.filter(p=>!p.own).map(p=>{const b=make('button',undefined,'community-person');b.type='button';b.setAttribute('role','option');b.append(avatarNode(p.name,p.avatar,32),make('strong',p.name+(p.username?' · @'+p.username:'')));b.onclick=()=>{hidden.value=p.key;all('.community-person',list).forEach(x=>x.setAttribute('aria-selected',String(x===b)));};return b;}));if(!d.people.length)list.append(make('p','Ninguém com esse nome fora da comunidade.'));}catch(e){showError(e.message);}},250);});
+     body.append(lbl,hidden,list);
     },async form=>{
-     const key=form.elements.memberKey?.value;if(!key)return;
+     const key=form.elements.memberKey?.value;if(!key){showError('Escolha uma pessoa na lista.');return;}
      await change({action:'community_invite',communityId:current.id,memberKey:key});
     });
    },actionBar);
@@ -572,9 +591,12 @@ function renderCommunities(){
     panel.append(hint);
    }
    if(canViewContent){
-    const cPosts=state.posts.filter(p=>p.communityId===current.id);
+    if(communityPosts.id!==current.id){communityPosts.id=current.id;communityPosts.posts=[];communityPosts.hasMore=false;communityPosts.loading=true;apiGet({view:'posts',community:current.id}).then(d=>{if(communityPosts.id!==current.id)return;communityPosts.posts=d.posts;communityPosts.hasMore=d.hasMore;communityPosts.loading=false;renderCommunities();}).catch(e=>{communityPosts.loading=false;showError(e.message);});}
+    const cPosts=communityPosts.posts;
     if(cPosts.length)panel.append(...cPosts.map(p=>renderPost(p,current)));
+    else if(communityPosts.loading)panel.append(make('p','Carregando publicações…','pf-empty'));
     else panel.append(emptyState('Nenhuma publicação ainda','Seja a primeira pessoa a compartilhar algo com esta comunidade.'));
+    if(communityPosts.hasMore){const more=button('Ver publicações anteriores',async()=>{const last=cPosts.at(-1);const d=await apiGet({view:'posts',community:current.id,before:last.createdAt,beforeId:last.id});if(communityPosts.id!==current.id)return;communityPosts.posts=mergePage(communityPosts.posts,d.posts);communityPosts.hasMore=d.hasMore;renderCommunities();},panel);more.className='feed-more';}
    }
   }else if(activeCommunityTab==='members'){
    if(current.canModerate&&current.pendingRequests?.length){
@@ -743,29 +765,38 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);
   stories.replaceChildren();const create=button('',()=>openStorySheet(),stories);create.classList.add('story-card','story-create');create.append(make('span','+','story-plus'),make('strong','Criar story'));
   for(const item of state.stories){
    const card=button('',()=>openStory(item),stories);card.classList.add('story-card');if(seenStories.has(item.id))card.classList.add('is-seen');
-   card.append(make('span',item.author.slice(0,1).toLocaleUpperCase('pt-BR'),'story-avatar'));
+   const sAv=make('span',undefined,'story-avatar');if(item.avatar){const im=make('img');im.src=item.avatar;im.alt='';sAv.append(im);}else sAv.textContent=item.author.slice(0,1).toLocaleUpperCase('pt-BR');card.append(sAv);
    if(item.media?.kind==='image'){const img=make('img',undefined,'story-thumbnail');img.src=item.media.url;img.alt='';img.loading='lazy';card.append(img);}
    else if(item.media?.kind==='video'){const vid=make('video',undefined,'story-thumbnail');vid.src=item.media.url;vid.muted=true;vid.playsInline=true;vid.preload='metadata';vid.setAttribute('aria-hidden','true');card.append(vid);}
    card.append(make('span',item.text||(item.media?.kind==='video'?'Vídeo':'Foto'),'story-card-text'),make('strong',item.author));card.setAttribute('aria-label','Ver story de '+item.author);
   }
   if(!state.stories.length)stories.append(make('p','Compartilhe o primeiro story da comunidade.','story-empty'));
  }
- const feed=$('#preview-feed');if(feed){feed.removeAttribute('aria-busy');
+ const feedEl=$('#preview-feed');if(feedEl){const fs=feedState();
   const saved=document.body.dataset.previewRoute==='saved-posts';
-  const basePosts=state.posts.filter(p=>(!saved||p.saved)&&(filter==='all'||p.origin===filter));
-  const posts=feedPosts(basePosts);
+  const params=feedParams(saved);const key=new URLSearchParams(params).toString();
+  if(fs.key!==key){
+   fs.key=key;fs.hasMore=false;
+   if(!key){fs.posts=state.posts;fs.hasMore=!!state.postsHasMore;fs.loading=false;}
+   else{fs.posts=[];fs.loading=true;feedEl.setAttribute('aria-busy','true');apiGet({view:'posts',...params}).then(d=>{if(fs.key!==key)return;fs.posts=d.posts;fs.hasMore=d.hasMore;fs.loading=false;render();}).catch(e=>{fs.loading=false;feedEl.removeAttribute('aria-busy');showError(e.message);});}
+  }else if(!key){fs.posts=mergePage(fs.posts,state.posts);if(state.postsHasMore&&fs.posts.length<=state.posts.length)fs.hasMore=true;}
+  if(!fs.loading)feedEl.removeAttribute('aria-busy');
+  const posts=fs.posts;
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
-  const drafts=new Map(all('.community-post',feed).map(card=>[card.id,{text:$('.preview-comment-form input',card)?.value||'',open:!$('.preview-comment-form',card)?.hidden}]));
+  const drafts=new Map(all('.community-post',feedEl).map(card=>[card.id,{text:$('.preview-comment-form input',card)?.value||'',open:!$('.preview-comment-form',card)?.hidden}]));
+  const feed=feedEl;
   feed.replaceChildren(...posts.map(p=>renderPost(p)));
+  if(fs.loading&&!posts.length)feed.append(make('div',undefined,'opy-skeleton'),make('div',undefined,'opy-skeleton'));
   all('.community-post',feed).forEach(card=>{const draft=drafts.get(card.id);if(draft){$('.preview-comment-form input',card).value=draft.text;const form=$('.preview-comment-form',card);form.hidden=!draft.open;const toggle=card.querySelector('[aria-controls="'+form.id+'"]');if(toggle)toggle.setAttribute('aria-expanded',String(!!draft.open));}});
-  if(!posts.length){
+  if(!posts.length&&!fs.loading){
    const showView=v=>$(`[data-feed-view="${v}"]`)?.click();
    feed.append(saved?emptyState('Nada salvo ainda','Toque no marcador de uma publicação para guardá-la aqui e ler depois.',[['Ir para o feed','/']])
-    :view==='following'&&!state.posts.some(p=>p.following||p.friendStatus==='friends')?emptyState('Você ainda não segue ninguém','Siga pessoas para ver aqui o que elas publicam.',[['Descobrir pessoas',()=>showView('discover')]])
+    :view==='following'&&!(state.directory||[]).some(p=>!p.own&&(p.following||p.friendStatus==='friends'))?emptyState('Você ainda não segue ninguém','Siga pessoas para ver aqui o que elas publicam.',[['Descobrir pessoas',()=>showView('discover')]])
     :view==='location'?emptyState('Nenhuma publicação com esse local','As pessoas informam o local ao publicar. Tente outro nome de cidade, região ou território.')
     :view==='discover'?emptyState('Você já segue todo mundo','Quem publicou por aqui já está no seu feed.',[['Ver tudo',()=>showView('news')]])
     :emptyState('Nada neste filtro','Ainda não há publicações deste tipo.',[['Ver tudo',()=>showView('news')]]));
   }
+  if(posts.length&&fs.hasMore){const more=button('Ver publicações anteriores',loadMoreFeed,feed);more.className='feed-more';more.id='feed-more';if('IntersectionObserver' in window){new IntersectionObserver((entries,obs)=>{if(entries[0].isIntersecting){obs.disconnect();more.click();}},{rootMargin:'600px 0px'}).observe(more);}}
  }
  renderProfile();
  renderDockChat();
@@ -785,24 +816,26 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);
    }
    results.append(sec);
   }
-  const matchedPeople=(state.directory||[]).filter(p=>(p.name+' '+(p.username||'')+' '+(p.affiliation||'')).toLocaleLowerCase('pt-BR').includes(query));
+  if(searchData.q!==rawQuery){searchData.q=rawQuery;searchData.people=[];searchData.posts=[];if(rawQuery.trim()){searchData.loading=true;apiGet({view:'search',q:rawQuery}).then(d=>{if(searchData.q!==rawQuery)return;searchData.people=d.people;searchData.posts=d.posts;searchData.loading=false;render();}).catch(e=>{searchData.loading=false;showError(e.message);});}}
+  const matchedPeople=searchData.people;
   if(matchedPeople.length){
    const sec=make('section',undefined,'search-result-group');sec.append(make('h2','Pessoas na comunidade'));
-   for(const p of matchedPeople.slice(0,8)){
+   for(const p of matchedPeople){
     const row=make('div',undefined,'community-member-row');
     const b=make('button',undefined,'community-person');b.type='button';b.onclick=()=>openProfile(p.key,p.name,p.avatar);
-    b.append(avatarNode(p.name,p.avatar,36),make('strong',p.name+(p.affiliation?` · ${p.affiliation}`:'')));
+    b.append(avatarNode(p.name,p.avatar,36),make('strong',p.name+(p.username?' · @'+p.username:'')+(p.affiliation?` · ${p.affiliation}`:'')));
     row.append(b);sec.append(row);
    }
    results.append(sec);
   }
-  const posts=state.posts.filter(p=>(p.text+' '+p.author+' '+(p.communityName||'')).toLocaleLowerCase('pt-BR').includes(query));
+  const posts=searchData.posts;
   if(posts.length){
    const sec=make('section',undefined,'search-result-group');sec.append(make('h2','Publicações'));
    for(const p of posts){const a=make('a');a.href='/#post-'+p.id;a.append(make('strong',p.author+(p.communityName?' · '+p.communityName:'')),make('p',p.text.slice(0,240)),make('small',date(p.createdAt)));sec.append(a);}
    results.append(sec);
   }
-  if(!matchedComms.length&&!matchedPeople.length&&!posts.length)results.append(emptyState('Nada encontrado para “'+rawQuery+'”','Confira a grafia ou tente uma palavra mais curta, como o nome de uma pessoa, povo ou tema.',[['Ver comunidades','/grupos/']]));
+  if(searchData.loading)results.append(make('p','Buscando…','pf-empty'));
+  else if(!matchedComms.length&&!matchedPeople.length&&!posts.length)results.append(emptyState('Nada encontrado para “'+rawQuery+'”','Confira a grafia ou tente uma palavra mais curta, como o nome de uma pessoa, povo ou tema.',[['Ver comunidades','/grupos/']]));
  }
  const notices=$('#community-notifications');if(notices){
   notices.replaceChildren();

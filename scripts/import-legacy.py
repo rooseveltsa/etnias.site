@@ -233,6 +233,31 @@ for p in rows(post_sql):
         'reactions': [{'authorLegacyId': a, 'reaction': r} for a, r in reactions.get(pid, {}).items()]
     })
 
+# O site antigo gravava várias cópias do mesmo post. Mesmo autor + mesmo texto + mesma mídia, com menos de
+# 10 min entre cópias consecutivas: fica a mais antiga, que herda comentários (por legacyId) e reações (última vence).
+merged, kept_posts = 0, []
+groups = {}  # chave → cópia mais recente da cadeia atual
+for p in sorted(posts, key=lambda p: p['createdAt']):
+    key = (p['authorLegacyId'], re.sub(r'\s+', ' ', p['text']).casefold(), p['image'] or (p['media'] or {}).get('url', ''))
+    kept = groups.get(key)
+    if kept and p['createdAt'] - kept['_last'] < 600_000:
+        kept['_last'] = p['createdAt']
+        seen = {c['legacyId'] for c in kept['comments']}
+        kept['comments'] += [c for c in p['comments'] if c['legacyId'] not in seen]
+        by_author = {r['authorLegacyId']: r['reaction'] for r in kept['reactions'] + p['reactions']}
+        kept['reactions'] = [{'authorLegacyId': a, 'reaction': r} for a, r in by_author.items()]
+        kept['images'] += [i for i in p['images'] if i not in kept['images']]
+        kept['attachmentMissing'] = kept['attachmentMissing'] and p['attachmentMissing']
+        merged += 1
+    else:
+        groups[key] = p
+        kept_posts.append(p)
+        p['_last'] = p['createdAt']
+posts = sorted(kept_posts, key=lambda p: p['createdAt'], reverse=True)
+for p in posts:
+    del p['_last']
+    p['comments'].sort(key=lambda c: c['createdAt'])
+
 # ---- seguir
 follows = [[int(f['follower']), int(f['following'])] for f in rows("SELECT " + obj(follower='follower_id', following='following_id') + " FROM Wo_Followers WHERE active='1'")
            if int(f['follower']) in known and int(f['following']) in known and int(f['follower']) != int(f['following'])]
@@ -250,7 +275,8 @@ pairs = set(follows)
 mutual = sum(1 for a, b in follows if a < b and (b, a) in pairs)
 print(f"Contas: {len(accounts)} ({sum(bool(a['avatarUrl']) for a in accounts)} com avatar, {sum(bool(a['coverUrl']) for a in accounts)} com capa, {sum(bool(a['phone']) for a in accounts)} com telefone)")
 print(f"Publicações: {len(posts)} ({sum(bool(p['image']) for p in posts)} com imagem, {sum(bool(p['media']) for p in posts)} com vídeo/áudio/arquivo, "
-      f"{sum(p['attachmentMissing'] for p in posts)} com anexo perdido, {sum(bool(p['communityLegacyId']) for p in posts)} em comunidade); descartadas: {dict(dropped)}")
+      f"{sum(p['attachmentMissing'] for p in posts)} com anexo perdido, {sum(bool(p['communityLegacyId']) for p in posts)} em comunidade); "
+      f"cópias fundidas: {merged}; descartadas: {dict(dropped)}")
 print(f"Comentários: {sum(len(p['comments']) for p in posts)}; reações: {sum(len(p['reactions']) for p in posts)}")
 print(f"Comunidades: {len(communities)} ({sum(len(c['memberLegacyIds']) for c in communities)} participações); follows: {len(follows)} ({mutual} mútuos)")
 for kind, items in manifest.items():
