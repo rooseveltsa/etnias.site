@@ -1,25 +1,33 @@
 import http from 'node:http';
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { resolve, extname, sep } from 'node:path';
+import { resolve, join, extname, sep } from 'node:path';
 import handler from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 const root = resolve('preview/dist/public');
 // Fotos, vídeos e arquivos herdados do Etnias antigo, no disco em OPY_LEGACY_MEDIA_DIR (contém a pasta upload/).
 const legacyRoot = process.env.OPY_LEGACY_MEDIA_DIR ? resolve(process.env.OPY_LEGACY_MEDIA_DIR) : '';
+// Miniaturas geradas por scripts/opy-legacy-derivados.sh ficam em OPY_LEGACY_THUMBS_DIR (padrão: pasta thumbs/ dentro da mídia).
+// /legado/thumbs/<caminho> serve a miniatura e, quando ela não existe (foto já leve ou ainda não gerada), o original.
+const thumbsRoot = legacyRoot ? resolve(process.env.OPY_LEGACY_THUMBS_DIR || join(legacyRoot, 'thumbs')) : '';
 const legacyTypes = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp','.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.pdf':'application/pdf' };
 async function serveLegacy(req, res, pathname) {
   const notFound = () => { res.writeHead(404); res.end(); };
   if (!legacyRoot) return notFound();
   // As páginas eram públicas no site antigo, mas a rede nova pede entrada: só quem tem sessão vê a mídia.
   if (!await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET)) { res.writeHead(401); return res.end(); }
-  const file = resolve(legacyRoot, '.' + decodeURIComponent(pathname.slice('/legado'.length)));
+  const relative = decodeURIComponent(pathname.slice('/legado'.length));
+  const thumb = relative.startsWith('/thumbs/');
+  const candidates = thumb ? [[thumbsRoot, relative.slice('/thumbs'.length)], [legacyRoot, relative.slice('/thumbs'.length)]] : [[legacyRoot, relative]];
+  let file, info;
+  for (const [base, path] of candidates) {
+    const candidate = resolve(base, '.' + path);
+    if (!candidate.startsWith(base + sep) || !legacyTypes[extname(candidate).toLowerCase()]) return notFound();
+    try { const found = await stat(candidate); if (found.isFile()) { file = candidate; info = found; break; } } catch {}
+  }
+  if (!file) return notFound();
   const type = legacyTypes[extname(file).toLowerCase()];
-  if (!file.startsWith(legacyRoot + sep) || !type) return notFound();
-  let info;
-  try { info = await stat(file); } catch { return notFound(); }
-  if (!info.isFile()) return notFound();
   const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=31536000, immutable' };
   // Range é o que permite o vídeo avançar e tocar no iPhone.
   const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');

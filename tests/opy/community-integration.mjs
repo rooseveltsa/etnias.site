@@ -273,6 +273,22 @@ try {
   assert.ok(afterFollow.data.items.some(i => i.kind === 'follow' && i.unread && i.key === 'id:' + thirdId), 'seguir gera notificação datada');
   const directory = (await api(null, third.cookie)).data.directory;
   assert.ok(directory.filter(p => p.suggested).every(p => typeof p.reason === 'string' && p.reason), 'toda sugestão explica o motivo');
+  // Troca de senha: senha atual obrigatória, outras sessões caem, a nova senha passa a valer.
+  assert.equal((await api({ action:'password_change', current:'Errada-2026-xx', next:'Nova-senha-2026' }, login.cookie)).status, 403);
+  assert.equal((await api({ action:'password_change', current:'Test-only-2026', next:'Test-only-2026' }, login.cookie)).status, 400);
+  const otherDevice = await api({ action:'login', username:'primeiro', password:'Test-only-2026' });
+  assert.equal((await api({ action:'password_change', current:'Test-only-2026', next:'Nova-senha-2026' }, login.cookie)).status, 200);
+  assert.equal((await api(null, otherDevice.cookie)).status, 401, 'os outros aparelhos saem');
+  assert.equal((await api(null, login.cookie)).status, 200, 'este aparelho continua');
+  assert.equal((await api({ action:'login', username:'primeiro', password:'Test-only-2026' })).status, 401);
+  assert.equal((await api({ action:'login', username:'primeiro', password:'Nova-senha-2026' })).status, 200);
+  // Avisos no aparelho: a inscrição é guardada por conta (sem chaves VAPID no ambiente de teste, o envio fica desligado).
+  assert.equal((await api({ action:'push_subscribe', subscription:{ endpoint:'http://inseguro.example/x', keys:{ p256dh:'p', auth:'a' } } }, login.cookie)).status, 400);
+  assert.equal((await api({ action:'push_subscribe', subscription:{ endpoint:'https://push.example/dispositivo-1', keys:{ p256dh:'p'.repeat(87), auth:'a'.repeat(22) } } }, login.cookie)).status, 200);
+  assert.equal(state.pushSubscriptions[(await api(null, login.cookie)).data.me.id].length, 1);
+  assert.equal((await api({ action:'push_unsubscribe', endpoint:'https://push.example/dispositivo-1' }, login.cookie)).status, 200);
+  assert.equal(state.pushSubscriptions[(await api(null, login.cookie)).data.me.id].length, 0);
+  assert.equal((await api(null, login.cookie)).data.pushPublicKey, '', 'sem chaves, o cliente não oferece avisos');
   console.log('PASS API: sessões com expiração/revogação, dispositivos independentes, CSRF, IAra privada, duplicação, limite, cancelamento, PII, repost, amizade, DM privada, comentários em conversa, edição de publicação, foto de perfil e preservação dos registros.');
   if (process.argv.includes('--serve')) { await new Promise((done, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', done); }); console.log('Test server: ' + base); await new Promise(() => {}); }
 } finally { server.close(); }

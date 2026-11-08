@@ -1,14 +1,15 @@
-import { randomUUID, timingSafeEqual, scryptSync, randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { readState, transact, saveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
 import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
-import { createSession, verifySession, sessionCookie, sessionAccount, addSession } from './session.mjs';
+import { createSession, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword } from './session.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
+import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -22,16 +23,6 @@ function text(value, maximum, required = true) {
   return value.trim();
 }
 const dummyPassword = hashPassword('opy-preview-dummy-secret');
-function hashPassword(password, salt = randomBytes(16)) {
-  const hash = scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-  return { salt: salt.toString('hex'), hash: hash.toString('hex') };
-}
-function checkPassword(password, stored) {
-  if (!stored?.salt || !stored?.hash) return false;
-  const actual = scryptSync(password, Buffer.from(stored.salt, 'hex'), 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-  const expected = Buffer.from(stored.hash, 'hex');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
 function sessionSecret() {
   const secret = process.env.OPY_SESSION_SECRET;
   if (!secret || secret.length < 32) fail(503, 'A comunidade está em preparação. Tente novamente em instantes.');
@@ -78,7 +69,7 @@ function phoneOf(value) {
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
   return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', phone: account.phone || '', googleKey: account.googleKey || '',
-    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, role: roleOf(account) };
+    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, role: roleOf(account), mustChangePassword: !!account.mustChangePassword };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
@@ -293,7 +284,7 @@ function snapshot(state, me) {
   const chatView = chatSnapshot(state, me);
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -471,7 +462,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -508,7 +499,8 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], callResult = null;
+    let removedIds = [], callResult = null, adminResult = null, pushNotice = null;
+    const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
       const currentAccount = sessionAccount(state, session);
@@ -522,8 +514,9 @@ export default async function handler(req, res) {
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
       settleCalls(state);
       if (callActions.includes(body.action)) { callResult = callAction(state, me, body); return; }
-      if (adminActions.includes(body.action)) { const r = adminAction(state, currentAccount, body); if (r.removedIds) removedIds.push(...r.removedIds); return; }
+      if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
+      if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
       if (body.action === 'announcement_dismiss') {
         if (!(state.announcements || []).some(a => a.id === body.id)) fail(404, 'Comunicado não encontrado.');
         state.announcementDismiss ||= {}; state.announcementDismiss[me.id] = [...new Set([...(state.announcementDismiss[me.id] || []), body.id])].slice(-100);
@@ -533,6 +526,7 @@ export default async function handler(req, res) {
         const result = chatAction(state, me, body, upload);
         if (result.removedId) removedIds.push(result.removedId);
         if (result.duplicate && upload) removedIds.push(upload.id);
+        if (result.notify?.length) pushNotice = { to: result.notify, payload: result.push };
         return;
       }
       if (communityActions.includes(body.action)) {
@@ -610,13 +604,26 @@ export default async function handler(req, res) {
           post.reactions[me.id] = body.reaction; if (body.reaction && post.authorId !== me.id) post.reactedAt = Date.now(); break;
         case 'notifications_seen':
           currentAccount.notificationsSeenAt = Date.now(); break;
+        case 'password_change': {
+          const next = passwordOf(body.next);
+          if (!checkPassword(passwordOf(body.current), currentAccount.password || dummyPassword)) fail(403, 'A senha atual não confere.');
+          if (next === body.current) fail(400, 'Escolha uma senha diferente da atual.');
+          currentAccount.password = hashPassword(next); delete currentAccount.legacyPassword; delete currentAccount.mustChangePassword;
+          // Os outros aparelhos saem: só este continua, já com a senha nova.
+          currentAccount.sessions = (currentAccount.sessions || []).filter(item => item.id === session.id);
+          activeMe = member(currentAccount);
+          break;
+        }
         case 'comment':
           if (post.comments.length >= 60) fail(409, 'Esta publicação atingiu o limite de comentários na homologação.');
           {
             // Respostas ficam em um nível só, presas ao comentário principal, como nas redes sociais.
             let parentId = '';
             if (body.replyTo) { const parent = post.comments.find(c => c.id === body.replyTo); if (!parent) fail(404, 'Comentário não encontrado.'); parentId = parent.parentId || parent.id; }
-            post.comments.push({ id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(body.text, 500), createdAt: Date.now(), ...(parentId ? { parentId } : {}) });
+            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(body.text, 500), createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
+            post.comments.push(comment);
+            const to = [post.authorId, idOf(post.comments.find(c => c.id === parentId)?.authorKey)].filter(id => id && id !== me.id);
+            if (to.length) pushNotice = { to, payload: { title: `${me.name} comentou`, body: comment.text.slice(0, 120), href: `/#post-${post.id}`, tag: `post-${post.id}` } };
           }
           break;
         case 'comment_like': {
@@ -660,7 +667,10 @@ export default async function handler(req, res) {
           state.follows ||= {};
           const list = Array.isArray(state.follows[me.id]) ? state.follows[me.id] : [];
           state.follows[me.id] = list.includes(key) ? list.filter(item => item !== key) : [...list, key].slice(-200);
-          if (!list.includes(key) && key.startsWith('id:')) state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
+          if (!list.includes(key) && key.startsWith('id:')) {
+            state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
+            pushNotice = { to: [key.slice(3)], payload: { title: 'Novo seguidor', body: `${me.name} começou a seguir você`, href: `/perfil/?u=id:${me.id}`, tag: `follow-${me.id}` } };
+          }
           break;
         }
         case 'friend': {
@@ -681,10 +691,12 @@ export default async function handler(req, res) {
             state.friendRequests[myKey] = incoming.filter(k => k !== key);
             if (!myFriends.includes(key)) state.friends[myKey] = [...myFriends, key].slice(-200);
             if (!theirFriends.includes(myKey)) state.friends[key] = [...theirFriends, myKey].slice(-200);
+            pushNotice = { to: [key.slice(3)], payload: { title: 'Amizade aceita', body: `${me.name} aceitou sua amizade`, href: `/perfil/?u=${myKey}`, tag: `friend-${me.id}` } };
           } else if (outgoing.includes(myKey)) {
             state.friendRequests[key] = outgoing.filter(k => k !== myKey);
           } else {
             state.friendRequests[key] = [...outgoing, myKey].slice(-200);
+            pushNotice = { to: [key.slice(3)], payload: { title: 'Pedido de amizade', body: `${me.name} pediu sua amizade`, href: '/notificacoes/', tag: `friend-${me.id}` } };
           }
           break;
         }
@@ -745,10 +757,13 @@ export default async function handler(req, res) {
     });
     upload = null;
     fileUpload = null;
+    // Entrega em segundo plano: a resposta não espera os serviços de push.
+    if (pushNotice) sendPush({ readState, transact }, pushNotice.to, pushNotice.payload).catch(error => console.error('push:', error.message));
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
-    if (adminActions.includes(body.action)) return res.end(JSON.stringify(adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams())));
+    // A senha provisória só existe nesta resposta: não fica no estado nem no registro.
+    if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URLSearchParams()), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));
     const out = snapshot(data, activeMe);

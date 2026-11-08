@@ -169,7 +169,9 @@ export function chatAction(state, me, body, upload) {
     const bucket=typingBucketKey(mine,body.toKey);
     if(state.chatTyping?.[bucket]) delete state.chatTyping[bucket][mine];
     state.dms.push({id:randomUUID(),clientId:body.clientId || randomUUID(),digest,fromKey:mine,fromName:me.name,toKey:body.toKey,toName:t.name,text:copy,createdAt:Date.now(),replyTo:body.replyTo || null,...(upload ? {media:{id:upload.id,name:upload.name,kind:upload.kind}} : {})});
-    return {};
+    // Aviso no aparelho de quem recebe; para quem recebe, a conversa 1:1 tem a chave de quem enviou.
+    const threadKey=t.group ? body.toKey : mine;
+    return {notify:t.members.filter(k=>k!==mine && k.startsWith('id:')).map(k=>k.slice(3)), push:{title:t.group ? `${me.name} · ${t.name}` : me.name, body:copy ? copy.slice(0,120) : 'Enviou um anexo', href:'/chat/?p='+encodeURIComponent(threadKey), tag:'chat-'+threadKey}};
   }
   if(['chat_edit','chat_delete','chat_react','chat_report'].includes(body.action)) {
     const m=messageOf(state,me,body.messageId);

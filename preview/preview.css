@@ -884,3 +884,10 @@ body.opy-preview .community-post .preview-post-actions{grid-template-columns:rep
 .post-more-text{display:inline-flex;align-items:center;min-height:44px;margin:0 0 6px;padding:0;border:0;background:none;color:#52656c;font:inherit;font-size:15px;font-weight:600}
 .post-more-text:hover{color:#182c34;text-decoration:underline}
 .community-card-title{display:flex;align-items:center;min-height:44px}
+/* Fase 3: avisos no aparelho (Web Push) */
+.opy-push-card{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 16px;margin:0 0 14px;border:1px solid var(--color-border-subtle);border-radius:var(--radius-lg);background:var(--color-surface-subtle)}
+.opy-push-card p{margin:4px 0 0;font-size:14px;line-height:1.4;color:var(--color-text-secondary)}
+.opy-push-card button{flex:none;min-height:44px}
+@media (max-width:600px){.opy-push-card{flex-direction:column;align-items:stretch}}
+#opy-password-dialog h2{margin:0 0 6px;font-size:20px}
+#opy-password-dialog .welcome-error{margin:10px 0 0}

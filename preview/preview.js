@@ -111,11 +111,13 @@ function bindMediaTaps(box,item,onTap){
   last=now;timer=setTimeout(()=>{last=0;onTap();},320);
  });
 }
+// Fotos do Etnias antigo são os originais (até 8 MB); o feed usa a miniatura (/legado/thumbs/, com o original como reserva no servidor) e só o visualizador abre o original.
+const thumbUrl=u=>u.startsWith('/legado/upload/')?u.replace('/legado/upload/','/legado/thumbs/upload/'):u;
 function mediaBlock(item,urls){
  const box=make('div',undefined,'post-media');box.dataset.count=String(urls.length);
  const track=make('div',undefined,'post-media-track');
  if(urls.length>1){track.setAttribute('role','group');track.setAttribute('aria-roledescription','carrossel');track.setAttribute('aria-label',plural(urls.length,'imagem','imagens'));}
- urls.forEach((u,i)=>{const slide=make('button',undefined,'post-media-slide');slide.type='button';slide.setAttribute('aria-label',(urls.length>1?`Ampliar imagem ${i+1} de ${urls.length}`:'Ampliar imagem')+' da publicação de '+item.author);const img=make('img');img.src=u;img.alt='';img.loading='lazy';img.decoding='async';slide.append(img);track.append(slide);});
+ urls.forEach((u,i)=>{const slide=make('button',undefined,'post-media-slide');slide.type='button';slide.setAttribute('aria-label',(urls.length>1?`Ampliar imagem ${i+1} de ${urls.length}`:'Ampliar imagem')+' da publicação de '+item.author);const img=make('img');img.src=thumbUrl(u);img.alt='';img.loading='lazy';img.decoding='async';slide.append(img);track.append(slide);});
  box.append(track);
  const current=()=>urls.length>1?Math.min(urls.length-1,Math.round(track.scrollLeft/Math.max(1,track.clientWidth))):0;
  if(urls.length>1){
@@ -930,7 +932,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);
    if(!exploreData.loaded){exploreData.loaded=true;apiGet({view:'posts',kind:'photos',limit:30}).then(d=>{exploreData.posts=d.posts;render();}).catch(e=>showError(e.message));}
    const sec=make('section',undefined,'search-result-group opy-explore');sec.append(make('h2','Explorar'));
    const grid=make('div',undefined,'opy-explore-grid');
-   for(const p of exploreData.posts){const u=(p.images&&p.images[0])||p.image||(p.media?.kind==='image'?p.media.url:'');if(!u)continue;const a=make('a',undefined,'opy-explore-tile');a.href='/#post-'+p.id;a.setAttribute('aria-label','Publicação de '+p.author);const img=make('img');img.src=u;img.alt='';img.loading='lazy';a.append(img);if(p.images&&p.images.length>1)a.append(make('span','▣','opy-explore-multi'));grid.append(a);}
+   for(const p of exploreData.posts){const u=(p.images&&p.images[0])||p.image||(p.media?.kind==='image'?p.media.url:'');if(!u)continue;const a=make('a',undefined,'opy-explore-tile');a.href='/#post-'+p.id;a.setAttribute('aria-label','Publicação de '+p.author);const img=make('img');img.src=thumbUrl(u);img.alt='';img.loading='lazy';a.append(img);if(p.images&&p.images.length>1)a.append(make('span','▣','opy-explore-multi'));grid.append(a);}
    if(grid.children.length)sec.append(grid);else sec.append(make('p',exploreData.posts.length||!exploreData.loaded?'Ainda não há fotos publicadas.':'Carregando fotos…','pf-empty'));
    results.append(sec);
    const top=communitiesList().slice().sort((a,b)=>(b.membersCount||0)-(a.membersCount||0)).slice(0,6);
@@ -983,6 +985,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);
    card.append(body);return card;
   };
   notices.replaceChildren(...notifData.items.map(item));
+  if(state.pushPublicKey&&'serviceWorker' in navigator&&'PushManager' in window)notices.prepend(pushCard());
   if(notifData.loading&&!notifData.items.length)notices.append(make('div',undefined,'opy-skeleton'),make('div',undefined,'opy-skeleton'));
   else if(!notifData.items.length)notices.append(emptyState('Tudo em silêncio por aqui','Quando alguém pedir sua amizade, convidar você para uma comunidade ou interagir com o que você publicou, o Maracá avisa aqui.',[['Encontrar pessoas','/search/'],['Ver comunidades','/grupos/']]));
  }
@@ -995,6 +998,48 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);
 function etniaBubble(role,text,source){const el=make('article',undefined,'etnia-msg'+(role==='user'?' etnia-msg-user':''));el.append(make('strong',role==='user'?'Você':'EtnIA'),make('p',text));if(source)el.append(make('small',source));return el;}
 function safeNext(value){if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.includes('\\')||value.includes('://'))return '/';return value;}
 function showWelcomeError(message){const el=$('#welcome-error');if(!el)return;el.hidden=false;el.textContent=message;el.focus();}
+// Avisos no aparelho: inscrição Web Push gravada no servidor (push_subscribe). No iPhone só funciona com o site na tela de início.
+let pushSub;// undefined = ainda não consultado; null = sem inscrição neste aparelho
+function pushCard(){
+ const card=make('section',undefined,'opy-push-card');card.setAttribute('aria-label','Avisos no aparelho');
+ const body=make('div');body.append(make('strong','Avisos no aparelho'));
+ const iosNoApp=/iPhone|iPad/.test(navigator.userAgent)&&!navigator.standalone;
+ const denied=typeof Notification!=='undefined'&&Notification.permission==='denied';
+ body.append(make('p',iosNoApp?'No iPhone, adicione o Etnias à tela de início (Compartilhar › Adicionar à Tela de Início) para receber avisos.':denied?'Os avisos estão bloqueados nas configurações do navegador para este site.':'Saiba na hora quando comentarem, pedirem sua amizade ou mandarem mensagem, mesmo com o site fechado.'));
+ card.append(body);
+ if(iosNoApp||denied)return card;
+ if(pushSub===undefined){pushSub=null;navigator.serviceWorker.ready.then(r=>r.pushManager.getSubscription()).then(s=>{if(s){pushSub=s;render();}}).catch(()=>{});}
+ const b=button(pushSub?'Desativar avisos':'Ativar avisos',async()=>{
+  const reg=await navigator.serviceWorker.ready;
+  if(pushSub){await api({action:'push_unsubscribe',endpoint:pushSub.endpoint});await pushSub.unsubscribe();pushSub=null;toast('Avisos desativados');}
+  else{
+   if(await Notification.requestPermission()!=='granted')throw Error('Permita as notificações para ativar os avisos.');
+   const key=Uint8Array.from(atob(state.pushPublicKey.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+   pushSub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+   await api({action:'push_subscribe',subscription:pushSub.toJSON()});toast('Avisos ativados neste aparelho');
+  }
+  render();
+ },card);
+ b.className=pushSub?'preview-secondary':'opy-primary';
+ return card;
+}
+// Troca de senha; obrigatória (sem fechar) quando a pessoa entrou com uma senha provisória emitida pela gestão.
+function openPasswordDialog(forced){
+ if($('#opy-password-dialog'))return;
+ const dlg=make('dialog',undefined,'community-dialog');dlg.id='opy-password-dialog';
+ const form=make('form');form.method='dialog';
+ form.append(make('h2',forced?'Crie sua nova senha':'Alterar senha'));
+ if(forced)form.append(make('p','Você entrou com uma senha provisória. Escolha agora uma senha só sua, com no mínimo 8 caracteres.'));
+ const field=(label,name,auto)=>{const l=make('label',label);const i=make('input');i.type='password';i.name=name;i.required=true;i.minLength=8;i.maxLength=72;i.autocomplete=auto;l.append(i);form.append(l);return i;};
+ const current=field(forced?'Senha provisória':'Senha atual','current','current-password'),next=field('Nova senha','next','new-password'),again=field('Repita a nova senha','again','new-password');
+ const err=make('p',undefined,'welcome-error');err.setAttribute('role','alert');err.hidden=true;form.append(err);
+ const row=make('div',undefined,'community-dialog-actions');
+ if(!forced)button('Cancelar',()=>dlg.close(),row);
+ const ok=make('button','Salvar senha','opy-primary');ok.type='submit';row.append(ok);form.append(row);dlg.append(form);document.body.append(dlg);
+ if(forced)dlg.addEventListener('cancel',e=>e.preventDefault());
+ form.onsubmit=async e=>{e.preventDefault();if(next.value!==again.value){err.textContent='As senhas não são iguais.';err.hidden=false;return;}ok.disabled=true;try{await api({action:'password_change',current:current.value,next:next.value});if(state?.me)state.me.mustChangePassword=false;dlg.close();toast('Senha atualizada.');}catch(x){err.textContent=x.message;err.hidden=false;ok.disabled=false;}};
+ dlg.addEventListener('close',()=>dlg.remove());dlg.showModal();
+}
 function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-register');const tabs=[$('#tab-login'),$('#tab-register')];function show(which){login.hidden=which!=='login';register.hidden=which!=='register';tabs[0].setAttribute('aria-selected',String(which==='login'));tabs[1].setAttribute('aria-selected',String(which==='register'));$('#welcome-error').hidden=true;}
  tabs[0].onclick=()=>show('login');tabs[1].onclick=()=>show('register');
  all('[data-toggle-password]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.togglePassword);const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Mostrar senha':'Ocultar senha';button.setAttribute('aria-pressed',String(!visible));});
@@ -1002,7 +1047,7 @@ function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-regi
  login.onsubmit=event=>{event.preventDefault();submit(login,'login');};
  register.onsubmit=event=>{event.preventDefault();submit(register,'register');};
 }
-async function refresh(){try{state=await api();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(!all('.preview-comment-form input').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
+async function refresh(){try{state=await api();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(state.me?.mustChangePassword)openPasswordDialog(true);if(!all('.preview-comment-form input').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
 all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();});$('#feed-location-query')?.addEventListener('input',()=>render());
 // Barra de modalidades fixa sob o cabeçalho; ganha sombra quando os Stories saem da tela (doc. 5.1 e 6.1).
 (()=>{const bar=$('.feed-chips'),stories=$('.story-section'),top=$('.opy-topbar');if(!bar)return;
@@ -1284,6 +1329,7 @@ if(etniaForm){
  field.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();etniaForm.requestSubmit();}});
  all('[data-etnia-suggest]').forEach(b=>b.addEventListener('click',()=>{field.value=b.textContent;etniaForm.requestSubmit();}));
 }
+$('#preview-password')?.addEventListener('click',()=>openPasswordDialog(false));
 $('#preview-logout')?.addEventListener('click',async()=>{const button=$('#preview-logout');button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}});
 if(document.body.dataset.previewRoute==='entrar')bindWelcome();
 refresh().then(openHashPost);window.addEventListener('hashchange',openHashPost);bindPullToRefresh();

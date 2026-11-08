@@ -96,3 +96,4 @@ body[data-preview-route=admin] .preview-page>h1{display:none}
 .adm-phrase-src{margin:0;padding-top:8px;color:#182c34}
 .adm-phrase textarea{width:100%;min-height:44px;padding:8px 10px;border:1px solid #c4cdca;border-radius:10px;font:inherit;font-size:15px;resize:vertical}
 @media(max-width:760px){.adm-phrase{grid-template-columns:1fr}}
+.adm-code{display:block;margin:14px 0;padding:14px;font:700 26px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.08em;text-align:center;background:#f1f4f3;border-radius:12px;user-select:all}

@@ -1,9 +1,16 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
+import { hashPassword } from './session.mjs';
 
 // Centro de gestão da Casa Opy: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
 // comunicados e registro de transparência. Toda ação fica no adminLog com autor, alvo e motivo.
-export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_announce', 'admin_announce_end'];
+export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end'];
 const DAY = 864e5;
+// Senha provisória fácil de ditar por telefone (sem 0/O/1/I); a pessoa é obrigada a trocá-la na primeira entrada.
+function temporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars = Array.from(randomBytes(8), b => alphabet[b % 32]).join('');
+  return `Opy-${chars.slice(0, 4)}-${chars.slice(4)}`;
+}
 const keyOf = a => `id:${a.id}`;
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 function text(value, max, required = true) {
@@ -129,7 +136,7 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     return { removedIds };
   }
   const target = accountByKey(state, body.userKey);
-  if (['admin_suspend', 'admin_reactivate', 'admin_role'].includes(body.action)) {
+  if (['admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password'].includes(body.action)) {
     if (!target) fail(404, 'Pessoa não encontrada.');
     if (target.id === actor.id) fail(400, 'Você não pode aplicar esta ação a si mesmo.');
     if (roleOf(target, env) === 'admin' && role !== 'admin') fail(403, 'Moderadores não podem agir sobre administradores.');
@@ -158,6 +165,15 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     if (body.role) target.role = body.role; else delete target.role;
     log(state, actor, body.role ? `Papel: ${body.role === 'admin' ? 'administração' : 'moderação'}` : 'Papel removido', target.name, reason);
     return {};
+  }
+  if (body.action === 'admin_reset_password') {
+    adminOnly();
+    if (envAdmins(env).includes(String(target.username || '').toLowerCase())) fail(403, 'Administradores definidos no servidor trocam a senha pela própria conta.');
+    if (!reason) fail(400, 'Registre como a pessoa pediu a nova senha (por exemplo, "pediu pelo WhatsApp").');
+    const temporary = temporaryPassword();
+    target.password = hashPassword(temporary); delete target.legacyPassword; target.mustChangePassword = true; target.sessions = [];
+    log(state, actor, 'Senha provisória emitida', target.name, reason);
+    return { temporaryPassword: temporary };
   }
   if (body.action === 'admin_announce') {
     adminOnly();

@@ -1,4 +1,17 @@
+import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+
 const duration = 7 * 24 * 60 * 60 * 1000;
+
+export function hashPassword(password, salt = randomBytes(16)) {
+  const hash = scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  return { salt: salt.toString('hex'), hash: hash.toString('hex') };
+}
+export function checkPassword(password, stored) {
+  if (!stored?.salt || !stored?.hash) return false;
+  const actual = scryptSync(password, Buffer.from(stored.salt, 'hex'), 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  const expected = Buffer.from(stored.hash, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 async function sign(payload, secret) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);

@@ -85,3 +85,21 @@ test('comunicados: só administração publica, link interno, prazo e fechamento
   act(s, boss, { action: 'admin_announce_end', id });
   assert.equal(admin.announcementsFor(s, acc(s, beto), 2000).length, 0);
 });
+
+test('senha provisória: só administração, com motivo, derruba sessões e obriga a trocar; não vale para administradores do servidor', async () => {
+  const { checkPassword } = await import('../../preview/server/session.mjs');
+  const s = fresh();
+  rejects(() => act(s, mod, { action: 'admin_reset_password', userKey: key(ana), reason: 'pediu' }), 403);
+  rejects(() => act(s, boss, { action: 'admin_reset_password', userKey: key(ana), reason: '' }), 400);
+  rejects(() => act(s, boss, { action: 'admin_reset_password', userKey: key(boss), reason: 'eu' }), 400);
+  acc(s, ana).legacyPassword = '$2y$10$' + 'a'.repeat(53);
+  const out = act(s, boss, { action: 'admin_reset_password', userKey: key(ana), reason: 'pediu pelo WhatsApp' });
+  assert.match(out.temporaryPassword, /^Opy-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+  const a = acc(s, ana);
+  assert.ok(checkPassword(out.temporaryPassword, a.password)); assert.equal(a.legacyPassword, undefined);
+  assert.equal(a.mustChangePassword, true); assert.deepEqual(a.sessions, []);
+  const entry = s.adminLog.at(-1);
+  assert.equal(entry.action, 'Senha provisória emitida'); assert.equal(JSON.stringify(entry).includes(out.temporaryPassword), false, 'a senha não fica no registro');
+  const other = fresh(); other.accounts.push({ id: 'a0000000-0000-4000-8000-000000000009', name: 'Servidor', username: 'chefe2', createdAt: 1 });
+  rejects(() => admin.adminAction(other, acc(other, boss), { action: 'admin_reset_password', userKey: 'id:a0000000-0000-4000-8000-000000000009', reason: 'x' }, { OPY_ADMIN_USERNAMES: 'chefe,chefe2' }, 1000), 403);
+});

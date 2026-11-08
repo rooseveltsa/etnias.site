@@ -12,6 +12,9 @@ const media = join(directory, 'media');
 await mkdir(join(media, 'upload', 'photos'), { recursive: true });
 await writeFile(join(media, 'upload', 'photos', 'foto.jpg'), Buffer.from('0123456789'));
 await writeFile(join(media, 'upload', 'photos', 'segredo.txt'), 'nao servir');
+await writeFile(join(media, 'upload', 'photos', 'grande.jpg'), 'original-sem-miniatura');
+await mkdir(join(media, 'thumbs', 'upload', 'photos'), { recursive: true });
+await writeFile(join(media, 'thumbs', 'upload', 'photos', 'foto.jpg'), 'mini');
 await writeFile(join(directory, 'fora.jpg'), 'fora');
 const port = await new Promise(resolve => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
 const base = `http://127.0.0.1:${port}`;
@@ -33,5 +36,9 @@ try {
   assert.equal((await fetch(base + '/legado/upload/photos/segredo.txt', { headers: { cookie } })).status, 404, 'só tipos de mídia');
   assert.equal((await fetch(base + '/legado/upload/photos/%2e%2e/%2e%2e/fora.jpg', { headers: { cookie } })).status, 404, 'não sai da pasta');
   assert.equal((await fetch(base + '/legado/upload/photos/nao-existe.jpg', { headers: { cookie } })).status, 404);
-  console.log('PASS /legado/: sessão obrigatória, tipos permitidos, Range 206/416 e pasta fechada.');
+  assert.equal(await (await fetch(base + '/legado/thumbs/upload/photos/foto.jpg', { headers: { cookie } })).text(), 'mini', 'miniatura quando existe');
+  assert.equal(await (await fetch(base + '/legado/thumbs/upload/photos/grande.jpg', { headers: { cookie } })).text(), 'original-sem-miniatura', 'sem miniatura, serve o original');
+  assert.equal((await fetch(base + '/legado/thumbs/upload/photos/%2e%2e/%2e%2e/%2e%2e/fora.jpg', { headers: { cookie } })).status, 404, 'miniaturas também não saem da pasta');
+  assert.equal((await fetch(base + '/legado/thumbs/upload/photos/segredo.txt', { headers: { cookie } })).status, 404);
+  console.log('PASS /legado/: sessão obrigatória, tipos permitidos, Range 206/416, pasta fechada e miniaturas com reserva no original.');
 } finally { server.kill(); await rm(directory, { recursive: true, force: true }); }

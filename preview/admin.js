@@ -55,6 +55,20 @@ function btn(label, fn, cls = '') { const b = el('button', label, 'adm-btn ' + c
 function pill(text, kind) { return el('span', text, 'adm-pill ' + (kind || '')); }
 function personLink(name, key) { if (!key) return el('strong', name); const a = el('a', name); a.href = '/perfil/?u=' + encodeURIComponent(key); return a; }
 async function suspend(p) { const r = await ask({ title: 'Suspender ' + p.name, help: 'A sessão é encerrada na hora e o motivo aparece ao tentar entrar.', needDays: true, confirm: 'Suspender', danger: true, allowForever: data.role === 'admin' }); if (r) act({ action: 'admin_suspend', userKey: p.key, days: r.days, reason: r.reason }, 'Conta de ' + p.name + ' suspensa.'); }
+// Recuperação de senha sem e-mail: a pessoa pede por um canal conhecido (WhatsApp, ligação), a administração emite uma senha
+// provisória e a passa pelo mesmo canal. A senha aparece uma única vez, aqui.
+async function resetPassword(p) {
+  const r = await ask({ title: 'Nova senha para ' + p.name, help: 'A senha atual deixa de valer, todos os aparelhos saem e a pessoa terá de criar uma senha nova na primeira entrada. Só faça isso a pedido da própria pessoa.', confirm: 'Gerar senha provisória', danger: true });
+  if (!r || busy) return; busy = true;
+  try {
+    data = await api({ action: 'admin_reset_password', userKey: p.key, reason: r.reason }); render();
+    const d = el('dialog', undefined, 'adm-dialog'); d.append(el('h2', 'Senha provisória de ' + p.name), el('p', 'Passe à pessoa por um canal seguro. Ela não aparece de novo.', 'adm-muted'));
+    const code = el('output', data.temporaryPassword, 'adm-code'); d.append(code);
+    const row = el('div', undefined, 'adm-dialog-actions');
+    row.append(btn('Copiar', async () => { try { await navigator.clipboard.writeText(data.temporaryPassword); toast('Senha copiada.'); } catch { toast('Não foi possível copiar; anote a senha.', true); } }), btn('Fechar', () => d.close(), 'is-primary'));
+    d.append(row); d.addEventListener('close', () => d.remove()); document.body.append(d); d.showModal();
+  } catch (e) { toast(e.message, true); } finally { busy = false; }
+}
 async function reactivate(p) { const r = await ask({ title: 'Reativar ' + p.name, confirm: 'Reativar' }); if (r) act({ action: 'admin_reactivate', userKey: p.key, reason: r.reason }, 'Conta de ' + p.name + ' reativada.'); }
 async function removePost(id, who) { const r = await ask({ title: 'Remover publicação de ' + who, help: 'A publicação some para todos. O motivo fica registrado.', confirm: 'Remover', danger: true }); if (r) act({ action: 'admin_remove_post', postId: id, reason: r.reason }, 'Publicação removida.'); }
 
@@ -120,6 +134,7 @@ const views = {
       const actions = el('div', undefined, 'adm-actions');
       if (p.key !== data.viewer.key) {
         if (p.suspension) actions.append(btn('Reativar', () => reactivate(p))); else if (!p.envAdmin && !(p.role === 'admin' && data.role !== 'admin')) actions.append(btn('Suspender', () => suspend(p), 'is-danger-ghost'));
+        if (data.role === 'admin' && !p.envAdmin) actions.append(btn('Nova senha', () => resetPassword(p)));
         if (data.role === 'admin' && !p.envAdmin) { const s = el('select'); s.setAttribute('aria-label', 'Papel de ' + p.name); for (const [v, t] of [['', 'Membro'], ['moderator', 'Moderação'], ['admin', 'Administração']]) { const o = el('option', t); o.value = v; s.append(o); } s.value = p.role || ''; s.onchange = async () => { const r = await ask({ title: 'Mudar papel de ' + p.name, confirm: 'Mudar papel' }); if (r) act({ action: 'admin_role', userKey: p.key, role: s.value, reason: r.reason }, 'Papel atualizado.'); else s.value = p.role || ''; }; actions.append(s); }
       }
       return [who, p.role === 'admin' ? 'Administração' : p.role === 'moderator' ? 'Moderação' : 'Membro', status, rel(p.lastActivity), p.posts, p.reports ? pill(String(p.reports), 'is-danger') : '0', p.blockedBy, actions];
