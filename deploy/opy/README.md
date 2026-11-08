@@ -14,9 +14,11 @@ Validado localmente em 2026-11-07: imagem construída, container servindo com CS
 - **Acesso:** chave `~/.ssh/casa_opy_deploy` (comentário `casa-opy-deploy`) em `/root/.ssh/authorized_keys`. Para revogar: `sed -i '/casa-opy-deploy/d' /root/.ssh/authorized_keys`.
 - **Atualizar** (da raiz do repositório, depois de exportar as páginas). Sempre envie a lista completa e **sem `--delete`**, senão arquivos irmãos de `preview/` somem no servidor:
   ```bash
-  rsync -az -e "ssh -i ~/.ssh/casa_opy_deploy" --relative preview/package.json preview/package-lock.json preview/server preview/middleware.js preview/public-posts.json preview/i18n preview/dist/public scripts/opy-preview-server.mjs scripts/opy-import-legacy.mjs deploy/opy/Dockerfile deploy/opy/Dockerfile.dockerignore deploy/opy/compose.yaml deploy/opy/compose.vps-caddy.yaml root@179.66.136.125:/srv/casa-opy/
-  ssh -i ~/.ssh/casa_opy_deploy root@179.66.136.125 'cd /srv/casa-opy/deploy/opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d --build opy'
+  rsync -az -e "ssh -i ~/.ssh/casa_opy_deploy" --relative preview/package.json preview/package-lock.json preview/server preview/middleware.js preview/public-posts.json preview/i18n preview/dist/public scripts/opy-preview-server.mjs scripts/opy-import-legacy.mjs deploy/opy/Dockerfile deploy/opy/Dockerfile.dockerignore deploy/opy/compose.yaml deploy/opy/compose.vps-caddy.yaml deploy/opy/mediamtx.yml root@179.66.136.125:/srv/casa-opy/
+  ssh -i ~/.ssh/casa_opy_deploy root@179.66.136.125 'cd /srv/casa-opy/deploy/opy && docker compose -f compose.yaml -f compose.vps-caddy.yaml --env-file .env up -d --build'
   ```
+  (Sem o nome do serviço no `up`, para que o servidor de live `live` também suba; o TURN não é recriado se nada mudou.)
+- **Live (Fase 4, `plans/casa-opy-fase4-live.md`):** serviço `live` (MediaMTX, `mediamtx.yml`) só com WebRTC. O navegador publica por WHIP e assiste por WHEP pelo próprio app (`/live/<postId>/whip|whep`, com sessão); a mídia vai direto ao MediaMTX pela porta **8189 UDP e TCP**, que precisa estar aberta no firewall da VPS (painel Hostinger e `ufw`, se ativo). `MTX_WEBRTCADDITIONALHOSTS` vem de `OPY_PUBLIC_IP` do `.env` (já usado pelo TURN). Gravações em fMP4 no volume `live-recordings` (`/recordings/<postId>/`), servidas em `/live/recordings/*` e nunca apagadas automaticamente; publicação apagada não apaga o arquivo (limpar à mão se precisar).
 - **Desfazer:** restaurar o `Caddyfile.bak-*`, rodar `docker exec etnias-caddy-1 caddy reload --config /etc/caddy/Caddyfile` e `docker compose ... down` em `/srv/casa-opy/deploy/opy`.
 
 ## Legado do Etnias dentro da Casa Opy (2026-11-08, plano `plans/casa-opy-rede-viva.md`)
