@@ -28,20 +28,20 @@ async function api(cookie, body) {
       await page.goto(base + '/'); await page.locator('.community-post').first().waitFor();
       await page.locator(`button[aria-label^="Ver 1 story de ${beto.name}"]`).tap();
       await page.locator('#story-viewer[open]').waitFor();
-      await page.waitForFunction(() => !document.querySelector('#story-stage').classList.contains('is-loading'), null, { timeout: 10000 });
+      await page.waitForFunction(() => !document.querySelector('#story-viewer').classList.contains('is-loading'), null, { timeout: 10000 });
       assert.equal(await page.locator('#story-viewer-author').textContent(), beto.name);
     });
     await step('2. Pausar, avançar, voltar, reagir e fechar o story', async () => {
-      const fill = () => page.evaluate(() => parseFloat(document.querySelector('#story-progress .story-bar-fill').style.width) || 0);
+      const fill = () => page.evaluate(() => (parseFloat((document.querySelector('#story-progress .sv-seg-fill').style.transform.match(/scaleX\(([\d.]+)\)/) || [])[1]) || 0) * 100);
       await page.waitForTimeout(800); const a = await fill(); assert.ok(a > 0, 'barra anda com a mídia pronta');
       // Segurar pausa; soltar continua.
       const stage = page.locator('#story-stage'); const box = await stage.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await page.waitForTimeout(700);
       const b1 = await fill(); await page.waitForTimeout(500); const b2 = await fill(); assert.ok(Math.abs(b2 - b1) < 0.5, 'segurar pausa a barra');
       await page.mouse.up(); await page.waitForTimeout(400); assert.ok(await fill() > b2, 'soltar retoma');
-      await page.locator('.story-react-row button').first().tap();
-      await page.waitForFunction(() => document.querySelector('.story-react-row button')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 });
-      await page.getByRole('button', { name: 'Fechar', exact: true }).tap();
+      await page.locator('#story-actions .sv-like').tap();
+      await page.waitForFunction(() => document.querySelector('#story-actions .sv-like')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 });
+      await page.locator('#story-close').tap();
       await page.waitForFunction(() => !document.querySelector('#story-viewer').open);
       assert.ok(await page.locator('.community-post').first().isVisible(), 'feed continua atrás do story');
     });

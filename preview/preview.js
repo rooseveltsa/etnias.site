@@ -1140,7 +1140,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   const byAuthor=new Map();for(const item of state.stories){const k=item.authorKey||item.author;if(!byAuthor.has(k))byAuthor.set(k,[]);byAuthor.get(k).push(item);}
   for(const [,group] of byAuthor){
    const item=group[0];const allSeen=group.every(s=>seenStories.has(s.id));
-   const card=button('',()=>openStory(group.find(s=>!seenStories.has(s.id))||item),stories);card.classList.add('story-pill');if(allSeen)card.classList.add('is-seen');
+   const card=button('',()=>window.OpyStories?.open((group.find(s=>!seenStories.has(s.id))||item).id),stories);card.classList.add('story-pill');if(allSeen)card.classList.add('is-seen');
    const ring=make('span',undefined,'story-ring');ring.append(avatarNode(item.author,item.avatar,56));if(group.length>1)ring.append(make('b',String(group.length),'story-count'));
    card.append(ring,make('strong',item.own?'Você':item.author.split(' ')[0]));card.setAttribute('aria-label',`Ver ${plural(group.length,'story','stories')} de ${item.author}`+(allSeen?' (já visto)':''));
   }
@@ -1358,133 +1358,8 @@ $('[data-community-join]')?.addEventListener('click',()=>change({action:'join'})
 all('[data-saber-enroll]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await change({action:'enroll_saber',trackId:b.dataset.saberEnroll});}catch(e){showError(e.message);}finally{b.disabled=false;}}));
 all('[data-music-like]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await change({action:'like_music',trackId:b.dataset.musicLike});}catch(e){showError(e.message);}finally{b.disabled=false;}}));
 all('[data-opy-module-form]').forEach(form=>form.addEventListener('submit',async e=>{e.preventDefault();const submit=$('[type=submit]',form);const status=$('[data-opy-module-status]',form);submit.disabled=true;try{const mod=form.dataset.opyModuleForm;await change({action:'module_submit',module:mod,category:form.elements.category?.value||'',community:form.elements.community?.value||'',title:form.elements.title?.value||'',details:form.elements.details?.value||'',audience:form.elements.audience?.value||'public'});const created=state.submissions?.find(s=>s.module===mod&&s.own);form.reset();if(status)status.textContent='Registro salvo na homologação'+(created?' · Protocolo '+created.protocol:'');}catch(err){if(status)status.textContent=err.message;else showError(err.message);}finally{submit.disabled=false;}}));
-let storyExpiry,storyRaf=0,storyIndex=0,storyPaused=false,storyElapsed=0,storyLastTick=0,storyMuted=false,holdAt=0,suppressTap=false,swipeStartX=0,swipeStartY=0,cameraFacing='environment',cameraMode='photo';
-const STORY_MS=6000;
-function activeStories(){return (state?.stories||[]).filter(item=>item.expiresAt>Date.now());}
-function storyTime(ts){const mins=Math.max(0,Math.floor((Date.now()-ts)/60000));if(mins<1)return 'Agora';if(mins<60)return `há ${mins} min`;return `há ${Math.floor(mins/60)} h`;}
-function syncMuteBtn(){const b=$('#story-mute');if(!b)return;b.textContent=storyMuted?'Ativar som':'Silenciar';b.setAttribute('aria-pressed',String(!storyMuted));}
-// A barra só anda com a mídia pronta: foto conta 6 s a partir do carregamento; vídeo segue o tempo real de reprodução
-// (buffering pausa a barra). Sem isso a barra corria sobre uma tela ainda vazia e o story parecia travado.
-let storyLoading=false;
-function tickStory(now){
- const viewer=$('#story-viewer');if(!viewer?.open)return;
- const dt=Math.max(0,now-storyLastTick);storyLastTick=now;
- const video=$('#story-viewer-media video');
- const fill=$('#story-progress')?.children[storyIndex]?.firstElementChild;
- if(!storyPaused&&!storyLoading){
-  let ratio;
-  if(video){ratio=Number.isFinite(video.duration)&&video.duration>0?Math.min(1,video.currentTime/video.duration):0;if(video.ended)ratio=1;}
-  else{storyElapsed+=dt;ratio=Math.min(1,storyElapsed/STORY_MS);}
-  if(fill)fill.style.width=(ratio*100).toFixed(1)+'%';
-  if(ratio>=1){openStoryAt(storyIndex+1);return;}
- }
- storyRaf=requestAnimationFrame(tickStory);
-}
-// Rodapé do visualizador: reações e resposta (stories dos outros) ou quem viu e reagiu (story próprio).
-const storyReactions=['❤️','😂','😮','😢','👏','🙏'];
-function paintStoryActions(item){
- const box=$('#story-actions');if(!box)return;box.replaceChildren();
- const summary=item.reactions?.length?item.reactions.map(([r,n])=>r+' '+n).join('  '):'';
- if(item.own){
-  const p=make('p',undefined,'story-summary');
-  p.append(item.views?`Visto por ${plural(item.views,'pessoa','pessoas')}`:'Ainda ninguém viu');
-  if(summary)p.append(' · '+summary);
-  if(item.viewers?.length)p.append(make('small',item.viewers.join(', ')+(item.views>item.viewers.length?' e mais '+(item.views-item.viewers.length):'')));
-  box.append(p);return;
- }
- const row=make('div',undefined,'story-react-row');row.setAttribute('role','group');row.setAttribute('aria-label','Reagir ao story');
- for(const r of storyReactions){const b=make('button',r,undefined);b.type='button';b.setAttribute('aria-pressed',String(item.reaction===r));b.setAttribute('aria-label','Reagir com '+r);
-  b.onclick=async()=>{row.querySelectorAll('button').forEach(x=>x.disabled=true);try{const next=await api({action:'story_react',storyId:item.id,reaction:item.reaction===r?'':r});state.stories=next.stories;const fresh=activeStories().find(s=>s.id===item.id);if(fresh)paintStoryActions(fresh);}catch(error){showError(error.message);row.querySelectorAll('button').forEach(x=>x.disabled=false);}};
-  row.append(b);}
- const form=make('form',undefined,'story-reply');const input=make('input');input.maxLength=500;input.placeholder='Responder a '+item.author.split(' ')[0]+'…';input.setAttribute('aria-label','Responder ao story de '+item.author);
- const send=make('button','Enviar',undefined);send.type='submit';
- // Digitar pausa o story, como nas redes que as pessoas já usam.
- input.addEventListener('focus',()=>{storyPaused=true;$('#story-viewer-media video')?.pause();});
- input.addEventListener('blur',()=>{if(!input.value){storyPaused=false;storyLastTick=performance.now();$('#story-viewer-media video')?.play().catch(()=>{});}});
- form.onsubmit=async e=>{e.preventDefault();const copy=input.value.trim();if(!copy)return;send.disabled=true;try{await api({action:'story_reply',storyId:item.id,text:copy});input.value='';input.blur();toast('Resposta enviada no chat de '+item.author.split(' ')[0]+'.');storyPaused=false;storyLastTick=performance.now();}catch(error){showError(error.message);}finally{send.disabled=false;}};
- form.append(input,send);box.append(row,form);
-}
-// Deslizar para o lado troca de autor (como entre contas no Instagram); toques trocam de story dentro do mesmo autor.
-function jumpStoryAuthor(dir){
- const list=activeStories();const current=list[storyIndex];if(!current)return;
- const authorOf=s=>s.authorKey||s.author;
- if(dir>0){const next=list.findIndex((s,i)=>i>storyIndex&&authorOf(s)!==authorOf(current));if(next<0){$('#story-viewer')?.close();return;}openStoryAt(next);return;}
- let i=storyIndex;while(i>0&&authorOf(list[i-1])===authorOf(current))i--;
- if(i===storyIndex&&i>0){const prevAuthor=authorOf(list[i-1]);while(i>0&&authorOf(list[i-1])===prevAuthor)i--;}
- openStoryAt(i);
-}
-let storyPreload=null;
-function preloadStory(item){if(!item?.media)return;storyPreload=make(item.media.kind==='video'?'video':'img');if(item.media.kind==='video'){storyPreload.preload='auto';storyPreload.muted=true;}storyPreload.src=item.media.url;}
-document.addEventListener('visibilitychange',()=>{if(!$('#story-viewer')?.open)return;const v=$('#story-viewer-media video');if(document.hidden){storyPaused=true;v?.pause();}else{storyPaused=false;storyLastTick=performance.now();v?.play().catch(()=>{});}});
-$('.story-viewer-who')?.addEventListener('click',()=>{const item=activeStories()[storyIndex];if(item?.authorKey)openProfile(item.authorKey);});
-function openStory(item){
- const list=activeStories();const idx=list.findIndex(s=>s.id===item.id);
- if(idx<0){refresh();return;}
- openStoryAt(idx);
-}
-function openStoryAt(index){
- const viewer=$('#story-viewer'),list=activeStories();
- cancelAnimationFrame(storyRaf);clearTimeout(storyExpiry);
- if(!list.length||index>=list.length){if(viewer?.open)viewer.close();return;}
- storyIndex=Math.max(0,index);storyElapsed=0;storyPaused=false;storyLoading=false;storyLastTick=performance.now();
- const item=list[storyIndex];
- if(!item.own&&!seenStories.has(item.id))api({action:'story_seen',storyId:item.id}).catch(()=>{});
- markStorySeen(item.id);paintStoryActions(item);
- const progress=$('#story-progress');
- if(progress){progress.replaceChildren(...list.map((_,i)=>{const bar=make('div',undefined,'story-bar');const fill=make('span',undefined,'story-bar-fill');fill.style.width=i<storyIndex?'100%':'0%';bar.append(fill);return bar;}));}
- $('#story-viewer-avatar')?.replaceChildren(avatarNode(item.author,item.avatar,34));
- $('#story-viewer-author').textContent=item.author;
- const copy=$('#story-viewer-text');copy.textContent=item.text||'';copy.hidden=!item.text;
- const stage=$('#story-stage');if(stage)stage.dataset.kind=item.media?.kind||'text';
- const media=$('#story-viewer-media');media.replaceChildren();
- const muteBtn=$('#story-mute');if(muteBtn)muteBtn.hidden=item.media?.kind!=='video';
- if(item.media){
-  const element=make(item.media.kind==='video'?'video':'img');element.src=item.media.url;
-  storyLoading=true;stage?.classList.add('is-loading');
-  const ready=()=>{if(!storyLoading)return;storyLoading=false;storyLastTick=performance.now();stage?.classList.remove('is-loading');};
-  if(item.media.kind==='video'){
-   element.preload='auto';element.playsInline=true;element.setAttribute('playsinline','');element.muted=storyMuted;
-   element.setAttribute('aria-label',item.text||'Vídeo de '+item.author);
-   syncMuteBtn();
-   element.addEventListener('loadeddata',ready);element.addEventListener('playing',()=>{ready();stage?.classList.remove('is-loading');});
-   element.addEventListener('waiting',()=>stage?.classList.add('is-loading'));
-   element.play().catch(()=>{storyMuted=true;element.muted=true;syncMuteBtn();element.play().catch(()=>{});});
-  }else{element.alt=item.text||'Foto de '+item.author;element.addEventListener('load',ready);if(element.complete&&element.naturalWidth)ready();}
-  element.addEventListener('error',()=>{ready();media.replaceChildren(make('p','Não foi possível carregar este arquivo. Feche e tente abrir o story novamente.'));});
-  media.append(element);
- }
- $('#story-viewer-time').textContent=storyTime(item.createdAt);preloadStory(list[storyIndex+1]);
- const remove=$('#story-delete');remove.hidden=!item.own;remove.onclick=async()=>{if(!confirm('Excluir este story?'))return;remove.disabled=true;try{await change({action:'story_delete',storyId:item.id});viewer.close();}catch(error){showError(error.message);}finally{remove.disabled=false;}};
- storyExpiry=setTimeout(()=>{viewer.close();refresh();},Math.max(1000,item.expiresAt-Date.now()));
- if(!viewer.open)viewer.showModal();
- storyRaf=requestAnimationFrame(tickStory);
-}
-$('#story-prev')?.addEventListener('click',()=>{if(suppressTap){suppressTap=false;return;}if(storyIndex>0)openStoryAt(storyIndex-1);else openStoryAt(0);});
-$('#story-next')?.addEventListener('click',()=>{if(suppressTap){suppressTap=false;return;}openStoryAt(storyIndex+1);});
-$('#story-mute')?.addEventListener('click',()=>{storyMuted=!storyMuted;const v=$('#story-viewer-media video');if(v){v.muted=storyMuted;if(!storyMuted&&v.paused)v.play().catch(()=>{});}syncMuteBtn();});
-$('#story-stage')?.addEventListener('pointerdown',event=>{
- try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
- holdAt=performance.now();suppressTap=false;swipeStartX=event.clientX;swipeStartY=event.clientY;
- storyPaused=true;$('#story-viewer-media video')?.pause();
-});
-const releaseStoryHold=event=>{
- if(!holdAt)return;
- const held=performance.now()-holdAt;holdAt=0;
- storyPaused=false;storyLastTick=performance.now();
- const v=$('#story-viewer-media video');if(v&&$('#story-viewer')?.open)v.play().catch(()=>{});
- if(event?.type==='pointerup'){
-  const dy=event.clientY-swipeStartY,dx=event.clientX-swipeStartX;
-  if(dy>75&&Math.abs(dy)>Math.abs(dx)*1.4){suppressTap=true;$('#story-viewer')?.close();return;}
-  if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.4){suppressTap=true;jumpStoryAuthor(dx<0?1:-1);return;}
- }
- if(held>=200)suppressTap=true;
-};
-$('#story-stage')?.addEventListener('pointerup',releaseStoryHold);
-$('#story-stage')?.addEventListener('pointercancel',releaseStoryHold);
-$('#story-viewer')?.addEventListener('keydown',event=>{
- if(event.key==='ArrowLeft'){event.preventDefault();openStoryAt(Math.max(0,storyIndex-1));}
- else if(event.key==='ArrowRight'){event.preventDefault();openStoryAt(storyIndex+1);}
-});
+let cameraFacing='environment',cameraMode='photo';
+// O visualizador de stories vive em preview/stories.js (carregado depois deste arquivo).
 let cameraStream=null,storyMedia=null,storyRecorder=null,photoAttachment=null;
 // Live (Fase 4): a mídia vai por WebRTC ao MediaMTX; a sinalização WHIP (quem transmite) e WHEP (quem assiste) passa pelo app em /live/<id>/….
 let liveSession=null,liveMode='idle',liveViewer=null;
@@ -1505,9 +1380,6 @@ $('#story-record')?.addEventListener('click',()=>{if(storyRecorder&&storyRecorde
 $('#story-media')?.addEventListener('change',async()=>{const file=$('#story-media').files[0];if(!file)return;try{if(!/^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm))$/.test(file.type)&&!/\.(png|jpe?g|gif|webp|mp4|webm)$/i.test(file.name))throw Error('Escolha uma foto ou um vídeo.');await stageStory(file);}catch(error){$('#story-status').textContent=error.message;}});
 $('#story-camera-back')?.addEventListener('click',()=>{stopCamera();setStoryModePill('write');showStoryStep('draft');});
 $('#story-cancel')?.addEventListener('click',()=>{stopCamera();clearStoryMedia();$('#story-form').hidden=true;});
-$('#story-close')?.addEventListener('click',()=>{const v=$('#story-viewer-media video');v?.pause();$('#story-viewer-media')?.replaceChildren();$('#story-viewer').close();});
-$('#story-viewer')?.addEventListener('cancel',()=>{$('#story-viewer-media video')?.pause();$('#story-viewer-media')?.replaceChildren();});
-$('#story-viewer')?.addEventListener('close',()=>{cancelAnimationFrame(storyRaf);clearTimeout(storyExpiry);storyPaused=false;holdAt=0;suppressTap=false;$('#story-viewer-media video')?.pause();$('#story-viewer-media').replaceChildren();render();$('.story-create')?.focus();});
 $('#story-form')?.addEventListener('submit',async event=>{event.preventDefault();const submit=$('[type=submit]',event.target);submit.disabled=true;try{await change({action:'story_create',text:$('#story-text').value,media:storyMedia});stopCamera();clearStoryMedia();$('#story-text').value='';$('#story-form').hidden=true;$('.story-create')?.focus();}catch(error){$('#story-status').textContent=error.message;}finally{submit.disabled=false;}});
 const commWs=$('#communities-workspace');
 if(commWs){
@@ -1669,7 +1541,7 @@ if(etniaForm){
 $('#preview-password')?.addEventListener('click',()=>openPasswordDialog(false));
 all('#preview-logout,#opy-account-logout,[data-opy-logout]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}}));
 if(document.body.dataset.previewRoute==='entrar')bindWelcome();
-refresh().then(()=>{openHashPost();handleHashActions();});window.addEventListener('hashchange',handleHashActions);window.addEventListener('hashchange',openHashPost);bindPullToRefresh();
+refresh().then(()=>{openHashPost();handleHashActions();const sid=new URLSearchParams(location.search).get('story');if(sid&&window.OpyStories)window.OpyStories.open(sid,{fromLink:true});});window.addEventListener('hashchange',handleHashActions);window.addEventListener('hashchange',openHashPost);bindPullToRefresh();
 // Com o visualizador de stories ou a live abertos, a atualização periódica espera: redesenhar a página atrás deles só trava a animação.
 if(!['entrar','messages'].includes(document.body.dataset.previewRoute))setInterval(()=>{if(!document.hidden&&!busy&&!$('#story-viewer')?.open&&!$('#live-viewer')?.open)refresh();},document.body.dataset.previewRoute==='messages'?4000:20000);
 document.addEventListener('pointerdown',event=>{all('.post-react.is-open').forEach(wrap=>{if(!wrap.contains(event.target))wrap.classList.remove('is-open');});});
@@ -1738,7 +1610,7 @@ if(!window.__opyPressBound){
   document.addEventListener('pointercancel',release,{passive:true});
 }
 // Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
-window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,
+window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),
  get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
  get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};
 })();

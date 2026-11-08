@@ -55,6 +55,7 @@ function alertsOf(state) {
     out.push({ id: 'community:' + r.id, kind: p ? 'Publicação denunciada em comunidade' : 'Comunidade denunciada', severity: 'alta', at: r.createdAt, reason: r.reason, reporter: nameOf(r.authorKey),
       targetKey: p ? `id:${p.authorId}` : '', targetName: p ? p.author : (c?.name || 'Comunidade'), postId: p?.id || '', community: c?.name || '', excerpt: p ? (p.text || 'Publicação com mídia').slice(0, 280) : '' });
   }
+  for (const r of state.storyReports || []) out.push({ id: 'story:' + r.id, kind: 'Story denunciado', severity: 'alta', at: r.createdAt, reason: r.reason, reporter: nameOf(r.authorKey), targetKey: r.targetKey, targetName: nameOf(r.targetKey), excerpt: r.excerpt || '' });
   // Sinais automáticos: pessoas bloqueadas ou recusadas por várias outras costumam indicar assédio.
   const blockedBy = new Map();
   for (const [who, list] of Object.entries(state.chatBlocks || {})) for (const k of list || []) blockedBy.set(k, [...(blockedBy.get(k) || []), who]);

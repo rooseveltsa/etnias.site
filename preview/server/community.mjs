@@ -294,7 +294,8 @@ function snapshot(state, me) {
   const etnia = (Array.isArray(state.etnia?.[me.id]) ? state.etnia[me.id] : []).map(item => ({
     role: item.role, text: item.text, sourceTitle: item.sourceTitle || '', revised: item.revised || '', at: item.createdAt
   }));
-  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now()).map(item => {
+  // Stories seguem as mesmas regras de visibilidade do perfil (bloqueio, conta desativada, perfil só para amizades).
+  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now() && (!item.authorId || profileAccess(state, me.id, item.authorId) === 'full')).map(item => {
     const own = item.authorId === me.id, given = Object.values(item.reactions || {}), viewerIds = Object.keys(item.views || {});
     return { id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, avatar: personAvatar(ctx.accountsById.get(item.authorId)), text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null,
       reactions: storyReactions.map(r => [r, given.filter(v => v === r).length]).filter(([, n]) => n), reaction: item.reactions?.[me.id] || '',
@@ -506,7 +507,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -628,9 +629,17 @@ export default async function handler(req, res) {
           state.stories = state.stories.filter(item => item.id !== story.id);
           break;
         }
-        case 'story_seen': case 'story_react': case 'story_reply': {
+        case 'story_seen': case 'story_react': case 'story_reply': case 'story_report': {
           const story = (state.stories || []).find(item => item.id === body.storyId && item.expiresAt > Date.now());
-          if (!story) fail(404, 'Story não encontrado.');
+          if (!story || (story.authorId && profileAccess(state, me.id, story.authorId) !== 'full')) fail(404, 'Story não encontrado.');
+          if (body.action === 'story_report') {
+            if (story.authorId === me.id) fail(400, 'Você não pode denunciar o próprio story.');
+            const reason = text(String(body.reason || 'Conteúdo impróprio'), 300, false);
+            state.storyReports ||= [];
+            if (state.storyReports.filter(r => r.authorKey === `id:${me.id}`).length >= 30) fail(409, 'Limite de denúncias atingido.');
+            if (!state.storyReports.some(r => r.authorKey === `id:${me.id}` && r.storyId === story.id)) state.storyReports.push({ id: randomUUID(), authorKey: `id:${me.id}`, storyId: story.id, targetKey: `id:${story.authorId}`, excerpt: (story.text || (story.media ? 'Story com mídia' : '')).slice(0, 200), reason, createdAt: Date.now() });
+            break;
+          }
           if (body.action === 'story_seen') { if (story.authorId !== me.id) { story.views ||= {}; story.views[me.id] ||= Date.now(); } break; }
           if (story.authorId === me.id) fail(400, 'Reaja e responda aos stories de outras pessoas.');
           if (body.action === 'story_react') {

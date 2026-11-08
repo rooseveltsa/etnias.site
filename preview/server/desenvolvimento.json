@@ -192,6 +192,11 @@
    "data": "2026-11-09",
    "titulo": "Links clicáveis e vídeo do YouTube com miniatura no feed",
    "detalhe": "Endereços no texto viram links (abrem em outra aba, sem passar a origem). O primeiro link do YouTube (youtu.be, watch, shorts, live, embed) vira cartão com a miniatura e o botão play; o player (youtube-nocookie) só carrega quando a pessoa toca, então nada do YouTube é carregado para quem só rola o feed. A política de segurança libera apenas i.ytimg.com (miniatura) e www.youtube-nocookie.com (player). Publicações antigas com link ganham o cartão automaticamente. Validação: jornada 13 em tests/opy/journeys-mobile.cjs (inclui texto com HTML continuando texto)."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Stories no padrão Instagram/TikTok",
+   "detalhe": "Visualizador novo (preview/stories.js): tela cheia real com área segura, cartão 9:16 com fundo desfocado da própria mídia no desktop; barras por story da pessoa; tempo só com a mídia tocando (foto 5 s, vídeo pela duração real); toque no terço esquerdo volta, no resto avança; segurar pausa e esconde a interface; arrastar para o lado troca de pessoa com cubo 3D, para baixo fecha, para cima abre a resposta (ou 'quem viu' no próprio); setas e teclado no desktop (←/→, espaço, M, Esc); menu ⋯ com velocidade, copiar link e denunciar (story_report, vai para a moderação); mute guardado no aparelho; pausa ao digitar, com a aba escondida e durante carregamento; pré-carrega o próximo story e o da próxima pessoa; abre no primeiro não visto; curtir com coração animado e vibração; compartilhar pelo sistema ou copiando o link (?story=). Stories de quem você bloqueou deixam de aparecer. Validação: tests/opy/stories-browser.cjs (18 jornadas em celular, desktop e movimento reduzido)."
   }
  ],
  "andamento": [
