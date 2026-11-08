@@ -4,7 +4,11 @@ const $ = (s, root=document) => root.querySelector(s);
 const all = (s, root=document) => [...root.querySelectorAll(s)];
 const make = (tag, text, cls) => {const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;return el;};
 const button=(label, fn, root)=>{const b=make('button',label,'preview-secondary');b.type='button';b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){showError(e.message);}finally{b.disabled=false;}});root.append(b);return b;};
-const emoji=[['😀','Sorriso'],['❤️','Coração'],['😂','Risada'],['👏','Palmas'],['🙏','Gratidão'],['🌱','Planta'],['💚','Coração verde'],['✨','Brilho']];
+// Emojis do Etnias antigo (1.570 em 8 categorias), carregados uma vez de /assets/emojis.json (gerado por scripts/opy-emojis.mjs).
+// shortcut: a busca usa as palavras-chave da base, em inglês; traduzir as palavras-chave quando houver pedido da comunidade.
+let emojiData=null,emojiRecent=[];try{emojiRecent=JSON.parse(localStorage.getItem('opy-emoji-recentes')||'[]');}catch{emojiRecent=[];}
+async function loadEmojis(){if(emojiData)return emojiData;const response=await fetch('/assets/emojis.json',{credentials:'same-origin'});if(!response.ok)throw Error('Não foi possível carregar os emojis.');emojiData=await response.json();return emojiData;}
+function insertEmoji(target,symbol){const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();emojiRecent=[symbol,...emojiRecent.filter(s=>s!==symbol)].slice(0,24);try{localStorage.setItem('opy-emoji-recentes',JSON.stringify(emojiRecent));}catch{}}
 const reactions=[['like','👍','Curti'],['heart','❤️','Amei'],['laugh','😂','Haha'],['wow','😮','Surpresa'],['sad','😢','Triste']];
 let state, filter='all', view='news', videoAttachment=null, fileAttachment=null, busy=false;
 // Feed, perfil, comunidade e busca vêm paginados do servidor; o cliente guarda só o que está na tela.
@@ -56,7 +60,25 @@ async function change(body){const next=await api(body);const touched=next.touche
  if(['friend','follow','community_accept_invite','community_decline_invite','community_approve','community_reject'].includes(body.action))notifData.loaded=false;
  if(['publish','repost','delete','community_moderate_post'].includes(body.action)){feed.key='';profileData.key='';communityPosts.id='';}
  render();const msg=toastFor(body);if(msg)toast(msg);}
-function picker(root,target){root.replaceChildren();for(const [symbol,label] of emoji){const b=button(symbol,()=>{const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();root.hidden=true;},root);b.setAttribute('aria-label',label);}root.hidden=false;}
+// Seletor de emojis com busca, categorias e recentes. `onPick` fecha o que o abriu (caixa do comentário, diálogo do chat).
+function picker(root,target,onPick=()=>{root.hidden=true;}){
+ root.classList.add('opy-emoji');root.replaceChildren(make('p','Carregando emojis…','opy-emoji-status'));root.hidden=false;
+ loadEmojis().then(groups=>{
+  let cat=emojiRecent.length?'recentes':groups[0][0],q='';
+  const search=make('input');search.type='search';search.placeholder='Buscar emoji';search.setAttribute('aria-label','Buscar emoji');
+  const tabs=make('div',undefined,'opy-emoji-tabs');tabs.setAttribute('role','tablist');const grid=make('div',undefined,'opy-emoji-grid');
+  const paint=()=>{
+   const groupTabs=[...(emojiRecent.length?[['recentes','Recentes']]:[]),...groups.map(([id,label])=>[id,label])];
+   tabs.replaceChildren(...groupTabs.map(([id,label])=>{const b=make('button',label,'opy-emoji-tab');b.type='button';b.setAttribute('role','tab');b.setAttribute('aria-selected',String(cat===id&&!q));b.onclick=()=>{cat=id;q='';search.value='';paint();};return b;}));
+   const list=q?groups.flatMap(([,,items])=>items.filter(([,keys])=>keys.includes(q))).slice(0,120):cat==='recentes'?emojiRecent.map(s=>[s,'']):(groups.find(([id])=>id===cat)||groups[0])[2];
+   grid.replaceChildren(...list.map(([symbol])=>{const b=make('button',symbol,'opy-emoji-btn');b.type='button';b.onclick=()=>{insertEmoji(target,symbol);onPick();};return b;}));
+   if(!list.length)grid.append(make('p',q?'Nenhum emoji para essa busca.':'Nenhum emoji recente.','opy-emoji-status'));
+  };
+  search.addEventListener('input',()=>{q=search.value.trim().toLowerCase();paint();});
+  root.replaceChildren(search,tabs,grid);paint();
+ }).catch(error=>{root.replaceChildren(make('p',error.message,'opy-emoji-status'));});
+}
+window.OpyEmoji={open:picker};
 const glyph={
  like:'<path d="M8 10v10H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zm0 0 3.4-6.1A2.2 2.2 0 0 1 15.3 5.2L14 10h5.1a2 2 0 0 1 2 2.4l-1 6.2a2 2 0 0 1-2 1.4H8"/>',
  heart:'<path d="M12 20s-6.4-4.1-6.4-8.2A3.6 3.6 0 0 1 12 8.6a3.6 3.6 0 0 1 6.4 3.2C18.4 15.9 12 20 12 20z"/>',
@@ -1309,6 +1331,7 @@ if(publisher){
  const composeText=$('#preview-text');
  const growCompose=()=>{if(!publisher.classList.contains('is-open'))return;composeText.style.height='auto';composeText.style.height=Math.min(240,Math.max(96,composeText.scrollHeight))+'px';};
  const openComposer=()=>{publisher.classList.add('is-open');growCompose();};
+ $('#compose-emoji')?.addEventListener('click',()=>{const box=$('#compose-emoji-box'),btn=$('#compose-emoji');if(!box.hidden){box.hidden=true;btn.setAttribute('aria-expanded','false');return;}openComposer();btn.setAttribute('aria-expanded','true');picker(box,composeText,()=>{box.hidden=true;btn.setAttribute('aria-expanded','false');});});
  // Só o campo de texto abre no foco; botões abrem no clique, para a fileira não se mover sob o dedo.
  publisher.addEventListener('focusin',e=>{if(e.target===composeText)openComposer();});
  all('[data-compose-tool]').forEach(b=>b.addEventListener('click',openComposer));
@@ -1393,7 +1416,7 @@ if(etniaForm){
  all('[data-etnia-suggest]').forEach(b=>b.addEventListener('click',()=>{field.value=b.textContent;etniaForm.requestSubmit();}));
 }
 $('#preview-password')?.addEventListener('click',()=>openPasswordDialog(false));
-$('#preview-logout')?.addEventListener('click',async()=>{const button=$('#preview-logout');button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}});
+all('#preview-logout,#opy-account-logout').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}}));
 if(document.body.dataset.previewRoute==='entrar')bindWelcome();
 refresh().then(openHashPost);window.addEventListener('hashchange',openHashPost);bindPullToRefresh();
 if(!['entrar','messages'].includes(document.body.dataset.previewRoute))setInterval(()=>{if(!document.hidden&&!busy)refresh();},document.body.dataset.previewRoute==='messages'?4000:20000);

@@ -36,7 +36,7 @@ foreach (glob($root . '/public_html/assets/opy/icons/*.png') as $file) {
     if (strpos($base, 'cluster-') === 0) continue;
     copy($file, $iconDest . '/' . $base);
 }
-foreach (array('preview.css','preview.js','chat.js','calls.js','admin.js','admin.css','i18n.js') as $file) copy($root . '/preview/' . $file, $destination . '/assets/' . $file);
+foreach (array('preview.css','preview.js','chat.js','calls.js','admin.js','admin.css','i18n.js','emojis.json') as $file) copy($root . '/preview/' . $file, $destination . '/assets/' . $file);
 $folder = $destination . '/assets/i18n'; if (!is_dir($folder)) mkdir($folder, 0755, true);
 foreach (glob($root . '/preview/i18n/*.json') as $file) if (basename($file) !== 'source.json') copy($file, $folder . '/' . basename($file));
 $folder = $destination . '/assets/fonts'; if (!is_dir($folder)) mkdir($folder, 0755, true);

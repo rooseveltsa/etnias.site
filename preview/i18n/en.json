@@ -1624,5 +1624,15 @@
  "Você está ao vivo": "You are live",
  "Você está ao vivo. Quem segue você foi avisado.": "You are live. Your followers were notified.",
  "Você está ao vivo. Toque em \"Encerrar live\" quando terminar.": "You are live. Tap \"End live\" when you finish.",
- "Você já está ao vivo. Encerre a live atual antes de começar outra.": "You are already live. End the current live before starting another."
+ "Você já está ao vivo. Encerre a live atual antes de começar outra.": "You are already live. End the current live before starting another.",
+ "Buscar emoji": "Search emoji",
+ "Carregando emojis…": "Loading emojis…",
+ "Menu da conta": "Account menu",
+ "Não foi possível carregar os emojis.": "Could not load the emojis.",
+ "Nenhum emoji para essa busca.": "No emoji for this search.",
+ "Nenhum emoji recente.": "No recent emoji.",
+ "Os emojis não carregaram. Recarregue a página.": "The emojis did not load. Reload the page.",
+ "Recentes": "Recent",
+ "Sair": "Sign out",
+ "Ver seu perfil": "See your profile"
 }

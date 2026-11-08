@@ -444,3 +444,9 @@
         renderLocalModule();
     }
 }());
+// Menu da conta (details no cabeçalho): fecha ao clicar fora ou com Escape, como um menu de verdade.
+(function () {
+    function closeAll(except) { document.querySelectorAll('details.opy-account[open]').forEach(function (d) { if (d !== except) d.open = false; }); }
+    document.addEventListener('click', function (event) { closeAll(event.target.closest('details.opy-account')); });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeAll(null); });
+}());

@@ -683,8 +683,17 @@ body[data-preview-route=account] .rightcol,body[data-preview-route=setting] .rig
 .comment-reply-chip{display:flex;align-items:center;gap:8px;flex-basis:100%;margin:0;color:#52656c;font-size:13px}
 .comment-emoji-btn{min-width:40px;min-height:40px;padding:0;border:0;border-radius:50%;background:transparent;font-size:18px}
 .comment-emoji-btn:hover{background:#f1f3f0}
-.comment-emoji-picker{display:flex;flex-wrap:wrap;gap:4px;flex-basis:100%}
-.comment-emoji-picker button{min-width:40px;min-height:40px;border:0;border-radius:10px;background:#f7f8f6;font-size:20px}
+.comment-emoji-picker{flex-basis:100%}
+.opy-emoji{display:flex;flex-direction:column;gap:8px;width:100%;max-width:440px;padding:10px;border:1px solid var(--color-border-subtle);border-radius:14px;background:var(--color-surface)}
+.opy-emoji input[type=search]{width:100%;min-height:40px;padding:8px 12px;border:1px solid #c4cdca;border-radius:10px;font:inherit}
+.opy-emoji-tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.opy-emoji-tab{flex:0 0 auto;min-height:32px;padding:4px 10px;border:0;border-radius:999px;background:#f1f3f0;color:#182c34;font-size:13px;white-space:nowrap}
+.opy-emoji-tab[aria-selected=true]{background:#fbefec;color:#991116;font-weight:600}
+.opy-emoji-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:2px;max-height:240px;overflow-y:auto}
+.opy-emoji-btn{min-width:40px;min-height:40px;padding:0;border:0;border-radius:10px;background:transparent;font-size:22px;line-height:1}
+.opy-emoji-btn:hover,.opy-emoji-btn:focus-visible{background:#f1f3f0}
+.opy-emoji-status{margin:0;padding:8px;font-size:13px;color:#52656c}
+#compose-emoji-box{margin-top:10px}
 .post-edit-form{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;width:100%}
 .post-edit-form textarea{flex-basis:100%;min-height:96px;padding:10px 12px;border:1px solid #c4cdca;border-radius:10px;font-size:16px}
 .post-edit-form .opy-primary{margin:0;min-height:40px;border-radius:10px}

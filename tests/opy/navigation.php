@@ -50,7 +50,8 @@ $wo['config']['can_use_pages'] = 0;
 ob_start();
 require __DIR__ . '/../../public_html/assets/opy/views/sidebar.php';
 $sidebar = ob_get_clean();
-check(strpos($sidebar, 'link1=joined_groups') !== false, 'Conta sem criação acessa grupos dos quais participa');
-check(strpos($sidebar, 'link1=liked-pages') !== false, 'Conta sem criação acessa páginas que acompanha');
+// Decisão de 2026-11-08: grupos, páginas e configurações saíram da lateral e vivem no menu da foto do perfil (cabeçalho).
+check(strpos($sidebar, 'opy-personal') === false, 'A lateral não traz mais o bloco "Meus recursos"');
+check(strpos($sidebar, 'link1=setting') === false, 'Configurações não fica mais na lateral');
 check(Etnias_OpyEscape('<script>"&') === '&lt;script&gt;&quot;&amp;', 'Escapa texto e atributos');
 exit($failures ? 1 : 0);
