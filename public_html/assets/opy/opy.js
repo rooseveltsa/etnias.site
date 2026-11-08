@@ -96,7 +96,7 @@
 
     document.addEventListener('click', function (event) {
         var open = event.target.closest('[data-opy-open]');
-        if (open) { event.preventDefault(); openDialog(open.getAttribute('data-opy-open'), open); return; }
+        if (open) { event.preventDefault(); if (window.etniasOpyClosePopovers) window.etniasOpyClosePopovers(null); openDialog(open.getAttribute('data-opy-open'), open); return; }
         var close = event.target.closest('[data-opy-close]');
         if (close) { close.closest('dialog').close(); return; }
         var info = event.target.closest('[data-opy-info]');
@@ -167,19 +167,13 @@
     function enhanceHeader() {
         [
             ['.opy-member-controls .notification-container > a', 'Maracá', 'Maracá — notificações'],
-            ['.opy-member-controls .messages-notification-container > a', 'Chat', 'Chat — mensagens'],
+            ['.opy-member-controls .messages-notification-container > a', 'Chat', 'Mensagens'],
             ['.opy-member-controls .requests-container > a', '', 'Solicitações de conexão']
         ].forEach(function (entry) {
             var anchor = document.querySelector(entry[0]);
             if (!anchor) return;
             anchor.setAttribute('aria-label', entry[2]);
             anchor.setAttribute('title', entry[2]);
-            if (entry[1] && !anchor.querySelector('.opy-control-label')) {
-                var span = document.createElement('span');
-                span.className = 'opy-control-label';
-                span.textContent = entry[1];
-                anchor.appendChild(span);
-            }
         });
         var account = document.querySelector('.opy-member-controls .user-menu-combination');
         if (account) account.setAttribute('aria-label', 'Abrir menu da conta');
@@ -444,9 +438,59 @@
         renderLocalModule();
     }
 }());
-// Menu da conta (details no cabeçalho): fecha ao clicar fora ou com Escape, como um menu de verdade.
+// Menus do cabeçalho (conta e Recursos, em <details class="opy-pop">): um aberto por vez; fecham ao clicar fora,
+// com Escape (o foco volta ao botão), ao escolher uma opção ou ao abrir o menu OPY. Setas e Home/End percorrem as opções.
 (function () {
-    function closeAll(except) { document.querySelectorAll('details.opy-account[open]').forEach(function (d) { if (d !== except) d.open = false; }); }
-    document.addEventListener('click', function (event) { closeAll(event.target.closest('details.opy-account')); });
-    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeAll(null); });
+    var items = function (pop) { return Array.prototype.filter.call(pop.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"]'), function (el) { return !el.hidden && el.offsetParent !== null; }); };
+    function closeAll(except) { document.querySelectorAll('details.opy-pop[open], details.opy-account[open]').forEach(function (d) { if (d !== except) d.open = false; }); }
+    window.etniasOpyClosePopovers = closeAll;
+    document.addEventListener('click', function (event) {
+        var pop = event.target.closest('details.opy-pop, details.opy-account');
+        closeAll(pop);
+        // Escolher uma opção fecha o menu (o tema escuro fica aberto para ver a troca).
+        var choice = event.target.closest('.opy-account-menu a, .opy-account-menu button:not([role="menuitemcheckbox"])');
+        if (pop && choice) pop.open = false;
+    });
+    document.addEventListener('toggle', function (event) {
+        var pop = event.target;
+        if (!(pop instanceof HTMLDetailsElement) || !pop.matches('.opy-pop, .opy-account') || !pop.open) return;
+        closeAll(pop);
+        var summary = pop.querySelector('summary');
+        // Aberto pelo teclado: o foco vai para a primeira opção.
+        if (summary && summary.matches(':focus-visible')) { var list = items(pop); if (list[0]) list[0].focus(); }
+    }, true);
+    document.addEventListener('keydown', function (event) {
+        var open = document.querySelector('details.opy-pop[open], details.opy-account[open]');
+        if (!open) return;
+        if (event.key === 'Escape') { open.open = false; var s = open.querySelector('summary'); if (s) s.focus(); return; }
+        if (!open.contains(document.activeElement)) return;
+        var list = items(open); if (!list.length) return;
+        var i = list.indexOf(document.activeElement);
+        var next = event.key === 'ArrowDown' ? (i + 1) % list.length : event.key === 'ArrowUp' ? (i - 1 + list.length) % list.length : event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1 : -1;
+        if (next >= 0) { event.preventDefault(); list[next].focus(); }
+    });
+}());
+// Pesquisa no celular: o ícone abre o campo sobre a própria barra; voltar ou Escape fecha e devolve o foco.
+(function () {
+    var bar = document.querySelector('.opy-topbar'); if (!bar) return;
+    var form = bar.querySelector('.opy-search'), input = bar.querySelector('#opy-search-query'), opener = bar.querySelector('.opy-search-open');
+    var closer = bar.querySelector('.opy-search-close'), clear = bar.querySelector('.opy-search-clear');
+    if (!form || !input) return;
+    function sync() { if (clear) clear.hidden = !input.value; }
+    function close() {
+        if (!bar.classList.contains('is-searching')) return;
+        bar.classList.remove('is-searching');
+        if (opener) { opener.setAttribute('aria-expanded', 'false'); opener.focus(); }
+        var results = document.getElementById('opy-search-results'); if (results) results.hidden = true;
+    }
+    if (opener) opener.addEventListener('click', function () {
+        if (window.etniasOpyClosePopovers) window.etniasOpyClosePopovers(null);
+        bar.classList.add('is-searching'); opener.setAttribute('aria-expanded', 'true'); input.focus();
+    });
+    if (closer) closer.addEventListener('click', close);
+    if (clear) clear.addEventListener('click', function () { input.value = ''; sync(); input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); });
+    input.addEventListener('input', sync);
+    input.addEventListener('keydown', function (event) { if (event.key === 'Escape') { event.preventDefault(); var results = document.getElementById('opy-search-results'); if (results && !results.hidden) { results.hidden = true; return; } close(); } });
+    form.addEventListener('submit', function (event) { if (!input.value.trim()) { event.preventDefault(); input.focus(); } });
+    sync();
 }());

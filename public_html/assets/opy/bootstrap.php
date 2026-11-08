@@ -26,7 +26,7 @@ function Etnias_OpyUrl($route, $params = array()) {
 }
 function Etnias_OpyAsset($file) {
     global $wo;
-    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261108.12';
+    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.1';
 }
 function Etnias_OpyItems() {
     global $wo;
@@ -144,7 +144,8 @@ function Etnias_OpyIcon($name) {
         'games' => '<path d="M6 6h12l4 12c1 4-3 5-5 1l-2-3H9l-2 3c-2 4-6 3-5-1zM5 11h6M8 8v6M16 10v1M19 13v1"/>',
         'pin' => '<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2"/>',
         'arrow' => '<path d="M4 12h16m-6-6 6 6-6 6"/>',
-        'chevron' => '<path d="m8 4 8 8-8 8"/>'
+        'chevron' => '<path d="m8 4 8 8-8 8"/>',
+        'logout' => '<path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4M6 12h10"/>'
     );
     return '<svg class="opy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . (isset($paths[$name]) ? $paths[$name] : $paths['info']) . '</svg>';
 }

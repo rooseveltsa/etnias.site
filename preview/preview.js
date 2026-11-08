@@ -495,7 +495,11 @@ function welcomeCard(){
  return box;
 }
 function paintAnnouncements(){
- if((state?.me?.role||state?.i18n?.translates?.length)&&!$('.opy-admin-link')){const anchor=$('.notification-container');if(anchor){const a=make('a',state.me.role?'Gestão':'Traduções','opy-admin-link');a.href=state.me.role?'/admin/':'/admin/#traducoes';a.title='Centro de gestão';anchor.before(a);}}
+ const staff=$('[data-opy-staff-links]');
+ if(staff&&!staff.dataset.ready&&(state?.me?.role||state?.i18n?.translates?.length)){staff.dataset.ready='1';staff.hidden=false;const hr=make('hr');staff.append(hr);
+  if(state.me.role){const a=make('a','Centro de gestão');a.href='/admin/';a.setAttribute('role','menuitem');staff.append(a);}
+  if(state.i18n?.translates?.length){const a=make('a','Traduções');a.href='/admin/#traducoes';a.setAttribute('role','menuitem');staff.append(a);}}
+ const liveLink=$('[data-opy-live-link]');if(liveLink)liveLink.hidden=!state?.liveEnabled;
  const feed=$('#preview-feed');if(!feed)return;
  let box=$('#opy-announcements');if(!box){box=make('div');box.id='opy-announcements';const host=$('.feed-chips')||feed;host.before(box);}
  box.replaceChildren(...(state.announcements||[]).map(a=>{const card=make('aside',undefined,'opy-announcement');card.setAttribute('aria-label','Comunicado');const body=make('div');body.append(make('strong',a.title),make('p',a.text));if(a.link){const l=make('a','Saiba mais');l.href=a.link;body.append(l);}const close=make('button','✕');close.type='button';close.setAttribute('aria-label','Fechar comunicado');close.onclick=()=>change({action:'announcement_dismiss',id:a.id}).catch(e=>showError(e.message));card.append(body,close);return card;}));
@@ -561,11 +565,12 @@ function renderSettings(){
  const root=$('#profile-page');if(!root||!state)return;
  if(!settingsData){if(!settingsLoading)loadSettings();root.replaceChildren(make('p','Carregando configurações…','pf-loading'));return;}
  const d=settingsData;const page=make('div',undefined,'set-page');page.append(make('h1','Configurações'));
- const card=(title,desc)=>{const c=make('section',undefined,'pf-card set-card');c.append(make('h2',title));if(desc)c.append(make('p',desc,'set-desc'));page.append(c);return c;};
- const priv=card('Privacidade','Vale para todo mundo, inclusive na busca e no feed.');
+ const card=(title,desc,id)=>{const c=make('section',undefined,'pf-card set-card');if(id)c.id=id;c.append(make('h2',title));if(desc)c.append(make('p',desc,'set-desc'));page.append(c);return c;};
+ const priv=card('Privacidade','Vale para todo mundo, inclusive na busca e no feed.','privacidade');
  priv.append(radioGroup('set-profile','Quem pode ver seu perfil e suas publicações',[['public','Todas as pessoas da rede'],['friends','Só amizades','Quem não é amizade vê só seu nome, foto e apresentação.']],d.privacy.profile,v=>accountChange({action:'privacy_update',profile:v},'Privacidade atualizada.')));
  priv.append(radioGroup('set-messages','Quem pode mandar mensagem',[['everyone','Todas as pessoas da rede'],['friends','Só amizades']],d.privacy.messages,v=>accountChange({action:'privacy_update',messages:v},'Privacidade atualizada.')));
- const sess=card('Aparelhos conectados','Saia de um aparelho que você não reconhece ou que não usa mais.');
+ const sess=card('Segurança','Troque a senha e saia de aparelhos que você não reconhece ou não usa mais.','seguranca');
+ const pwRow=make('div',undefined,'set-actions');const pw0=button('Alterar senha',()=>openPasswordDialog(false),pwRow);pw0.className='preview-secondary';sess.append(pwRow,make('h3','Aparelhos conectados'));
  const ul=make('ul',undefined,'set-sessions');
  for(const x of d.sessions){const li=make('li');const info=make('div');info.append(make('strong',x.device+(x.current?' (este aparelho)':'')));if(x.createdAt)info.append(make('small','Entrou em '+new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(x.createdAt))));li.append(info);
   if(!x.current){const b=button('Sair deste aparelho',()=>accountChange({action:'session_revoke',sessionId:x.id},'O aparelho saiu da conta.'),li);b.className='preview-secondary';}
@@ -581,14 +586,15 @@ function renderSettings(){
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
- const acc=card('Conta');
- if(d.verified)acc.append(make('p','✓ Conta verificada pela equipe do Etnias.','set-verified'));
+ const acc=card('Verificação e conta',undefined,'verificacao');
+ acc.append(d.verified?make('p','✓ Conta verificada pela equipe do Etnias.','set-verified'):make('p','Sua conta ainda não tem o selo de verificação. O selo é concedido pela equipe do Etnias.','set-desc'));
  const row=make('div',undefined,'set-actions');
- const pw=button('Alterar senha',()=>openPasswordDialog(false),row);pw.className='preview-secondary';
  const off=button('Desativar conta',()=>confirmPasswordDialog('Desativar conta','Seu perfil, suas publicações e seus comentários somem da rede até você entrar de novo. Nada é apagado. Todos os aparelhos saem.','Desativar',p=>leaveAccount('account_deactivate',p,'Sua conta foi desativada. Para voltar, é só entrar de novo.')),row);off.className='preview-secondary';
  const del=button('Excluir conta',()=>confirmPasswordDialog('Excluir conta','A conta fica desativada agora e é excluída pela equipe depois de '+d.deletionGraceDays+' dias. Se mudar de ideia, entre de novo antes do prazo e o pedido é cancelado.','Pedir exclusão',p=>leaveAccount('account_delete_request',p,'Pedido de exclusão registrado. Se mudar de ideia, entre de novo em até '+d.deletionGraceDays+' dias.')),row);del.className='pf-danger';
  acc.append(row);
  root.replaceChildren(page);
+ // Vindo do menu pessoal (Privacidade, Segurança, Verificação): leva à seção pedida uma vez.
+ const target=location.hash.slice(1);if(target&&!renderSettings.scrolled){const el=document.getElementById(target);if(el){renderSettings.scrolled=true;el.scrollIntoView({block:'start'});el.querySelector('input,button')?.focus({preventScroll:true});}}
 }
 function renderProfile(){
  if(document.body.dataset.previewRoute==='setting')return renderSettings();
@@ -997,9 +1003,9 @@ function renderCommunities(){
  }
 }
 // Tema claro/escuro (preferência guardada no aparelho; preview/theme.js aplica antes da pintura).
-function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-pressed',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',theme==='dark'?'#101c20':'#ffffff');}
+function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-checked',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',theme==='dark'?'#101c20':'#ffffff');}
 $('#opy-theme-toggle')?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
-$('#opy-theme-toggle')?.setAttribute('aria-pressed',String(document.documentElement.dataset.theme==='dark'));
+$('#opy-theme-toggle')?.setAttribute('aria-checked',String(document.documentElement.dataset.theme==='dark'));
 // Contas deste aparelho (só nome, @ e foto; nunca senha): trocar exige entrar de novo, por segurança.
 const knownAccounts=()=>{try{return JSON.parse(localStorage.getItem('opy-accounts')||'[]');}catch{return [];}};
 function rememberAccount(me){if(!me?.username)return;const list=knownAccounts().filter(a=>a.username!==me.username);list.unshift({username:me.username,name:me.name,avatar:me.avatar||''});try{localStorage.setItem('opy-accounts',JSON.stringify(list.slice(0,6)));}catch{}}
@@ -1017,6 +1023,46 @@ function openSwitchAccount(){
  dlg.addEventListener('close',()=>dlg.remove());document.body.append(dlg);dlg.showModal();
 }
 $('#opy-switch-account')?.addEventListener('click',openSwitchAccount);
+// Atalhos que o cabeçalho abre por endereço (Recursos e menu pessoal): uma vez, depois da primeira carga; o # sai do endereço.
+function handleHashActions(){
+ const h=location.hash,route=document.body.dataset.previewRoute;let done=true;
+ if(route==='home'&&h==='#criar'){const t=$('#preview-text');t?.scrollIntoView({block:'center'});t?.focus({preventScroll:true});}
+ else if(route==='home'&&h==='#criar-story')$('#compose-story-open')?.click();
+ else if(route==='home'&&h==='#criar-live'){const b=$('[data-compose-tool="live"]');b?.scrollIntoView({block:'center'});b?.click();}
+ else if(route==='suggested-groups'&&h==='#criar')$('#community-create-open')?.click();
+ else if(route==='account'&&h==='#editar')openProfileEdit();
+ else done=false;
+ if(done)history.replaceState(null,'',location.pathname+location.search);
+}
+// Pesquisa do cabeçalho: sugestões reais do serviço de busca existente (pessoas e publicações), teclado e "ver todos".
+(function(){
+ const input=$('#opy-search-query'),box=$('#opy-search-results'),form=$('#opy-search');if(!input||!box||!form)return;
+ let timer=0,seq=0;
+ const options=()=>all('a',box);
+ const hide=()=>{box.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');};
+ const select=i=>{const list=options();list.forEach((a,j)=>a.setAttribute('aria-selected',String(j===i)));if(list[i]){input.setAttribute('aria-activedescendant',list[i].id);list[i].scrollIntoView({block:'nearest'});}};
+ async function suggest(){
+  const q=input.value.trim();if(q.length<2){hide();return;}
+  const mine=++seq;let d;try{d=await apiGet({view:'search',q});}catch{return;}if(mine!==seq)return;
+  const nodes=[];
+  (d.people||[]).slice(0,5).forEach((p,i)=>{const a=make('a');a.id='opy-sug-'+i;a.href='/perfil/?u='+encodeURIComponent(p.key);a.setAttribute('role','option');a.append(avatarNode(p.name,p.avatar,32));const t=make('span',p.name);t.append(make('small',p.username?'@'+p.username:(p.affiliation||'Pessoa')));a.append(t);nodes.push(a);});
+  if(!nodes.length)nodes.push(make('p','Nenhuma pessoa com esse nome. Veja publicações e comunidades em "Ver todos os resultados".'));
+  const all_=make('a','Ver todos os resultados para “'+q+'”','opy-search-all');all_.id='opy-sug-all';all_.href='#';all_.setAttribute('role','option');all_.onclick=e=>{e.preventDefault();form.requestSubmit();};nodes.push(all_);
+  box.replaceChildren(...nodes);box.hidden=false;input.setAttribute('aria-expanded','true');
+ }
+ // Termo preservado: a página de resultados é estática, então o campo recebe o termo pelo endereço.
+ const fromUrl=new URLSearchParams(location.search).get('query');if(fromUrl&&!input.value){input.value=fromUrl.slice(0,200);const c=$('.opy-search-clear');if(c)c.hidden=false;}
+ input.setAttribute('role','combobox');input.setAttribute('aria-expanded','false');
+ input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(suggest,220);});
+ input.addEventListener('focus',()=>{if(input.value.trim().length>=2)suggest();});
+ input.addEventListener('keydown',e=>{
+  if(box.hidden)return;const list=options();const cur=list.findIndex(a=>a.getAttribute('aria-selected')==='true');
+  if(e.key==='ArrowDown'){e.preventDefault();select((cur+1)%list.length);}
+  else if(e.key==='ArrowUp'){e.preventDefault();select((cur-1+list.length)%list.length);}
+  else if(e.key==='Enter'&&cur>=0){e.preventDefault();list[cur].click();}
+ });
+ document.addEventListener('click',e=>{if(!form.contains(e.target))hide();});
+})();
 function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
@@ -1175,15 +1221,17 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
  }
  const notices=$('#community-notifications');if(notices){
   // Notificações agregadas vêm do servidor; abrir a página marca as não acionáveis como vistas.
-  if(!notifData.loaded){notifData.loaded=true;notifData.loading=true;apiGet({view:'notifications'}).then(d=>{notifData.items=d.items;notifData.loading=false;render();if(d.items.some(i=>i.unread&&!i.actionable))api({action:'notifications_seen'}).catch(()=>{});}).catch(e=>{notifData.loading=false;showError(e.message);});}
+  if(!notifData.loaded){notifData.loaded=true;notifData.loading=true;apiGet({view:'notifications'}).then(d=>{notifData.items=d.items;notifData.loading=false;render();if(d.items.some(i=>i.unread&&!i.actionable))change({action:'notifications_seen'}).catch(()=>{});}).catch(e=>{notifData.loading=false;showError(e.message);});}
   const item=i=>{
-   const card=make(i.href&&!i.actionable?'a':'div',undefined,'notification-card'+(i.unread?' is-unread':''));if(card.tagName==='A')card.href=i.href;
+   const followBack=i.kind==='follow'&&i.canFollow&&!i.following;
+   const card=make(i.href&&!i.actionable&&!followBack?'a':'div',undefined,'notification-card'+(i.unread?' is-unread':''));if(card.tagName==='A')card.href=i.href;
    card.append(avatarNode(i.text.split(' ')[0],i.avatar,44));
    const body=make('div',undefined,'notification-body');body.append(make('p',i.text));
    if(!i.actionable&&i.createdAt)body.append(make('small',date(i.createdAt)));
    if(i.kind==='friend'){const acts=make('div',undefined,'community-member-actions');const acc=button('Aceitar amizade',()=>change({action:'friend',authorKey:i.key}),acts);acc.className='opy-primary';button('Ver perfil',()=>openProfile(i.key),acts);body.append(acts);}
    else if(i.kind==='invite'){const acts=make('div',undefined,'community-member-actions');const acc=button('Aceitar convite',()=>change({action:'community_accept_invite',communityId:i.communityId}),acts);acc.className='opy-primary';button('Recusar',()=>change({action:'community_decline_invite',communityId:i.communityId}),acts);body.append(acts);}
    else if(i.kind==='pending'){const a=make('a','Ver pedidos','preview-text-link');a.href=i.href;body.append(a);}
+   else if(followBack){const acts=make('div',undefined,'community-member-actions');const f=button('Seguir de volta',async()=>{await change({action:'follow',authorKey:i.key});i.following=true;render();},acts);f.className='opy-primary';button('Ver perfil',()=>openProfile(i.key),acts);body.append(acts);}
    card.append(body);return card;
   };
   notices.replaceChildren(...notifData.items.map(item));
@@ -1586,9 +1634,9 @@ if(etniaForm){
  all('[data-etnia-suggest]').forEach(b=>b.addEventListener('click',()=>{field.value=b.textContent;etniaForm.requestSubmit();}));
 }
 $('#preview-password')?.addEventListener('click',()=>openPasswordDialog(false));
-all('#preview-logout,#opy-account-logout').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}}));
+all('#preview-logout,#opy-account-logout,[data-opy-logout]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await api({action:'logout'});location.replace('/entrar/');}catch(e){showError(e.message);button.disabled=false;}}));
 if(document.body.dataset.previewRoute==='entrar')bindWelcome();
-refresh().then(openHashPost);window.addEventListener('hashchange',openHashPost);bindPullToRefresh();
+refresh().then(()=>{openHashPost();handleHashActions();});window.addEventListener('hashchange',handleHashActions);window.addEventListener('hashchange',openHashPost);bindPullToRefresh();
 // Com o visualizador de stories ou a live abertos, a atualização periódica espera: redesenhar a página atrás deles só trava a animação.
 if(!['entrar','messages'].includes(document.body.dataset.previewRoute))setInterval(()=>{if(!document.hidden&&!busy&&!$('#story-viewer')?.open&&!$('#live-viewer')?.open)refresh();},document.body.dataset.previewRoute==='messages'?4000:20000);
 document.addEventListener('pointerdown',event=>{all('.post-react.is-open').forEach(wrap=>{if(!wrap.contains(event.target))wrap.classList.remove('is-open');});});

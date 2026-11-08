@@ -182,6 +182,11 @@
    "data": "2026-11-08",
    "titulo": "Conta e experiência — Prioridade 2 (privacidade, bloqueio, aparelhos, seguidores, desativar e excluir conta, verificação, acessibilidade)",
    "detalhe": "Página Configurações real: perfil público ou só para amizades e quem pode mandar mensagem, aplicados no servidor (feed, busca, perfil, mídia e chat); aparelhos conectados com sair de um ou de todos os outros; remover seguidor; deixar de seguir; bloqueio geral pelo perfil (desfaz amizade e seguir nos dois sentidos) e desbloqueio; desativar conta e pedir exclusão com senha (prazo de 30 dias, entrar de novo cancela; a remoção definitiva fica com a equipe e aparece como alerta no painel); selo de verificação concedido só pela administração; texto grande e menos movimento. Validação: 40 asserções novas em tests/opy/community-integration.mjs (com negativos de autorização) e passo 9 em tests/opy/accounts-browser.cjs."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Cabeçalho global — casa OPY, pesquisa central, Mensagens, Maracá, perfil e Recursos numa linha",
+   "detalhe": "Barra em uma única linha em todas as larguras (celular 116→56 px, desktop 80→64 px; o feed ganha 60 px no celular). Casa OPY ao lado da marca abre o menu 'Encontre seu caminho no Etnias' (agora com Sair); áreas ainda sem servidor (Páginas, Blogs, Mercado, Eventos, Filmes, Empregos, Coletas) passam a mostrar 'Em breve' em vez de página de enfeite. Pesquisa central com sugestões reais, limpar, teclado e termo preservado; no celular vira ícone que abre sobre a barra. Badges sobre os ícones (99+), zerando ao ler; 'Seguir de volta' no Maracá. Menu pessoal com Meu perfil, Editar perfil, Configurações, Privacidade, Segurança, Verificação, Trocar de conta e Sair. Botão Recursos com criar publicação/story/live/comunidade, Interatividade, tema escuro e, só para a equipe, Centro de gestão e Traduções. Validação: tests/opy/header-browser.cjs (12 jornadas em 1440, 390 e 320 px) e tests/opy/header-measure.cjs (7 larguras)."
   }
  ],
  "andamento": [

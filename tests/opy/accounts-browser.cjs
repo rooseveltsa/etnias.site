@@ -29,7 +29,7 @@ async function api(cookie, body) {
       assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
       await click('#opy-theme-toggle');
       assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
-      assert.equal(await page.getAttribute('#opy-theme-toggle', 'aria-pressed'), 'true');
+      assert.equal(await page.getAttribute('#opy-theme-toggle', 'aria-checked'), 'true');
       const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
       assert.notEqual(bg, 'rgb(245, 245, 241)', 'fundo muda no tema escuro: ' + bg);
       // Recarregar: o tema vem do aparelho antes da primeira pintura (theme.js no <head>).
@@ -144,7 +144,7 @@ async function api(cookie, body) {
       const dani = await signIn(ctx3, base);
       const p3 = await ctx3.newPage(); p3.on('pageerror', e => errors.push(e.message));
       await p3.goto(base + '/configuracoes/'); await p3.locator('.set-page h1').waitFor();
-      for (const t of ['Privacidade', 'Aparelhos conectados', 'Seguidores', 'Pessoas bloqueadas', 'Acessibilidade', 'Conta']) assert.ok(await p3.locator('.set-card h2', { hasText: t }).count(), 'seção ' + t);
+      for (const t of ['Privacidade', 'Segurança', 'Seguidores', 'Pessoas bloqueadas', 'Acessibilidade', 'Verificação e conta']) assert.ok(await p3.locator('.set-card h2', { hasText: t }).count(), 'seção ' + t);
       assert.ok((await p3.locator('.set-sessions').textContent()).includes('(este aparelho)'));
       await p3.locator('input[name=set-profile][value=friends]').check({ force: true });
       await p3.waitForFunction(() => document.querySelector('input[name=set-profile][value=friends]')?.checked, null, { timeout: 8000 });
