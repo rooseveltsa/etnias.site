@@ -65,7 +65,7 @@ async function api(cookie, body) {
 
     await step('4. Pesquisa: sugestões reais ao digitar, limpar, Escape e Enter levam aos resultados com o termo preservado', async () => {
       const input = page.locator('#opy-search-query');
-      await input.click(); await input.fill(beto.name.slice(0, 11));
+      await input.click(); await input.fill(beto.name);
       await page.locator('#opy-search-results:not([hidden]) a[role=option]').first().waitFor({ timeout: 8000 });
       assert.ok((await page.locator('#opy-search-results').textContent()).includes(beto.name), 'pessoa real aparece');
       assert.equal(await page.locator('.opy-search-clear').isVisible(), true);
@@ -105,6 +105,25 @@ async function api(cookie, body) {
       await page.locator('.chat-list, #chat-workspace').first().waitFor();
       await page.locator('#chat-workspace').getByText(beto.name).first().click();
       await page.waitForFunction(() => !document.querySelector('.messages-notification-container .opy-header-badge'), null, { timeout: 10000 });
+    });
+
+    await step('5b. Conexões: badge com pedidos de amizade; Aceitar e Recusar funcionam sem fechar o painel', async () => {
+      const cai = await registerAccount(base, { name: 'Cai Header ' + Date.now().toString(36) });
+      const dan = await registerAccount(base, { name: 'Dan Header ' + Date.now().toString(36) });
+      await api(cai.cookie, { action: 'friend', authorKey: 'id:' + anaId }); await api(dan.cookie, { action: 'friend', authorKey: 'id:' + anaId });
+      await page.goto(base + '/'); await page.locator('.community-post').first().waitFor();
+      const badge = page.locator('.opy-requests .opy-header-badge'); await badge.waitFor();
+      assert.equal((await badge.textContent()).trim(), '2');
+      await page.locator('.opy-requests > summary').click();
+      await page.locator('[data-opy-requests] .opy-req-row', { hasText: cai.name }).locator('button', { hasText: 'Aceitar' }).click();
+      await page.waitForFunction(n => ![...document.querySelectorAll('[data-opy-requests] .opy-req-row')].some(r => r.textContent.includes(n) && r.querySelector('button')?.textContent === 'Aceitar'), cai.name, { timeout: 8000 });
+      assert.equal(await page.locator('details.opy-requests[open]').count(), 1, 'painel continua aberto');
+      await page.locator('[data-opy-requests] .opy-req-row', { hasText: dan.name }).locator('button', { hasText: 'Recusar' }).click();
+      await page.waitForFunction(() => !document.querySelector('.opy-requests .opy-header-badge'), null, { timeout: 8000 });
+      const caiId = (await api(cai.cookie)).data.me.id;
+      assert.ok(((await api(ana.cookie)).data.directory || []).some(p => p.key === 'id:' + caiId && p.friendStatus === 'friends'), 'amizade aceita no servidor');
+      assert.equal((await api(ana.cookie, { action: 'friend_decline', authorKey: 'id:' + caiId })).status, 404, 'recusar pedido inexistente é recusado');
+      await page.keyboard.press('Escape');
     });
 
     await step('6. Foto do perfil sincronizada no cabeçalho', async () => {
@@ -162,7 +181,7 @@ async function api(cookie, body) {
         await p.goto(base + '/'); await p.locator('.community-post').first().waitFor();
         const barH = await p.locator('.opy-topbar').evaluate(e => e.getBoundingClientRect().height);
         assert.ok(barH <= 60, 'barra compacta: ' + barH);
-        for (const sel of ['.opy-house', '.opy-search-open', '.messages-notification-container a', '.notification-container a', '.opy-account > summary', '.opy-tools > summary']) {
+        for (const sel of ['.opy-house', '.opy-search-open', '.opy-requests > summary', '.messages-notification-container a', '.notification-container a', '.opy-account > summary', '.opy-tools > summary']) {
           const b = await p.locator(sel).boundingBox(); assert.ok(b && b.x >= 0 && b.x + b.width <= width + 0.5 && b.height >= 36, sel + ' visível e tocável');
         }
         assert.equal(await p.locator('.opy-search').isVisible(), false, 'campo compacto vira ícone');

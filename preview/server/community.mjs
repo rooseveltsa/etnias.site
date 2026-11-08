@@ -507,7 +507,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -753,6 +753,14 @@ export default async function handler(req, res) {
             state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
             pushNotice = { to: [key.slice(3)], payload: { title: 'Novo seguidor', body: `${me.name} começou a seguir você`, href: `/perfil/?u=id:${me.id}`, tag: `follow-${me.id}` } };
           }
+          break;
+        }
+        case 'friend_decline': {
+          // Recusar um pedido de amizade: some da lista de quem recebeu; quem pediu não é avisado.
+          const key = text(body.authorKey, 90), myKey = `id:${me.id}`;
+          const incoming = Array.isArray(state.friendRequests?.[myKey]) ? state.friendRequests[myKey] : [];
+          if (!incoming.includes(key)) fail(404, 'Este pedido de amizade não existe mais.');
+          state.friendRequests[myKey] = incoming.filter(k => k !== key);
           break;
         }
         case 'friend': {

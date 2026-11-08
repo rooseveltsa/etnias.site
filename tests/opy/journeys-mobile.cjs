@@ -72,9 +72,10 @@ async function api(cookie, body) {
       const y0 = await topPost();
       // Toca no nome de quem publicou a publicação que está na tela (como uma pessoa faria), não num botão fora da tela.
       await page.locator('#' + y0 + ' .author-name-btn').first().dispatchEvent('click'); await page.waitForURL(/perfil/);
-      const follow = page.locator('.profile-actions button, button').filter({ hasText: /^(Seguir|Seguindo)$/ }).first();
-      await follow.waitFor(); const before = await follow.textContent(); await follow.tap();
-      await page.waitForFunction((t) => [...document.querySelectorAll('button')].some(b => b.textContent.trim() !== t.trim() && /^(Seguir|Seguindo)$/.test(b.textContent.trim())), before, { timeout: 5000 });
+      const follow = page.locator('#profile-page .pf-actions button').filter({ hasText: /^(Seguir|Seguindo)$/ }).first();
+      await follow.waitFor({ timeout: 8000 }).catch(async () => { throw new Error('sem botão Seguir em ' + page.url() + ' — ' + ((await page.locator('#profile-page').textContent().catch(() => '')) || '').slice(0, 140)); });
+      const before = await follow.textContent(); await follow.tap();
+      await page.waitForFunction((t) => [...document.querySelectorAll('#profile-page .pf-actions button')].some(b => b.textContent.trim() !== t.trim() && /^(Seguir|Seguindo)$/.test(b.textContent.trim())), before, { timeout: 5000 });
       await page.goBack(); await page.locator('.community-post').first().waitFor(); await page.waitForTimeout(2500);
       const y1 = await topPost(); assert.equal(y1, y0, `voltou para a mesma publicação (${y0} → ${y1})`);
     });

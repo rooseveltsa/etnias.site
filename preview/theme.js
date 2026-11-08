@@ -2,7 +2,8 @@
 (function () {
   try {
     var saved = localStorage.getItem('opy-theme');
-    var theme = saved === 'dark' || saved === 'light' ? saved : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    // Padrão é o tema Dia; o tema Noite só entra quando a pessoa escolhe (menu Recursos ou Configurações).
+    var theme = saved === 'dark' ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
     // Acessibilidade (Configurações): texto maior e menos movimento, também antes da pintura.
     document.documentElement.dataset.text = localStorage.getItem('opy-text') === 'large' ? 'large' : 'normal';

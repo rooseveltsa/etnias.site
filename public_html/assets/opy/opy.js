@@ -448,7 +448,7 @@
         var pop = event.target.closest('details.opy-pop, details.opy-account');
         closeAll(pop);
         // Escolher uma opção fecha o menu (o tema escuro fica aberto para ver a troca).
-        var choice = event.target.closest('.opy-account-menu a, .opy-account-menu button:not([role="menuitemcheckbox"])');
+        var choice = event.target.closest('.opy-account-menu a, .opy-account-menu button:not([role="menuitemcheckbox"]):not([data-keep-open])');
         if (pop && choice) pop.open = false;
     });
     document.addEventListener('toggle', function (event) {

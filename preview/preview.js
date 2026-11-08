@@ -112,12 +112,6 @@ function clock(seconds){if(!Number.isFinite(seconds))return '0:00';const whole=M
 const plural=(n,one,many)=>`${n} ${n===1?one:many}`;
 // O menu vem do legado ("Grupos"); na prévia o nome é Comunidades, como no resto da tela.
 document.querySelectorAll('[data-opy-destination="grupos"] span:not(.opy-pending)').forEach(el=>{el.textContent='Comunidades';});
-// Barra do celular: Comunidades ocupa o lugar do Mercado (oculto até existir), mantendo Postagem no centro.
-(()=>{const merc=document.querySelector('.opy-bottom [data-opy-destination="mercado"]'),icon=document.querySelector('[data-opy-destination="grupos"] img');if(!merc)return;
- const item=merc.cloneNode(true);item.dataset.opyDestination='comunidades';item.setAttribute('href','/grupos/');item.removeAttribute('data-opy-info');
- const route=document.body.dataset.previewRoute;if(route==='suggested-groups'||route==='joined_groups')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
- const img=item.querySelector('img');if(img&&icon)img.src=icon.src;const label=[...item.querySelectorAll('span')].find(el=>!el.classList.contains('opy-pending'));if(label)label.textContent='Comunidades';
- merc.before(item);})();
 function postAction(name, label, fn){const b=document.createElement('button');b.type='button';b.className='post-action';b.innerHTML=svg(name);if(label){const span=document.createElement('span');span.textContent=label;b.append(span);}b.addEventListener('click',async event=>{b.disabled=true;try{await fn(event);}catch(e){showError(e.message);}finally{b.disabled=false;}});return b;}
 // Atalho do chat no cabeçalho (telas largas): painel com as conversas recentes, como o Messenger no Facebook. No celular o ícone abre /chat/.
 async function openInboxPopover(event){
@@ -616,6 +610,8 @@ function renderSettings(){
  fing.append(peopleList(d.following,'Você ainda não segue ninguém.','Deixar de seguir',p=>accountChange({action:'follow',authorKey:p.key},'Você deixou de seguir '+p.name+'.')));
  const blk=card('Pessoas bloqueadas','Quem está bloqueado não vê seu perfil nem suas publicações, não manda mensagem e não pede amizade. A pessoa não é avisada.');
  blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
+ const look=card('Aparência','Preferência deste aparelho.','aparencia');
+ look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
@@ -1096,6 +1092,25 @@ function handleHashActions(){
  });
  document.addEventListener('click',e=>{if(!form.contains(e.target))hide();});
 })();
+// Botão de conexões no cabeçalho (como no Etnias antigo): pedidos de amizade com Aceitar/Recusar e pessoas para seguir.
+function paintRequests(){
+ const box=$('[data-opy-requests]'),toggle=$('.opy-requests-toggle');if(!box||!toggle||!state)return;
+ const people=state.directory||[];
+ const incoming=people.filter(p=>p.friendStatus==='incoming');
+ const suggest=people.filter(p=>p.suggested&&!p.following&&p.friendStatus==='none').slice(0,5);
+ let badge=$('.opy-header-badge',toggle);
+ if(incoming.length){if(!badge){badge=make('span',undefined,'opy-header-badge');toggle.append(badge);}badge.textContent=incoming.length>99?'99+':String(incoming.length);toggle.setAttribute('aria-label',`Solicitações e pessoas para seguir (${plural(incoming.length,'pedido','pedidos')} de amizade)`);}
+ else{badge?.remove();toggle.setAttribute('aria-label','Solicitações e pessoas para seguir');}
+ const sig=JSON.stringify([incoming.map(p=>p.key),suggest.map(p=>[p.key,p.following])]);if(box.dataset.sig===sig)return;box.dataset.sig=sig;
+ const row=(p,actions)=>{const li=make('div',undefined,'opy-req-row');const who=make('a',undefined,'opy-req-who');who.href='/perfil/?u='+encodeURIComponent(p.key);who.append(avatarNode(p.name,p.avatar,40));const t=make('span');t.append(make('strong',p.name),make('small',p.reason||(p.username?'@'+p.username:p.affiliation||'')));who.append(t);li.append(who,actions);return li;};
+ const act=(label,cls,fn)=>{const b=make('button',label,cls);b.type='button';b.dataset.keepOpen='1';b.onclick=async()=>{b.disabled=true;try{await fn();}catch(e){showError(e.message);b.disabled=false;}};return b;};
+ const nodes=[make('p','Pedidos de amizade','opy-pop-title')];
+ if(!incoming.length)nodes.push(make('p','Nenhum pedido no momento.','opy-req-empty'));
+ for(const p of incoming){const a=make('div',undefined,'opy-req-actions');a.append(act('Aceitar','opy-primary',()=>change({action:'friend',authorKey:p.key})),act('Recusar','preview-secondary',()=>change({action:'friend_decline',authorKey:p.key})));nodes.push(row(p,a));}
+ if(suggest.length){nodes.push(make('p','Pessoas para seguir','opy-pop-title'));for(const p of suggest){const a=make('div',undefined,'opy-req-actions');a.append(act('Seguir','opy-primary',()=>change({action:'follow',authorKey:p.key})));nodes.push(row(p,a));}}
+ const all_=make('a','Encontrar mais pessoas','opy-req-more');all_.href='/search/';nodes.push(all_);
+ box.replaceChildren(...nodes);
+}
 function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
@@ -1121,6 +1136,7 @@ function render(){if(!state)return;window.OpyI18n?.sync(state.i18n);liveUi(liveM
   if(count>0){if(!badge){badge=make('span',undefined,'opy-header-badge');chatHeaderLink.append(badge);}badge.textContent=count>99?'99+':String(count);}
   else if(badge)badge.remove();
  }
+ paintRequests();
  const notifCount=state.unreadNotifications||0;
  const notifHeaderLink=$('.notification-container a');
  if(notifHeaderLink){

@@ -5,7 +5,7 @@ $opyConfig = Etnias_OpyConfig();
 ?>
 <nav class="opy-bottom" aria-label="Ações frequentes">
     <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>" data-opy-feed aria-label="Voltar ao feed e atualizar"><?php echo Etnias_OpyIcon('feed'); ?><span>Feed</span></a>
-    <?php $opyMercadoBarra = $opyItems['mercado']; $opyMercadoBarra['icon'] = 'mercado-barra'; echo Etnias_OpyItem('mercado', $opyMercadoBarra); ?>
+    <?php $opyGruposBarra = $opyItems['grupos']; $opyGruposBarra['label'] = 'Comunidades'; echo Etnias_OpyItem('grupos', $opyGruposBarra); ?>
     <a class="opy-nav-item opy-create" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>#opy-compose" data-opy-compose><?php echo Etnias_OpyIcon('postagem'); ?><span>Postagem</span></a>
     <?php $opySaberesBarra = $opyItems['saberes']; $opySaberesBarra['icon'] = 'saberes-barra'; echo Etnias_OpyItem('saberes', $opySaberesBarra); ?>
     <?php echo Etnias_OpyItem('etnia', $opyItems['etnia']); ?>

@@ -446,3 +446,37 @@ body.opy-preview .chat-dock-form input{min-height:36px;border:1px solid var(--op
 }
 [data-theme=dark] .opy-enabled .opy-search, [data-theme=dark] .opy-search-results { background: var(--opy-hover); border-color: var(--opy-line); }
 [data-theme=dark] .opy-enabled .opy-topbar.is-searching .opy-search { background: var(--opy-paper); }
+
+/* Conexões no cabeçalho: pedidos de amizade e pessoas para seguir. */
+.opy-requests { position: relative; }
+.opy-requests > summary { position: relative; list-style: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--opy-ink); cursor: pointer; }
+.opy-requests > summary::-webkit-details-marker { display: none; }
+.opy-requests > summary svg { width: 24px; height: 24px; }
+.opy-requests[open] > summary, .opy-requests > summary:hover { background: var(--opy-hover, #f1f3f0); }
+.opy-requests-menu { width: min(360px, calc(100vw - 16px)); }
+.opy-req-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; }
+.opy-req-who { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; color: var(--opy-ink); text-decoration: none; }
+.opy-req-who span { display: flex; flex-direction: column; min-width: 0; }
+.opy-req-who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.opy-req-who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--opy-muted); font-size: 12px; }
+.opy-req-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.opy-req-actions button { min-height: 36px; padding: 0 12px; border-radius: 999px; font-size: 13px; width: auto !important; }
+.opy-req-empty { margin: 4px 12px 8px; color: var(--opy-muted); font-size: 14px; }
+.opy-req-more { justify-content: center; font-weight: 600; color: var(--opy-red) !important; }
+@media (max-width: 700px) {
+    .opy-requests > summary { width: 36px; height: 44px; }
+    .opy-brand img { width: clamp(64px, 20vw, 104px); }
+    .opy-house, .opy-search-open, .opy-tools > summary { width: 36px; flex-basis: 36px; }
+    .opy-enabled .opy-member-controls #head_menu_rght > li > a, .opy-enabled .opy-member-controls .opy-account > summary { min-width: 36px; padding-inline: 2px; }
+}
+@media (max-width: 359px) {
+    .opy-brand img { width: 52px; }
+    .opy-requests > summary { width: 34px; }
+    .opy-house, .opy-search-open, .opy-tools > summary { width: 34px; flex-basis: 34px; }
+    .opy-enabled .opy-member-controls #head_menu_rght > li > a, .opy-enabled .opy-member-controls .opy-account > summary { min-width: 34px; }
+}
+
+.opy-enabled .opy-member-controls .opy-requests .opy-header-badge { right: -4px; top: 0; }
+.opy-req-actions button.opy-primary { background: var(--opy-red); color: #fff; font-weight: 600; justify-content: center; }
+.opy-req-actions button.opy-primary:hover { background: var(--opy-red-hover, #991116); }
+.opy-req-actions button.preview-secondary { border: 1px solid var(--opy-line); background: transparent; color: var(--opy-ink); justify-content: center; }

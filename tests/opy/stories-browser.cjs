@@ -65,11 +65,14 @@ async function api(cookie, body) {
 
     await step('4. Segurar pausa e esconde a interface; soltar retoma sem trocar de story', async () => {
       const b = await page.locator('.sv-face-main').boundingBox();
-      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(400);
-      assert.ok(await page.evaluate(() => document.getElementById('story-viewer').classList.contains('is-holding')));
-      assert.equal(await page.locator('.sv-top').evaluate(e => getComputedStyle(e).opacity), '0', 'interface some');
-      const p1 = await fill(); await page.waitForTimeout(500); const p2 = await fill(); assert.ok(Math.abs(p2 - p1) < 0.01, 'tempo parado');
-      await page.mouse.up(); await page.waitForTimeout(400); assert.ok(await fill() > p2, 'retoma');
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+      let p2 = 0;
+      try {
+        await page.waitForFunction(() => document.getElementById('story-viewer').classList.contains('is-holding'), null, { timeout: 2000 });
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('.sv-top')).opacity === '0', null, { timeout: 2000 });
+        const p1 = await fill(); await page.waitForTimeout(500); p2 = await fill(); assert.ok(Math.abs(p2 - p1) < 0.01, 'tempo parado');
+      } finally { await page.mouse.up(); }
+      await page.waitForTimeout(400); assert.ok(await fill() > p2, 'retoma');
       assert.equal(await now(), 1);
     });
 

@@ -197,6 +197,11 @@
    "data": "2026-11-09",
    "titulo": "Stories no padrão Instagram/TikTok",
    "detalhe": "Visualizador novo (preview/stories.js): tela cheia real com área segura, cartão 9:16 com fundo desfocado da própria mídia no desktop; barras por story da pessoa; tempo só com a mídia tocando (foto 5 s, vídeo pela duração real); toque no terço esquerdo volta, no resto avança; segurar pausa e esconde a interface; arrastar para o lado troca de pessoa com cubo 3D, para baixo fecha, para cima abre a resposta (ou 'quem viu' no próprio); setas e teclado no desktop (←/→, espaço, M, Esc); menu ⋯ com velocidade, copiar link e denunciar (story_report, vai para a moderação); mute guardado no aparelho; pausa ao digitar, com a aba escondida e durante carregamento; pré-carrega o próximo story e o da próxima pessoa; abre no primeiro não visto; curtir com coração animado e vibração; compartilhar pelo sistema ou copiando o link (?story=). Stories de quem você bloqueou deixam de aparecer. Validação: tests/opy/stories-browser.cjs (18 jornadas em celular, desktop e movimento reduzido)."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Conexões no cabeçalho e tema Dia como padrão",
+   "detalhe": "Botão de conexões (pessoa com +) volta ao cabeçalho, como no Etnias antigo: badge com pedidos de amizade, painel com Aceitar e Recusar (nova ação friend_decline) e pessoas para seguir com o motivo da sugestão. O tema abre sempre em Dia; Noite só quando a pessoa escolhe (Recursos ou Configurações → Aparência). A barra inferior usa o item Comunidades direto, sem depender do Mercado. Validação: header-browser.cjs (13 jornadas)."
   }
  ],
  "andamento": [

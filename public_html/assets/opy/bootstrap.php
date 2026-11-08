@@ -26,7 +26,7 @@ function Etnias_OpyUrl($route, $params = array()) {
 }
 function Etnias_OpyAsset($file) {
     global $wo;
-    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.1';
+    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.7';
 }
 function Etnias_OpyItems() {
     global $wo;
