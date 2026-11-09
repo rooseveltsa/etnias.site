@@ -64,11 +64,14 @@ function startComposite(format){
 function compositeGuest(stream){
  if(!comp)return;if(comp.guestVideo){comp.guestVideo.srcObject=null;comp.guestVideo.remove();comp.guestSource?.disconnect();}
  if(!stream){comp.guestVideo=null;comp.guestSource=null;return;}
- const v=make('video');v.muted=true;v.playsInline=true;v.autoplay=true;v.srcObject=stream;v.style.cssText='position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';document.body.append(v);v.play().catch(()=>{});
+ // Quem transmite precisa OUVIR o convidado: o elemento toca com som (o cancelamento de eco do microfone atua sobre ele);
+ // a mistura enviada ao público segue pela Web Audio, separada.
+ const v=make('video','','live-guest-audio');v.muted=false;v.playsInline=true;v.autoplay=true;v.srcObject=stream;v.style.cssText='position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';document.body.append(v);
+ playWithSound(v,'Toque para ouvir o convidado');
  comp.guestVideo=v;if(stream.getAudioTracks().length){comp.guestSource=comp.audioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));comp.guestSource.connect(comp.dest);}
  if(comp.audioCtx.state==='suspended')comp.audioCtx.resume().catch(()=>{});
 }
-function stopComposite(){if(!comp)return;cancelAnimationFrame(comp.raf);compositeGuest(null);comp.stream.getTracks().forEach(t=>t.stop());comp.audioCtx.close().catch(()=>{});comp=null;}
+function stopComposite(){document.querySelector('.live-unmute')?.remove();if(!comp)return;cancelAnimationFrame(comp.raf);compositeGuest(null);comp.stream.getTracks().forEach(t=>t.stop());comp.audioCtx.close().catch(()=>{});comp=null;}
 
 // ---------- Anfitrião ----------
 async function publishWhip(postId,key,stream){
@@ -134,6 +137,17 @@ function paintRequests(view){
   button('Recusar',()=>liveApi({action:'live_request_respond',postId:S.liveSession.postId,userId:r.userId,accept:false}).then(hostTick),row);box.append(row);}
  for(const i of (view.invites||[]).filter(x=>x.status==='pending')){const row=make('div',undefined,'live-request');row.append(make('strong','Convite enviado a '+i.name),make('small',i.expiresAt?'válido por '+Math.max(0,Math.round((i.expiresAt-Date.now())/1000))+' s':''));button('Cancelar',()=>liveApi({action:'live_invite_cancel',postId:S.liveSession.postId,userId:i.userId}).then(hostTick),row);box.append(row);}
  if(view.live.guest){const row=make('div',undefined,'live-request is-guest');row.append(avatarNode(view.live.guest.name,view.live.guest.avatar,32),make('strong',view.live.guest.name+' está participando'+(view.live.guest.mic?'':' · sem microfone')+(view.live.guest.camera?'':' · sem câmera')));button('Remover',()=>liveApi({action:'live_guest_remove',postId:S.liveSession.postId}).then(hostTick),row).className='preview-secondary';box.append(row);}
+}
+// Toca com som; se o aparelho bloquear, mostra um botão para liberar em vez de ficar mudo em silêncio.
+function playWithSound(media,label){
+ media.muted=false;
+ media.play().catch(()=>{
+  media.muted=true;media.play().catch(()=>{});
+  if(document.querySelector('.live-unmute'))return;
+  const b=make('button',label,'opy-primary live-unmute');b.type='button';
+  b.onclick=()=>{all('video.live-guest-audio, #live-viewer video.live-main').forEach(m=>{m.muted=false;m.play().catch(()=>{});});b.remove();};
+  (document.querySelector('dialog[open]')||document.body).append(b);
+ });
 }
 // Sinalização com o convidado (lado do anfitrião): oferta → resposta → candidatos. A oferta leva câmera e microfone do anfitrião.
 async function syncGuestAsHost(view){
@@ -210,10 +224,10 @@ function paintChat(list,view,sess,asHost){
 function paintPinned(box,view){if(!box)return;const p=view.live.pinned;box.hidden=!p;if(p){box.replaceChildren(make('span','Fixado · '+p.author,'live-pinned-who'),make('span',p.text));}}
 
 // ---------- Visualizador (espectador e convidado) ----------
-function closeLiveViewer(){const v=S.liveViewer;if(!v)return;S.liveViewer=null;v.timers?.forEach(clearInterval);if(v.location)fetch(v.location,{method:'DELETE',credentials:'same-origin'}).catch(()=>{});v.pc?.close();v.guestPc?.close();v.localStream?.getTracks().forEach(t=>t.stop());const video=$('#live-viewer video.live-main');if(video){video.pause();video.srcObject=null;}if(document.fullscreenElement)document.exitFullscreen?.();}
+function closeLiveViewer(){document.querySelector('.live-unmute')?.remove();const v=S.liveViewer;if(!v)return;S.liveViewer=null;v.timers?.forEach(clearInterval);if(v.location)fetch(v.location,{method:'DELETE',credentials:'same-origin'}).catch(()=>{});v.pc?.close();v.guestPc?.close();v.localStream?.getTracks().forEach(t=>t.stop());const video=$('#live-viewer video.live-main');if(video){video.pause();video.srcObject=null;}if(document.fullscreenElement)document.exitFullscreen?.();}
 async function connectWhep(post,v,video,status){
  const pc=new RTCPeerConnection();pc.addTransceiver('video',{direction:'recvonly'});pc.addTransceiver('audio',{direction:'recvonly'});v.pc=pc;
- const stream=new MediaStream();pc.ontrack=event=>{if(S.liveViewer!==v||v.asGuest)return;stream.addTrack(event.track);if(video.srcObject!==stream){video.srcObject=stream;video.muted=false;video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});status.textContent='Toque no vídeo para ativar o som.';});}};
+ const stream=new MediaStream();pc.ontrack=event=>{if(S.liveViewer!==v||v.asGuest)return;stream.addTrack(event.track);if(video.srcObject!==stream){video.srcObject=stream;playWithSound(video,'Toque para ativar o som');}};
  pc.onconnectionstatechange=async()=>{if(S.liveViewer!==v||v.pc!==pc)return;if(pc.connectionState==='connected')status.textContent='';
   else if(['failed','disconnected'].includes(pc.connectionState)){status.textContent='Reconectando…';await new Promise(r=>setTimeout(r,1500));if(S.liveViewer!==v||v.pc!==pc||v.asGuest)return;pc.close();try{v.location=await connectWhep(post,v,video,status);}catch(e){status.textContent='A transmissão terminou ou caiu.';}}};
  return sdpExchange(pc,'/live/'+post.id+'/whep',{});
@@ -313,7 +327,7 @@ async function syncGuestAsGuest(view){
   const pc=new RTCPeerConnection({iceServers:view.iceServers||[]});v.guestPc=pc;v.guestCandidates=0;
   v.localStream.getTracks().forEach(t=>pc.addTrack(t,v.localStream));
   const main=$('#live-viewer video.live-main'),status=$('#live-viewer .live-viewer-status');const incoming=new MediaStream();
-  pc.ontrack=e=>{incoming.addTrack(e.track);if(main.srcObject!==incoming){main.srcObject=incoming;main.muted=false;main.play().catch(()=>{main.muted=true;main.play().catch(()=>{});});}};
+  pc.ontrack=e=>{incoming.addTrack(e.track);if(main.srcObject!==incoming){main.srcObject=incoming;playWithSound(main,'Toque para ouvir quem transmite');}};
   pc.onicecandidate=e=>{if(e.candidate)liveApi({action:'live_signal',postId:v.post.id,token:v.guestToken,candidate:e.candidate.toJSON()}).catch(()=>{});};
   pc.onconnectionstatechange=()=>{if(v.guestPc!==pc)return;if(pc.connectionState==='connected')status.textContent='';else if(pc.connectionState==='failed')status.textContent='A conexão com quem transmite caiu. Saia e entre de novo.';};
   await pc.setRemoteDescription(sig.offer);await pc.setLocalDescription(await pc.createAnswer());

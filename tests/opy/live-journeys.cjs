@@ -71,11 +71,14 @@ async function api(cookie, body) { const r = await fetch(base + '/api/community'
       await pb.getByRole('button', { name: 'Entrar com câmera e microfone', exact: true }).click();
       await pb.locator('#live-viewer .live-guest-bar').getByText('Você está participando').waitFor({ timeout: 10000 });
     });
-    await step('8. Anfitriã e convidado aparecem juntos (quadro composto) e o público continua recebendo', async () => {
+    await step('8. Anfitriã e convidado aparecem juntos, um ouve o outro, e o público continua recebendo', async () => {
       await pa.waitForFunction(() => { const v = [...document.querySelectorAll('video')].find(x => x.style.opacity === '0'); return v && v.videoWidth > 0; }, null, { timeout: 25000 });
       await pb.waitForFunction(() => { const v = document.querySelector('#live-viewer video.live-main'); return v && v.videoWidth > 0; }, null, { timeout: 25000 });
       await pa.locator('#live-requests').getByText(beto.name + ' está participando').waitFor({ timeout: 10000 });
       const f = await framesOf(pc); assert.ok(f[0] > 0, 'Carla segue recebendo vídeo: ' + f.join('x'));
+      // Queixa real: um lado não ouvia o outro. A anfitriã toca o áudio do convidado com som; o convidado ouve a anfitriã.
+      await pa.waitForFunction(() => { const v = document.querySelector('video.live-guest-audio'); return v && !v.muted && !v.paused && v.srcObject.getAudioTracks().length > 0; }, null, { timeout: 10000 });
+      await pb.waitForFunction(() => { const v = document.querySelector('#live-viewer video.live-main'); return v && !v.muted && !v.paused && v.srcObject.getAudioTracks().length > 0; }, null, { timeout: 10000 });
     });
     await step('9. Convidado desliga o microfone e a anfitriã vê', async () => {
       await pb.locator('#live-viewer .live-guest-bar').getByRole('button', { name: 'Microfone', exact: true }).click();
