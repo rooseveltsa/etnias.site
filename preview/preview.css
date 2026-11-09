@@ -277,8 +277,8 @@ button.opy-primary:active,button.opy-primary.opy-pressed{background:var(--color-
  --color-forest-tint:#e7f6ec;
  --color-river-teal:#176b87;
  --color-ochre:#b84a27;
- --color-border-subtle:var(--color-border-subtle);
- --color-border-strong:var(--color-border-strong);
+ --color-border-subtle:#dde2df;
+ --color-border-strong:#c4cdca;
  --radius-sm:6px;
  --radius-md:8px;
  --radius-lg:12px;
@@ -1571,3 +1571,25 @@ body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:va
 /* Tema Terra: paleta terra/urucum/jenipapo/palha do protótipo da Lari (larissamato/etnias). Superfícies e textos em tons de terra; o vermelho da marca segue igual. */
 :root[data-theme=terra] .opy-enabled{--opy-ink:#2e251b;--opy-muted:#63574c;--opy-paper:#faf7f2;--opy-ground:#f4ede4}
 :root[data-theme=terra] body{background:var(--color-canvas);color:var(--color-text-primary)}
+
+/* Saberes: trilhas de conhecimento (reaproveita cartões e detalhe das áreas) */
+.saber-notice{margin:0 0 14px;padding:10px 14px;border-left:4px solid var(--color-terracotta,#bd171c);border-radius:8px;background:var(--color-surface-subtle);color:var(--color-text-secondary);font-size:14px}
+.saber-head{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.saber-head .opy-primary{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;text-decoration:none}
+.saber-progress{display:flex;flex-direction:column;gap:4px}.saber-progress .area-progress{margin-top:8px}.saber-progress small{color:var(--color-text-secondary);font-size:12px}
+.saber-lessons{display:flex;flex-direction:column;gap:6px;margin:16px 0 0;padding:0;list-style:none}
+.saber-lessons a{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;border:1px solid var(--color-border-subtle);border-radius:12px;color:var(--color-text-primary);text-decoration:none;font-weight:600}
+.saber-lessons a:hover{background:var(--color-surface-subtle)}
+.saber-lesson-mark{flex:0 0 auto;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--color-surface-muted);font-size:13px}
+.saber-lessons .is-done .saber-lesson-mark{background:var(--color-forest,#1f6b45);color:#fff}
+.saber-done{margin:0;font-weight:600;color:var(--color-forest,#1f6b45)}
+.saber-lesson .post-youtube{margin:8px 0}
+.saber-form h2{margin:0;font-size:22px}.saber-form h3{margin:8px 0 0;font-size:16px}
+.saber-edit-lessons{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.saber-edit-lessons fieldset{display:flex;flex-direction:column;gap:10px;margin:0;padding:12px;border:1px solid var(--color-border-subtle);border-radius:12px}
+.saber-edit-lessons legend{padding:0 6px;font-weight:700}
+.saber-edit-lessons .area-actions{margin-top:0}
+.saber-cover-field{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.saber-cover-preview{width:min(320px,100%);aspect-ratio:16/10;object-fit:cover;border-radius:10px}
+.set-verify select{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--color-border-strong);border-radius:10px;background:var(--color-surface);color:var(--color-text-primary)}
+.set-verify input[type=file]{min-height:auto;padding:6px 0;border:0}

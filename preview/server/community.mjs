@@ -17,6 +17,7 @@ import { postMediaIds, orphanMediaIds, findPostMedia } from './post-media.mjs';
 import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
 import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } from './impulsos.mjs';
 import { areaView } from './areas.mjs';
+import { saberesActions, saberesAction, saberesView, saberMedia } from './saberes.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
 
@@ -410,6 +411,10 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(areaView(state, me, path.searchParams)));
       }
+      if (path.searchParams.get('view') === 'saberes' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(saberesView(state, me, path.searchParams)));
+      }
       if (path.searchParams.get('view') === 'plans' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify({ ...plansView(state, account), finance: financeView(state, me) }));
@@ -446,7 +451,7 @@ export default async function handler(req, res) {
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
         // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
         const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
-        const named = profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id));
+        const named = profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id));
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
@@ -533,7 +538,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -569,6 +574,11 @@ export default async function handler(req, res) {
         await saveMedia(upload.id, upload.bytes, upload.type);
       }
     }
+    if (body.action === 'trilha_save' && body.cover) {
+      upload = mediaInput(body.cover);
+      if (upload.kind !== 'image') fail(400, 'A capa precisa ser uma foto PNG, JPG, GIF ou WebP.');
+      await saveMedia(upload.id, upload.bytes, upload.type);
+    }
     if (body.action === 'story_create') {
       body.text = text(body.text ?? '', 280, false);
       upload = mediaInput(body.media);
@@ -576,7 +586,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], callResult = null, adminResult = null, pushNotice = null, liveResult = null, accountResult = null, boostResult = null;
+    let removedIds = [], saberResult = null, callResult = null, adminResult = null, pushNotice = null, liveResult = null, accountResult = null, boostResult = null;
     const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
@@ -604,6 +614,7 @@ export default async function handler(req, res) {
       if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); return; }
       if (planActions.includes(body.action)) { planAction(state, currentAccount, body); return; }
       if (boostActions.includes(body.action)) { boostResult = boostAction(state, me, currentAccount, body); return; }
+      if (saberesActions.includes(body.action)) { saberResult = saberesAction(state, me, body, upload); removedIds.push(...saberResult.removedIds); return; }
       if (body.action === 'announcement_dismiss') {
         if (!(state.announcements || []).some(a => a.id === body.id)) fail(404, 'Comunicado não encontrado.');
         state.announcementDismiss ||= {}; state.announcementDismiss[me.id] = [...new Set([...(state.announcementDismiss[me.id] || []), body.id])].slice(-100);
@@ -899,6 +910,7 @@ export default async function handler(req, res) {
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     // A senha provisória só existe nesta resposta: não fica no estado nem no registro.
     if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URL(req.url, 'http://local').searchParams), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
+    if (saberesActions.includes(body.action)) return res.end(JSON.stringify(saberesView(data, activeMe, new URLSearchParams({ id: saberResult.id }))));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
     if (groupCallActions.includes(body.action)) return res.end(JSON.stringify(groupCallsView(data, activeMe, new URLSearchParams({ since: String(Number(body.since) || 0) }))));
     if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));

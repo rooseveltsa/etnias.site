@@ -1842,7 +1842,7 @@ if(!window.__opyPressBound){
   document.addEventListener('pointercancel',release,{passive:true});
 }
 // Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
-window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,shrinkPhoto,recorderMime,readSlot,
+window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,emptyState,youtubeCard,linkified,openLightbox,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,shrinkPhoto,recorderMime,readSlot,
  get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
  get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};
 })();
