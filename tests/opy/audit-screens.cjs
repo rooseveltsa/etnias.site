@@ -72,7 +72,9 @@ const widths = [375, 768, 1440];
       if (clip && (x < clip.left || x > clip.right)) continue;
       const hit = document.elementFromPoint(x, y);
       if (hit && hit !== el && !el.contains(hit) && !hit.contains(el) && !(el.labels && [...el.labels].some(l => l.contains(hit)))) {
-        const z = getComputedStyle(hit).position; if (!hit.closest('.opy-topbar, .opy-bottom') || el.closest('.opy-topbar, .opy-bottom')) out.push('coberto: ' + label(el) + ' por ' + (hit.className || hit.tagName).toString().slice(0, 40));
+        // Sob faixa fixa ou presa (cabeçalho, barra de baixo, filtros do feed) é efeito da rolagem, não defeito de layout.
+        let pinned = false; for (let q = hit; q && q !== document.body; q = q.parentElement) { const ps = getComputedStyle(q).position; if (ps === 'sticky' || ps === 'fixed') { pinned = !q.contains(el); break; } }
+        if (!pinned) out.push('coberto: ' + label(el) + ' por ' + (hit.className || hit.tagName).toString().slice(0, 40));
       }
     }
     return [...new Set(out)].slice(0, 12);
