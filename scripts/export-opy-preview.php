@@ -60,6 +60,6 @@ foreach (array('server','api','i18n') as $dir) { if (!is_dir($project.'/'.$dir))
 foreach (array('package.json','package-lock.json','public-posts.json') as $file) copy($root.'/preview/'.$file,$project.'/'.$file);
 if (!is_file($root.'/preview/middleware.js')) throw new RuntimeException('Missing preview/middleware.js welcome gate');
 copy($root.'/preview/middleware.js', $project.'/middleware.js');
-// APK de teste do app Android (gerado em apps/mobile; fora do git). Sem build, o link do site dá 404.
-$apk=$root.'/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk'; if (is_file($apk)) { $folder=$destination.'/assets/app'; if (!is_dir($folder)) mkdir($folder,0755,true); copy($apk,$folder.'/etnias-android.apk'); }
+// APK do app Android (gerado em apps/mobile; fora do git). Prefere o de produção assinado (apps/mobile/scripts/build-android.sh); sem build, o link do site dá 404.
+$apk=$root.'/apps/mobile/android/app/build/outputs/apk/release/app-release.apk'; if (!is_file($apk)) $apk=$root.'/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk'; if (is_file($apk)) { $folder=$destination.'/assets/app'; if (!is_dir($folder)) mkdir($folder,0755,true); copy($apk,$folder.'/etnias-android.apk'); }
 $archive=$destination.'/assets/archive'; if (!is_dir($archive)) mkdir($archive,0755,true); foreach(glob($root.'/preview/archive/*') as $file) copy($file,$archive.'/'.basename($file));

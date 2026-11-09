@@ -16,8 +16,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Assinatura de produção: caminho e senha vêm do ambiente (scripts/build-android.sh lê a senha do Keychain). Sem eles, o release sai sem assinatura.
+    signingConfigs {
+        release {
+            if (System.getenv('ETNIAS_KEYSTORE')) {
+                storeFile file(System.getenv('ETNIAS_KEYSTORE'))
+                storePassword System.getenv('ETNIAS_KS_PASS')
+                keyAlias 'etnias'
+                keyPassword System.getenv('ETNIAS_KS_PASS')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv('ETNIAS_KEYSTORE')) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
