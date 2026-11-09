@@ -1219,7 +1219,7 @@ html.sv-lock,html.sv-lock body{overflow:hidden;overscroll-behavior:none}
 .area-app .area-search input{flex:1;min-width:0;min-height:44px;padding:0 14px;border:1px solid var(--color-border-strong);border-radius:999px;background:var(--color-surface);color:var(--color-text-primary);font:inherit;font-size:16px}
 .area-search button{min-height:44px;border-radius:999px}
 .area-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
-.area-chip{flex:0 0 auto;display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:999px;background:var(--color-surface);border:1px solid var(--color-border-subtle);color:var(--color-text-primary);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+.area-chip{flex:0 0 auto;display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;background:var(--color-surface);border:1px solid var(--color-border-subtle);color:var(--color-text-primary);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
 .area-chip[aria-current=true]{background:var(--color-text-primary);color:var(--color-surface);border-color:transparent}
 .area-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 .area-card{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--color-border-subtle);border-radius:14px;background:var(--color-surface);color:var(--color-text-primary);text-decoration:none;transition:box-shadow .15s}
@@ -1370,3 +1370,31 @@ html.sv-lock,html.sv-lock body{overflow:hidden;overscroll-behavior:none}
  .pf-head{flex-wrap:wrap}
  .pf-id{flex:1 1 280px}
 }
+
+/* Campo de comentário (feed e perfil): uma pílula larga; emoji e enviar dentro; resposta em linha discreta acima. */
+.preview-comment-form{display:flex!important;flex-direction:column;align-items:stretch;gap:6px;margin-top:10px}
+.preview-comment-form .comment-reply-chip{display:flex;align-items:center;gap:6px;margin:0 0 0 4px;color:var(--color-text-secondary);font-size:13px}
+.preview-comment-form .comment-reply-chip span{font-weight:600}
+.preview-comment-form .comment-reply-cancel{min-height:32px;padding:0 6px;border:0;border-radius:8px;background:transparent;color:var(--color-text-secondary);font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.preview-comment-form .comment-reply-cancel:hover{background:var(--color-surface-muted);color:var(--color-text-primary)}
+.preview-comment-form .comment-box{display:flex;align-items:center;gap:2px;width:100%;min-height:44px;padding:2px 4px 2px 14px;border:1px solid var(--color-border-subtle);border-radius:999px;background:var(--color-surface-subtle)}
+.preview-comment-form .comment-box:focus-within{border-color:var(--color-text-secondary);background:var(--color-surface)}
+.preview-comment-form .comment-box input{flex:1;min-width:0;width:auto;min-height:40px;padding:0;border:0;border-radius:0;background:transparent;font-size:16px;color:var(--color-text-primary)}
+.preview-comment-form .comment-box input:focus{outline:none}
+.preview-comment-form .comment-emoji-btn,.preview-comment-form .comment-send{display:grid;place-items:center;width:40px;height:40px;min-width:40px;min-height:40px;flex:0 0 40px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--color-text-secondary)}
+.preview-comment-form .comment-emoji-btn:hover{background:var(--color-surface-muted);color:var(--color-text-primary)}
+.preview-comment-form .comment-emoji-btn svg,.preview-comment-form .comment-send svg{width:22px;height:22px}
+.preview-comment-form .comment-send{color:var(--color-terracotta,#bd171c)}
+.preview-comment-form .comment-send:hover:not(:disabled){background:var(--color-terracotta-tint)}
+.preview-comment-form .comment-send:disabled{color:var(--color-border-strong);cursor:default}
+.preview-comment-form .comment-emoji-btn:focus-visible,.preview-comment-form .comment-send:focus-visible,.preview-comment-form .comment-reply-cancel:focus-visible{outline:2px solid var(--color-terracotta);outline-offset:1px}
+.preview-comment-form .comment-char-count{align-self:flex-end;margin-right:8px}
+
+/* Reforço sobre regras antigas do opy.css (body.opy-preview …), que alinhavam ao centro e zeravam a borda. */
+body.opy-preview .preview-comment-form{align-items:stretch}
+body.opy-preview .preview-comment-form .comment-reply-chip{justify-content:flex-start;align-self:stretch;width:auto;margin:0 0 0 6px;text-align:left}
+body.opy-preview .preview-comment-form .comment-box{border:1px solid var(--color-border-strong);background:var(--color-surface-subtle)}
+body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:var(--color-text-secondary);background:var(--color-surface)}
+
+/* Safari (iPhone): altura em % dentro de grade não preenche; a mídia do story fica absoluta e cobre o cartão inteiro. */
+.sv-media-slot img,.sv-media-slot video,.sv-media>img,.sv-media>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

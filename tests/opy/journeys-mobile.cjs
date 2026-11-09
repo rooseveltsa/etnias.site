@@ -46,9 +46,11 @@ async function api(cookie, body) {
       assert.ok(await page.locator('.community-post').first().isVisible(), 'feed continua atrás do story');
     });
     await step('3. Curtir (resposta imediata) e comentar sem perder a posição do feed', async () => {
-      const post = page.locator('.community-post').nth(3); await post.scrollIntoViewIfNeeded(); await page.waitForTimeout(600);
+      // Publicação comum (o card patrocinado tem id "sponsored-…").
+      const post = page.locator('.community-post[id^="post-"]').nth(3); await post.scrollIntoViewIfNeeded(); await page.waitForTimeout(600);
       const y0 = await page.evaluate(() => scrollY);
-      const id = (await post.getAttribute('id')).replace('post-', '');
+      const rawId = await post.getAttribute('id', { timeout: 8000 }).catch(async () => { throw new Error('quarto card ausente: ' + JSON.stringify(await page.evaluate(() => ({ cards: document.querySelectorAll('.community-post').length, url: location.href, dialog: !!document.querySelector('dialog[open]'), busy: document.querySelector('#preview-feed')?.getAttribute('aria-busy') })))); });
+      const id = rawId.replace('post-', '');
       const like = () => page.locator('#post-' + id + ' .post-react-main');
       const was = await like().getAttribute('aria-pressed'); const want = was === 'true' ? 'false' : 'true';
       const t0 = Date.now(); await like().tap();

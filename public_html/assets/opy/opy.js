@@ -495,3 +495,20 @@
     form.addEventListener('submit', function (event) { if (!input.value.trim()) { event.preventDefault(); input.focus(); } });
     sync();
 }());
+
+// Celular: a barra de baixo some ao rolar para baixo e volta ao rolar para cima (mais tela para o feed, como nos apps).
+// Não esconde com um diálogo aberto, com a página travada ou digitando.
+(function () {
+    var last = window.scrollY || 0, ticking = false, mq = window.matchMedia('(max-width: 700px)');
+    function update() {
+        ticking = false;
+        var y = window.scrollY || 0, d = y - last;
+        if (Math.abs(d) < 8) return;
+        var typing = document.activeElement && document.activeElement.matches && document.activeElement.matches('input, textarea');
+        var hide = mq.matches && d > 0 && y > 140 && !document.body.classList.contains('opy-scroll-lock') && !document.querySelector('dialog[open]') && !typing;
+        document.body.classList.toggle('opy-bar-hidden', hide);
+        last = y;
+    }
+    window.addEventListener('scroll', function () { if (!ticking) { ticking = true; window.requestAnimationFrame(update); } }, { passive: true });
+    mq.addEventListener('change', function () { document.body.classList.remove('opy-bar-hidden'); });
+}());

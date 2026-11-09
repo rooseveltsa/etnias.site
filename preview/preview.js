@@ -309,13 +309,17 @@ function renderPost(post, communityContext=null){
  const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário (até 500 caracteres)';input.setAttribute('aria-label','Seu comentário');
  const charCount=make('small','0/500','comment-char-count');charCount.hidden=true;
  input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';charCount.hidden=input.value.length<400;});
- const submit=make('button','Enviar','preview-secondary');submit.type='submit';submit.setAttribute('aria-label','Enviar comentário');
+ // Campo no padrão das redes: pílula larga com o texto; emoji e enviar (seta) ficam dentro dela; enviar só acende com texto.
+ const submit=make('button',undefined,'comment-send');submit.type='submit';submit.setAttribute('aria-label','Enviar comentário');submit.disabled=true;
+ submit.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z" fill="currentColor"/></svg>';
+ input.addEventListener('input',()=>{submit.disabled=!input.value.trim();});
  const target=replyTargets.get(post.id);
- if(target){const chip=make('p',undefined,'comment-reply-chip');chip.append(make('span','Respondendo a '+target.author));const x=button('Cancelar',()=>{replyTargets.delete(post.id);render();},chip);x.className='pf-link';form.append(chip);input.placeholder='Escreva sua resposta…';}
- const emojiBtn=make('button','😀','comment-emoji-btn');emojiBtn.type='button';emojiBtn.setAttribute('aria-label','Inserir emoji');emojiBtn.setAttribute('aria-expanded','false');
+ if(target){const chip=make('p',undefined,'comment-reply-chip');chip.append(make('span','Respondendo a '+target.author));const x=button('Cancelar',()=>{replyTargets.delete(post.id);render();},chip);x.className='comment-reply-cancel';x.setAttribute('aria-label','Cancelar resposta a '+target.author);form.append(chip);input.placeholder='Responder a '+target.author.split(' ')[0]+'…';}
+ const emojiBtn=make('button',undefined,'comment-emoji-btn');emojiBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/></svg>';emojiBtn.type='button';emojiBtn.setAttribute('aria-label','Inserir emoji');emojiBtn.setAttribute('aria-expanded','false');
  const emojiBox=make('div',undefined,'comment-emoji-picker');emojiBox.hidden=true;
  emojiBtn.onclick=()=>{emojiBox.hidden=!emojiBox.hidden;emojiBtn.setAttribute('aria-expanded',String(!emojiBox.hidden));if(!emojiBox.hidden)picker(emojiBox,input,()=>{emojiBox.hidden=true;emojiBtn.setAttribute('aria-expanded','false');});};
- form.append(input,emojiBtn,charCount,submit,emojiBox);
+ const box=make('div',undefined,'comment-box');box.append(input,emojiBtn,submit);
+ form.append(box,charCount,emojiBox);
  form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{openCommentForms.add(post.id);const draft=input.value;const replyTo=replyTargets.get(post.id)?.id;replyTargets.delete(post.id);try{await change({action:'comment',postId:post.id,text:draft,...(replyTo?{replyTo}:{})});}catch(error){if(replyTo)replyTargets.set(post.id,{id:replyTo,author:''});throw error;}const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
  const repostInput=make('input');repostInput.maxLength=1000;repostInput.placeholder='Adicione um comentário ao repostar (opcional)…';repostInput.setAttribute('aria-label','Comentário do repost');
@@ -1341,7 +1345,9 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
   const welcome=!key&&!saved?welcomeCard():null;
   const postSig=p=>JSON.stringify([p.sponsored?.boostId,p.reaction,p.comments?.length,p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
-  const sponsoredPost=!key&&!saved?state.sponsored:null;
+  // O patrocinado fica o mesmo enquanto a pessoa lê: o rodízio do servidor só vale na próxima abertura do feed (sem redesenhar a lista).
+  if(!key&&!saved&&fs.sponsored===undefined&&state.sponsored!==undefined)fs.sponsored=state.sponsored||null;
+  const sponsoredPost=!key&&!saved?(fs.sponsored||null):null;
   const frameSig=JSON.stringify([key,saved,suggestionsClosed,fs.loading,fs.hasMore,view,fs.pinned?.id,welcome?.dataset.sig||'',posts.map(p=>p.id),sponsoredPost?.id||'']);
   const sugSig=JSON.stringify((state.directory||[]).map(p=>p.key+p.following));
   const feedSig=frameSig+sugSig+posts.map(postSig).join('');
@@ -1361,7 +1367,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   if(fs.pinned&&!posts.some(p=>p.id===fs.pinned.id)){const wrap=make('section',undefined,'opy-pinned');wrap.setAttribute('aria-label','Publicação aberta pelo link');const bar=make('div',undefined,'opy-pinned-bar');bar.append(make('strong','Publicação'));const back=button('Ver feed',()=>{fs.pinned=null;history.replaceState(null,'',location.pathname+location.search);render();},bar);back.className='pf-link';wrap.append(bar,renderPost(fs.pinned));cards.unshift(wrap);}
   feed.replaceChildren(...cards);
   if(fs.loading&&!posts.length)feed.append(make('div',undefined,'opy-skeleton'),make('div',undefined,'opy-skeleton'));
-  all('.community-post',feed).forEach(card=>{const draft=drafts.get(card.id);if(draft){$('.preview-comment-form input',card).value=draft.text;const form=$('.preview-comment-form',card);form.hidden=!draft.open;const toggle=card.querySelector('[aria-controls="'+form.id+'"]');if(toggle)toggle.setAttribute('aria-expanded',String(!!draft.open));}});
+  all('.community-post',feed).forEach(card=>{const draft=drafts.get(card.id);if(draft){const di=$('.preview-comment-form input',card);di.value=draft.text;di.dispatchEvent(new Event('input'));const form=$('.preview-comment-form',card);form.hidden=!draft.open;const toggle=card.querySelector('[aria-controls="'+form.id+'"]');if(toggle)toggle.setAttribute('aria-expanded',String(!!draft.open));}});
   if(!posts.length&&!fs.loading){
    const showView=v=>$(`[data-feed-view="${v}"]`)?.click();
    feed.append(saved?emptyState('Nada salvo ainda','Toque no marcador de uma publicação para guardá-la aqui e ler depois.',[['Ir para o feed','/']])

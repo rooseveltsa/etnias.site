@@ -501,3 +501,21 @@ body.opy-preview .chat-dock-form input{min-height:36px;border:1px solid var(--op
 .opy-create-links { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--opy-line); }
 .opy-create-title { margin: 4px 12px; color: var(--opy-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .opy-create-links .opy-nav-item svg { width: 26px; height: 26px; }
+
+/* Alvos de toque de 44 px na pesquisa (auditoria de 2026-11-09). */
+.opy-search { min-height: 46px; }
+.opy-search > button { width: 44px; height: 44px; flex-basis: 44px; }
+@media (max-width: 700px) { .opy-search-open { height: 44px; } }
+
+/* Celular como aplicativo: barra de baixo compacta (ícones 26 px, sem respiro sobrando) e que some ao rolar para baixo,
+   voltando ao rolar para cima (padrão Instagram/Facebook). A barra do Safari só some com o site instalado na tela de início. */
+@media (max-width: 700px) {
+    .opy-enabled { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+    .opy-enabled .opy-bottom { gap: 0; padding: 2px max(4px, env(safe-area-inset-right)) calc(2px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)); border-top: 1px solid var(--opy-line); box-shadow: none; transition: transform .25s ease; will-change: transform; }
+    .opy-bottom .opy-nav-item { min-height: 50px; padding: 4px 2px; gap: 2px; font-size: 10px; border-radius: 10px; }
+    .opy-bottom .opy-nav-item img.opy-picture { width: 26px; height: 26px; flex-basis: 26px; }
+    .opy-bottom .opy-create img.opy-picture { width: 30px; height: 30px; flex-basis: 30px; }
+    .opy-bottom .opy-soon { top: 0; right: 2px; font-size: 8px; padding: 0 4px; }
+    body.opy-bar-hidden .opy-bottom { transform: translateY(calc(100% + 8px)); }
+}
+@media (prefers-reduced-motion: reduce) { .opy-enabled .opy-bottom { transition: none; } }

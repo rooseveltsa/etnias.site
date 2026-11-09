@@ -217,6 +217,11 @@
    "data": "2026-11-09",
    "titulo": "Tela Criar no padrão Instagram (Publicação · Story · Live) e correção do nome no perfil",
    "detalhe": "O + do story, o botão Postagem no celular e Story/Ao vivo do compositor abrem uma câmera em tela cheia com os modos embaixo: toque tira foto, segurar grava vídeo (até 15 s), galeria à esquerda, virar câmera à direita, 'Aa Criar' para story de texto, legenda e 'Seu story'/'Publicar'. Live no mesmo lugar: 'Compartilhar com Todos' (ou comunidade), 'Adicionar um título…', formato 9:16/16:9 e botão de transmitir; durante a live, palco, controles e bate-papo ficam em tela cheia (mesmo motor da live). Perfil: nome sempre abaixo da capa, selo do plano na linha do nome, botões descem em telas médias. Validação: stories-browser.cjs (22 jornadas, 4 da tela Criar com câmera falsa) e live-journeys.cjs pelo fluxo novo."
+  },
+  {
+   "data": "2026-11-09",
+   "titulo": "Revisão de detalhes de uso: comentário, celular como aplicativo e auditoria de estados abertos",
+   "detalhe": "Campo de comentário refeito (pílula larga com emoji e enviar dentro; 'Respondendo a' em linha discreta) — antes ficava com 28 px ao responder. Barra de baixo do celular compacta (58 px) e que some ao rolar para baixo e volta ao subir. Story ocupa a tela inteira no Safari do iPhone. Patrocinado fixo enquanto o feed está aberto (não redesenha a lista). Alvos de toque de 44 px na pesquisa e nos filtros das áreas. Auditoria (tests/opy/audit-screens.cjs) ganhou a etapa de estados abertos (comentar, responder, menus, OPY, Criar, configurações, áreas, perfil, chat), medindo campos espremidos, controles cobertos e fora da tela: 87 telas + 30 estados sem achados."
   }
  ],
  "andamento": [
