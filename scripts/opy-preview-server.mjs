@@ -89,7 +89,7 @@ http.createServer(async (req, res) => {
   if (pathname.startsWith('/live/') && !pathname.startsWith('/live/recordings/')) return await proxyLive(req, res, pathname);
   if (path === '/api/community' || path === '/api/media' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
     if (req.method === 'POST') {
-      let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 4*1024*1024) { res.writeHead(413); return res.end(); } }
+      let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 20*1024*1024) { res.writeHead(413); return res.end(); } }
       try { req.body = JSON.parse(raw); } catch { res.writeHead(400); return res.end(); }
     }
     return handler(req, res);

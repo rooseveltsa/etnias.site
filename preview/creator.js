@@ -13,7 +13,7 @@ const el = id => document.getElementById(id);
 const video = el('creator-preview'), review = el('creator-review'), msg = el('creator-camera-msg');
 const shutter = el('creator-shutter'), sendBtn = el('creator-send'), caption = el('creator-caption'), title = el('creator-title');
 const textArea = el('creator-text'), status = el('creator-status');
-let mode = 'story', step = 'camera', file = null, recorder = null, recTimer = 0, holdTimer = 0, pressAt = 0;
+let mode = 'story', step = 'camera', file = null, gallery = [], recorder = null, recTimer = 0, holdTimer = 0, pressAt = 0;
 const moved = [];
 const say = t => { status.textContent = t; };
 // Emojis na legenda e no story de texto (o mesmo seletor das publicações e do chat).
@@ -51,7 +51,7 @@ function setMode(next) {
 }
 // ---------- captura ----------
 function discard() {
-  file = null; review.replaceChildren(); caption.value = ''; textArea.value = '';
+  file = null; gallery = []; review.classList.remove('is-multi'); review.replaceChildren(); caption.value = ''; textArea.value = '';
   setStep(dlg.dataset.textMode === '1' ? 'text' : 'camera');
 }
 function showReview(f) {
@@ -102,10 +102,25 @@ shutter.addEventListener('click', e => {
   if (e.detail === 0 && mode !== 'live' && step === 'camera') takePhoto();
   if (mode === 'live' && !isLive()) startLive();
 });
+// Várias fotos na publicação viram carrossel (até 10), como no Instagram; story segue com uma mídia.
+function showGallery(files) {
+  file = null; gallery = files; review.replaceChildren(); review.classList.add('is-multi');
+  const counter = make('span', '1/' + files.length, 'cr-review-counter');
+  const track = make('div', undefined, 'cr-review-track');
+  for (const f of files) { const img = make('img'); img.src = URL.createObjectURL(f); img.alt = 'Prévia'; track.append(img); }
+  track.addEventListener('scroll', () => { counter.textContent = (Math.round(track.scrollLeft / Math.max(1, track.clientWidth)) + 1) + '/' + files.length; }, { passive: true });
+  review.append(track, counter); setStep('review'); closeCamera();
+  say(files.length + ' fotos em carrossel. Deslize para conferir.');
+}
 el('creator-file').addEventListener('change', e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  if (!/^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm))$/.test(f.type)) { showError('Escolha uma foto ou um vídeo.'); return; }
-  dlg.dataset.textMode = ''; showReview(f);
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+  if (files.some(f => !/^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm))$/.test(f.type))) { showError('Escolha uma foto ou um vídeo.'); return; }
+  dlg.dataset.textMode = '';
+  if (files.length === 1) return showReview(files[0]);
+  if (mode !== 'post') { showError('O story leva uma foto ou um vídeo por vez.'); return; }
+  if (files.length > 10) { showError('Escolha até 10 fotos por publicação.'); return; }
+  if (files.some(f => !f.type.startsWith('image/'))) { showError('No carrossel, todas precisam ser fotos.'); return; }
+  showGallery(files);
 });
 el('creator-flip').addEventListener('click', async () => {
   S.cameraFacing = S.cameraFacing === 'environment' ? 'user' : 'environment';
@@ -121,9 +136,11 @@ sendBtn.addEventListener('click', async () => {
   sendBtn.disabled = true; const label = sendBtn.textContent; sendBtn.textContent = 'Enviando…';
   try {
     const media = file ? await S.readSlot(file) : null;
+    const photos = [];
+    for (const f of gallery) { const p = await S.readSlot(f, 900 * 1024); photos.push({ name: p.name, data: p.data }); }
     const text = step === 'text' ? textArea.value.trim() : caption.value.trim();
-    if (!media && !text) throw Error('Tire uma foto, escolha da galeria ou escreva algo.');
-    if (mode === 'post') await change({ action: 'publish', text, audience: 'public', communityId: '', media: media && { name: media.name, data: media.data }, file: null, location: '' });
+    if (!media && !photos.length && !text) throw Error('Tire uma foto, escolha da galeria ou escreva algo.');
+    if (mode === 'post') await change({ action: 'publish', text, audience: 'public', communityId: '', media: media && { name: media.name, data: media.data }, ...(photos.length ? { photos } : {}), file: null, location: '' });
     else await change({ action: 'story_create', text, media });
     closeCreator(); toast(mode === 'post' ? 'Publicado.' : 'Story publicado por 24 horas.');
   } catch (e) { showError(e.message); }
@@ -183,7 +200,7 @@ function closeCreator(force) {
 }
 el('creator-close').addEventListener('click', () => closeCreator());
 dlg.addEventListener('cancel', e => { e.preventDefault(); closeCreator(); });
-dlg.addEventListener('close', () => { document.documentElement.classList.remove('sv-lock'); file = null; review.replaceChildren(); title.value = ''; });
+dlg.addEventListener('close', () => { document.documentElement.classList.remove('sv-lock'); file = null; gallery = []; review.classList.remove('is-multi'); review.replaceChildren(); title.value = ''; });
 function open(next = 'story') {
   if (isLive()) next = 'live';
   document.documentElement.classList.add('sv-lock');

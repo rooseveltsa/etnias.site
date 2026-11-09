@@ -1,4 +1,5 @@
 import { randomUUID, randomBytes } from 'node:crypto';
+import { ownMediaIds, orphanMediaIds } from './post-media.mjs';
 import { hashPassword } from './session.mjs';
 import { decidePlanRequest, decideVerification, adminQueues, plansOpen, testPayments } from './planos.mjs';
 import { decideBoost, boostQueue } from './impulsos.mjs';
@@ -124,7 +125,7 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
   const communities = (state.communities || []).map(c => ({ id: c.id, name: c.name, category: c.category, visibility: c.visibility, members: c.members?.length || 0, pending: (c.pendingRequests || []).length,
     posts: posts.filter(p => p.communityId === c.id).length, reports: (state.communityReports || []).filter(r => r.communityId === c.id).length }));
   const announcements = (state.announcements || []).slice().sort((a, b) => b.createdAt - a.createdAt).map(a => ({ ...a, active: !a.endedAt && (!a.until || a.until > now) }));
-  const health = { accounts: accounts.length, posts: posts.length, messages: dms.length, media: new Set([...posts.flatMap(p => [p.media?.id, p.file?.id]), ...dms.map(m => m.media?.id), ...accounts.flatMap(a => [a.avatarId, a.coverId])].filter(Boolean)).size, dataKb: Math.round(JSON.stringify(state).length / 1024) };
+  const health = { accounts: accounts.length, posts: posts.length, messages: dms.length, media: new Set([...posts.flatMap(ownMediaIds), ...dms.map(m => m.media?.id), ...accounts.flatMap(a => [a.avatarId, a.coverId])].filter(Boolean)).size, dataKb: Math.round(JSON.stringify(state).length / 1024) };
   return { role, viewer: { key: keyOf(viewer), name: viewer.name }, ...(role === 'admin' ? { development } : {}), kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, announcements, log: (state.adminLog || []).slice(-150).reverse(), health, filas: { ...adminQueues(state), campanhas: boostQueue(state), contratacaoAberta: plansOpen(env), pagamentoTeste: testPayments(env) } };
 }
 
@@ -145,7 +146,7 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     if (!reason) fail(400, 'Informe o motivo da remoção. Ele fica no registro de transparência.');
     state.posts = state.posts.filter(p => p.id !== post.id);
     log(state, actor, 'Publicação removida', post.author, reason, { excerpt: (post.text || '').slice(0, 140) });
-    const removedIds = [post.media?.id, post.file?.id].filter(id => id && !state.posts.some(p => p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
+    const removedIds = orphanMediaIds(post, state.posts);
     return { removedIds };
   }
   const target = accountByKey(state, body.userKey);

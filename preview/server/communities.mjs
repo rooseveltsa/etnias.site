@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { orphanMediaIds } from './post-media.mjs';
 
 export const communityActions = [
   'community_create',
@@ -409,7 +410,7 @@ export function communityAction(state, me, body) {
     const post = (state.posts || []).find(p => p.id === body.postId && p.communityId === c.id);
     if (!post) fail(404, 'Publicação não encontrada nesta comunidade.');
     const remaining = state.posts.filter(p => p.id !== post.id);
-    const removedIds = [post.media?.id, post.file?.id].filter(mid => mid && !remaining.some(p => p.media?.id === mid || p.file?.id === mid || p.repostOf?.media?.id === mid || p.repostOf?.file?.id === mid));
+    const removedIds = orphanMediaIds(post, remaining);
     state.posts = remaining;
     return { removedIds };
   }

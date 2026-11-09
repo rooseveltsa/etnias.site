@@ -190,6 +190,20 @@ try {
   assert.equal((await getMedia('/api/media?id='+attachment.id,third.cookie)).statusCode,404);
   assert.equal((await getMedia('/api/media?id='+attachment.id,login.cookie)).statusCode,200);
   assert.equal((await api({action:'chat_delete',messageId:state.dms.at(-1).id,scope:'all'},login.cookie)).status,403);
+  // Carrossel: até 10 fotos, a primeira é o media; todas obedecem à visibilidade e saem junto com a publicação.
+  assert.equal((await api({ action:'publish', text:'demais', audience:'public', photos:Array(11).fill(png) }, login.cookie)).status, 400);
+  assert.equal((await api({ action:'publish', text:'misturado', audience:'public', photos:[png,png], file:{ name:'a.txt', data:'data:text/plain;base64,b2k=' } }, login.cookie)).status, 400);
+  const carousel = await api({ action:'publish', text:'', audience:'public', photos:[png,png,png] }, login.cookie);
+  assert.equal(carousel.status, 200);
+  const cRaw = state.posts.find(p => p.photos?.length === 3);
+  assert.equal(cRaw.media.id, cRaw.photos[0].id);
+  assert.equal(carousel.data.posts.find(p => p.id === cRaw.id).images.length, 3);
+  assert.equal((await getMedia('/api/media?id='+cRaw.photos[2].id, third.cookie)).statusCode, 200);
+  const hidden = await api({ action:'publish', text:'só eu', audience:'private', photos:[png,png] }, login.cookie);
+  const hRaw = state.posts.find(p => p.id === hidden.data.posts[0].id);
+  assert.equal((await getMedia('/api/media?id='+hRaw.photos[1].id, third.cookie)).statusCode, 404, 'foto do carrossel privado não vaza');
+  assert.equal((await api({ action:'delete', postId:cRaw.id }, login.cookie)).status, 200);
+  assert.equal((await getMedia('/api/media?id='+cRaw.photos[2].id, login.cookie)).statusCode, 404, 'fotos saem com a publicação');
   // Comentários em conversa, curtidas, permissões e edição de publicação
   assert.equal((await api({ action:'publish', text:'Post para comentários', audience:'public' }, login.cookie)).status, 200);
   const cPost = state.posts.find(p => p.text === 'Post para comentários');

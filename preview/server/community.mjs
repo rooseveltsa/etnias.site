@@ -13,6 +13,7 @@ import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
 import { sendFile } from './files.mjs';
+import { postMediaIds, orphanMediaIds, findPostMedia } from './post-media.mjs';
 import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
 import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } from './impulsos.mjs';
 import { areaView } from './areas.mjs';
@@ -130,13 +131,13 @@ function projectPost(p, me, state, ctx) {
   const author = ctx.accountsById.get(p.authorId);
   return {
     id: p.id, text: p.text, author: p.author, authorKey: aKey, following: ctx.followed.has(aKey), friendStatus: friendStatusOf(state, ctx.myKey, aKey),
-    origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', images: Array.isArray(p.images) && p.images.length > 1 ? p.images : [],
+    origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', images: p.photos?.length > 1 ? p.photos.map(m => `/api/media?id=${m.id}`) : Array.isArray(p.images) && p.images.length > 1 ? p.images : [],
     avatar: archiveAvatar(p) || personAvatar(author), verified: !!author?.verified, attachmentMissing: !!p.attachmentMissing,
     media: mapMedia(p.media), file: mapMedia(p.file), link: p.link || null, location: p.location || '', live: projectLive(p),
     communityId: p.communityId || '', communityName: p.communityId ? (ctx.communityNames.get(p.communityId) || p.communityName || '') : '',
     audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
     shares: p.shares || 0,
-    repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file) } : null,
+    repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file), images: p.repostOf.photos?.length > 1 ? p.repostOf.photos.map(m => `/api/media?id=${m.id}`) : p.repostOf.images || [], photos: undefined } : null,
     reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
     reactedBy: reactorNames(p, me, ctx),
     comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
@@ -371,7 +372,7 @@ export { mediaInput, googleKeyOf, phoneOf };
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  let upload, fileUpload;
+  let upload, fileUpload, photoUploads = [];
   try {
     const secret = sessionSecret();
     const pathname = new URL(req.url, 'http://local').pathname;
@@ -439,11 +440,11 @@ export default async function handler(req, res) {
       }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');
-        const post = state.posts.find(p => visible(p, me, state) && (p.media?.id === id || p.file?.id === id || p.repostOf?.media?.id === id || p.repostOf?.file?.id === id));
+        const post = state.posts.find(p => visible(p, me, state) && postMediaIds(p).includes(id));
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
         // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
         const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
-        const named = profileOwner ? { kind: 'image', name: 'perfil' } : ((post?.media?.id === id ? post.media : post?.file?.id === id ? post.file : post?.repostOf?.media?.id === id ? post.repostOf.media : post?.repostOf?.file) || story?.media || chatMedia(state, me, id));
+        const named = profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id));
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
@@ -460,7 +461,7 @@ export default async function handler(req, res) {
     try { const parsed = new URL(origin); sameOrigin = ['https:', 'http:'].includes(parsed.protocol) && parsed.host === req.headers.host; } catch (_) {}
     if (!sameOrigin) fail(403, 'Recarregue a página antes de enviar sua alteração.');
     const body = req.body;
-    if (!body || typeof body !== 'object' || JSON.stringify(body).length > 4 * 1024 * 1024) fail(413, 'Conteúdo muito grande. Escolha um arquivo menor.');
+    if (!body || typeof body !== 'object' || JSON.stringify(body).length > 20 * 1024 * 1024) fail(413, 'Conteúdo muito grande. Escolha um arquivo menor.');
     if (body.action === 'logout') {
       if (session) await transact(state => {
         const account = sessionAccount(state, session);
@@ -540,8 +541,14 @@ export default async function handler(req, res) {
         body.location = text(body.location, 120).replace(/[\r\n]+/g, ' ');
         if (body.location.length < 2) fail(400, 'Escreva a localização com pelo menos 2 caracteres.');
       } else body.location = '';
-      if (!body.text?.trim() && !body.media && !body.file) fail(400, 'Escreva o que fica visível para quem vê a publicação.');
-      upload = mediaInput(body.media);
+      // Carrossel: até 10 fotos; a primeira vira o media da publicação (filtros, miniaturas e reposts seguem iguais).
+      if (body.photos != null && (!Array.isArray(body.photos) || body.photos.length > 10)) fail(400, 'Escolha até 10 fotos por publicação.');
+      if (body.photos?.length && (body.media || body.file)) fail(400, 'Uma publicação com várias fotos não leva vídeo nem arquivo.');
+      if (!body.text?.trim() && !body.media && !body.file && !body.photos?.length) fail(400, 'Escreva o que fica visível para quem vê a publicação.');
+      photoUploads = (body.photos || []).map(mediaInput);
+      if (photoUploads.some(p => p?.kind !== 'image')) fail(400, 'No carrossel, todas precisam ser fotos PNG, JPG, GIF ou WebP.');
+      upload = photoUploads[0] || mediaInput(body.media);
+      for (const p of photoUploads.slice(1)) await saveMedia(p.id, p.bytes, p.type);
       fileUpload = mediaInput(body.file);
       if (fileUpload && fileUpload.kind !== 'file') fail(400, 'O arquivo precisa ser PDF, TXT, DOC ou DOCX.');
       if (upload?.kind === 'file' && fileUpload) fail(400, 'A publicação leva um único arquivo.');
@@ -688,7 +695,7 @@ export default async function handler(req, res) {
           if (typeof body.communityId === 'string' && body.communityId.trim()) {
             targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
           }
-          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) }); break;
+          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) }); break;
         }
         case 'repost': {
           if (post.audience === 'private' || post.audience === 'friends' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
@@ -697,7 +704,7 @@ export default async function handler(req, res) {
           const source = post.repostOf || {
             id: post.id, author: post.author, authorKey: authorKeyOf(post), createdAt: post.createdAt,
             text: post.text || '', image: post.image || '', avatar: archiveAvatar(post),
-            media: post.media || null, file: post.file || null, location: post.location || ''
+            media: post.media || null, file: post.file || null, ...(post.photos ? { photos: post.photos } : {}), location: post.location || ''
           };
           post.shares = (post.shares || 0) + 1;
           if (post.repostOf) {
@@ -760,7 +767,7 @@ export default async function handler(req, res) {
         case 'delete': {
           if (post.authorId !== me.id) fail(403, 'Somente quem publicou pode excluir esta publicação.');
           const remaining = state.posts.filter(p => p.id !== post.id);
-          removedIds = [post.media?.id, post.file?.id].filter(mid => mid && !remaining.some(p => p.media?.id === mid || p.file?.id === mid || p.repostOf?.media?.id === mid || p.repostOf?.file?.id === mid));
+          removedIds = orphanMediaIds(post, remaining);
           state.posts = remaining; break;
         }
         case 'join': {
