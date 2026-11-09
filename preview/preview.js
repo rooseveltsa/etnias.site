@@ -102,7 +102,8 @@ function emojiToggle(input){
 }
 window.OpyEmoji={open:picker,toggle:emojiToggle};
 const glyph={
- like:'<path d="M8 10v10H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zm0 0 3.4-6.1A2.2 2.2 0 0 1 15.3 5.2L14 10h5.1a2 2 0 0 1 2 2.4l-1 6.2a2 2 0 0 1-2 1.4H8"/>',
+ // Curtir é o maracá (desenho da Lari, larissamato/etnias), redesenhado no grid de 24 e no traço dos outros ícones.
+ like:'<g class="maraca" transform="rotate(45 12 12) translate(12 12) scale(1.3) translate(-12 -11.7)" stroke-width="1.4"><path class="maraca-pluma" d="M12 4.1C10.3 1.7 8.1 1.9 8.6 3.9c.4.9 2.1.8 3.4.2zM12 4.1c1.7-2.4 3.9-2.2 3.4-.2-.4.9-2.1.8-3.4.2z"/><ellipse class="maraca-cabaca" cx="12" cy="9.6" rx="4.7" ry="5.4"/><path class="maraca-grafismo" d="M7.6 9.1l2.2 2 2.2-2.4 2.2 2.4 2.2-2"/><path d="M10 15.2h4M10.9 15.2l-.4 5.6c0 .9 3 .9 3 0l-.4-5.6"/></g>',
  heart:'<path d="M12 20s-6.4-4.1-6.4-8.2A3.6 3.6 0 0 1 12 8.6a3.6 3.6 0 0 1 6.4 3.2C18.4 15.9 12 20 12 20z"/>',
  comment:'<path d="M5 6.5h14V15H9l-4 3.2z"/>',
  share:'<path d="M15 5l5 5-5 5"/><path d="M20 10H9a5 5 0 0 0-5 5v4"/>',
@@ -351,7 +352,7 @@ function renderPost(post, communityContext=null){
   if(total){
    const who=(post.reactedBy||[]).slice(0,2).map((n,i)=>i===0?n.charAt(0).toLocaleUpperCase('pt-BR')+n.slice(1):n);const rest=total-who.length;
    const names=!who.length?String(total):rest>0?`${who.join(', ')} e mais ${rest}`:who.join(' e ');
-   left.setAttribute('aria-label',total+(total===1?' reação':' reações')+': '+reacted.map(([, ,label])=>label).join(', ')+(who.length?' · '+names:''));left.textContent=reacted.map(([,icon])=>icon).join(' ')+' '+names;
+   left.setAttribute('aria-label',total+(total===1?' reação':' reações')+': '+reacted.map(([, ,label])=>label).join(', ')+(who.length?' · '+names:''));left.replaceChildren(...reacted.map(([id,icon])=>{if(id!=='like')return document.createTextNode(icon+' ');const m=make('span',undefined,'post-react-maraca');m.innerHTML=svg('like');return m;}),document.createTextNode(names));
   }
   summary.append(left);
   const right=make('div',undefined,'post-summary-right');
@@ -702,7 +703,7 @@ function renderSettings(){
  const blk=card('Pessoas bloqueadas','Quem está bloqueado não vê seu perfil nem suas publicações, não manda mensagem e não pede amizade. A pessoa não é avisada.');
  blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
  const look=card('Aparência','Preferência deste aparelho.','aparencia');
- look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
+ look.append(radioGroup('set-theme','Tema',[['light','Dia'],['terra','Terra'],['dark','Noite']],['dark','terra'].includes(document.documentElement.dataset.theme)?document.documentElement.dataset.theme:'light',v=>applyTheme(v)));
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
@@ -1125,7 +1126,7 @@ function renderCommunities(){
  }
 }
 // Tema claro/escuro (preferência guardada no aparelho; preview/theme.js aplica antes da pintura).
-function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-checked',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',theme==='dark'?'#101c20':'#ffffff');}
+function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-checked',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',{dark:'#101c20',terra:'#f4ede4'}[theme]||'#ffffff');}
 $('#opy-theme-toggle')?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
 $('#opy-theme-toggle')?.setAttribute('aria-checked',String(document.documentElement.dataset.theme==='dark'));
 // Contas deste aparelho (só nome, @ e foto; nunca senha): trocar exige entrar de novo, por segurança.

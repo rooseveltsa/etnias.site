@@ -1559,3 +1559,15 @@ body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:va
 .install-apk{display:inline-flex;align-items:center;justify-content:center;flex:1 1 auto;min-height:48px;margin:0;font-weight:600}
 .install-apk.preview-secondary{flex-basis:100%}
 .welcome .install-bar .install-apk.opy-primary{width:auto;flex:1 1 0;margin:0}
+/* Maracá (curtir): plumas sempre cheias; curtido, a cabaça enche e o grafismo fica na cor do cartão. Pulo inspirado no LikeButton da Lari. */
+.maraca-pluma{fill:currentColor;stroke:none}
+.preview-post-actions .post-react-main.is-like[aria-pressed=true] .maraca-cabaca,.post-react-choice.is-like[aria-pressed=true] .maraca-cabaca{fill:currentColor}
+.preview-post-actions .post-react-main.is-like[aria-pressed=true] .maraca-grafismo,.post-react-choice.is-like[aria-pressed=true] .maraca-grafismo{stroke:var(--color-surface)}
+.preview-post-actions .post-react-main[aria-pressed=true] svg{animation:maraca-pulo .45s cubic-bezier(.3,1.6,.5,1)}
+@keyframes maraca-pulo{0%{transform:scale(1)}35%{transform:scale(1.3) rotate(-12deg)}100%{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.preview-post-actions .post-react-main[aria-pressed=true] svg{animation:none}}
+.post-react-maraca svg{width:16px;height:16px;vertical-align:-3px;margin-right:4px;fill:none;stroke:#bd171c;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+:root[data-theme=terra]{--color-canvas:#f4ede4;--color-surface:#faf7f2;--color-surface-subtle:#f5efe6;--color-surface-muted:#efe6da;--color-text-primary:#2e251b;--color-text-secondary:#63574c;--color-terracotta-tint:#f6e3d9;--color-forest:#2d5a3c;--color-forest-tint:#e3ece3;--color-border-subtle:#e6dacb;--color-border-strong:#d9cbb9}
+/* Tema Terra: paleta terra/urucum/jenipapo/palha do protótipo da Lari (larissamato/etnias). Superfícies e textos em tons de terra; o vermelho da marca segue igual. */
+:root[data-theme=terra] .opy-enabled{--opy-ink:#2e251b;--opy-muted:#63574c;--opy-paper:#faf7f2;--opy-ground:#f4ede4}
+:root[data-theme=terra] body{background:var(--color-canvas);color:var(--color-text-primary)}
