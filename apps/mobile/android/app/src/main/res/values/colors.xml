@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paleta da Lari (terra/jenipapo/urucum): sobrepõe as cores padrão do Capacitor na barra do sistema e nos destaques. -->
+<resources>
+    <color name="colorPrimary">#2E251B</color>
+    <color name="colorPrimaryDark">#120D08</color>
+    <color name="colorAccent">#B84A27</color>
+</resources>
