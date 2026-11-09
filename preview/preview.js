@@ -1773,9 +1773,14 @@ document.addEventListener('pointerdown',event=>{all('.post-react.is-open').forEa
 function offerInstall(){
   const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  if(standalone)return;
+  // Dentro do app nativo (Capacitor) não há o que instalar.
+  if(standalone||window.Capacitor)return;
   let deferred=null;
   const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const android=/android/i.test(navigator.userAgent);
+  const apk=make('a','Baixar o app para Android','preview-secondary install-apk');
+  apk.href='/assets/app/etnias-android.apk';
+  apk.setAttribute('download','etnias.apk');
   const bar=make('div',undefined,'install-bar');
   bar.setAttribute('role','region');
   bar.setAttribute('aria-label','Instalar o Etnias');
@@ -1793,7 +1798,8 @@ function offerInstall(){
   steps.textContent='No iPhone, o site não abre a instalação. Na barra do Safari: Compartilhar, Adicionar à Tela de Início, Adicionar.';
   const hide=()=>{bar.remove();document.body.classList.remove('has-install');};
   const mount=()=>{
-    bar.replaceChildren(mark,install,steps);
+    apk.className=(deferred?'preview-secondary':'opy-primary')+' install-apk';
+    bar.replaceChildren(mark,...(deferred||ios?[install]:[]),...(android?[apk]:[]),steps);
     document.body.classList.add('has-install');
     if(!bar.isConnected){
       const panel=document.querySelector('.welcome-panel');
@@ -1815,7 +1821,7 @@ function offerInstall(){
   });
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferred=event;steps.hidden=true;mount();});
   window.addEventListener('appinstalled',hide);
-  if(ios)mount();
+  if(ios||android)mount();
 }
 offerInstall();
 if(!window.__opyPressBound){
