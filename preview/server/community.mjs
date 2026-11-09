@@ -36,8 +36,10 @@ function sessionSecret() {
   if (!secret || secret.length < 32) fail(503, 'A comunidade está em preparação. Tente novamente em instantes.');
   return secret;
 }
+// Vercel e a VPS (NODE_ENV=production no Dockerfile) servem por HTTPS; o teste local em http fica sem Secure.
+const secureCookie = () => process.env.VERCEL || process.env.NODE_ENV === 'production' ? '; Secure' : '';
 function cookieHeader(token) {
-  return `opy_visitor=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${process.env.VERCEL ? '; Secure' : ''}`;
+  return `opy_visitor=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secureCookie()}`;
 }
 function accountsOf(state) {
   if (!Array.isArray(state.accounts)) state.accounts = [];
@@ -467,7 +469,7 @@ export default async function handler(req, res) {
         const account = sessionAccount(state, session);
         if (account) account.sessions = account.sessions.filter(item => item.id !== session.id);
       });
-      res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.VERCEL ? '; Secure' : ''}`);
+      res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureCookie()}`);
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       return res.end('{}');
     }
@@ -890,7 +892,7 @@ export default async function handler(req, res) {
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     // Desativar ou pedir exclusão encerra todas as sessões, inclusive esta.
-    if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.VERCEL ? '; Secure' : ''}`); return res.end(JSON.stringify({ signedOut: true })); }
+    if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureCookie()}`); return res.end(JSON.stringify({ signedOut: true })); }
     if (boostResult?.silent) return res.end('{"ok":true}');
     if (planActions.includes(body.action) || boostActions.includes(body.action)) { const acc = data.accounts.find(a => a.id === activeMe.id); return res.end(JSON.stringify({ ...snapshot(data, activeMe), plans: { ...plansView(data, acc), finance: financeView(data, activeMe) } })); }
     if (accountActions.includes(body.action)) return res.end(JSON.stringify({ ...snapshot(data, activeMe), account: accountView(data, data.accounts.find(a => a.id === activeMe.id), session.id) }));

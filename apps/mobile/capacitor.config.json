@@ -1,0 +1,15 @@
+{
+  "appId": "site.etnias.app",
+  "appName": "Etnias",
+  "webDir": "www",
+  "server": {
+    "url": "https://etnias.site",
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never"
+  }
+}

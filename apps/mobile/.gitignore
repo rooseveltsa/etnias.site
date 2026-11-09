@@ -1,0 +1,12 @@
+node_modules/
+# Segredos e artefatos nunca entram no git (plano: plans/casa-opy-apps-nativos.md).
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist
+*.p8
+android/app/build/
+android/.gradle/
+android/build/
+ios/App/Pods/
+ios/App/build/
