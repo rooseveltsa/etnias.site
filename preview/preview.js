@@ -1238,7 +1238,7 @@ function areaList(type,meta,d,q,cat){
  if(!d.items.length){box.append(emptyState(meta.vazio,q?'Tente outra palavra.':'Ainda não há itens nesta área.',[]));return box;}
  const grid=make('div',undefined,'area-grid area-grid-'+type);
  for(const x of d.items){const a=make('a',undefined,'area-card');a.href=areaLink(type,{id:String(x.id),q:'',categoria:''});
-  const cover=areaCover(x);const fig=make('div',undefined,'area-card-cover');if(cover){const img=make('img');img.src=cover;img.alt='';img.loading='lazy';img.decoding='async';fig.append(img);}else fig.classList.add('is-empty');
+  const cover=areaCover(x);const fig=make('div',undefined,'area-card-cover');const noCover=()=>{fig.classList.add('is-empty');fig.replaceChildren(make('span',(x.title||'?').trim().slice(0,1).toLocaleUpperCase('pt-BR'),'area-card-initial'));};if(cover){const img=make('img');img.src=cover;img.alt='';img.loading='lazy';img.decoding='async';img.onerror=noCover;fig.append(img);}else noCover();
   if(type==='mercado'&&x.sold)fig.append(make('span','Vendido','area-badge'));if(type==='empregos'&&!x.open)fig.append(make('span','Encerrada','area-badge'));
   const body=make('div',undefined,'area-card-body');
   const line=type==='mercado'?areaMoney(x.price,x.currency):type==='eventos'?areaDate(x.start):type==='coletas'?'Meta '+areaMoney(x.goal,'BRL'):type==='filmes'?[x.genre,x.release].filter(Boolean).join(' · '):type==='empregos'?[x.type,x.location].filter(Boolean).join(' · '):[x.category,x.createdAt?areaDate(x.createdAt):''].filter(Boolean).join(' · ');

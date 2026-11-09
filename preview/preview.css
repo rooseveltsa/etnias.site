@@ -1465,3 +1465,4 @@ body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:va
 .gcall-banner{display:flex;flex-direction:column;gap:6px;margin:0 0 8px}
 .gcall-banner-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid #bd171c;border-radius:12px;background:var(--color-surface)}
 .gcall-banner-row span{font-size:14px}
+.area-card-cover.is-empty{display:grid;place-items:center;background:linear-gradient(150deg,var(--color-terracotta-tint,#fbefec),var(--color-surface-muted))}.area-card-initial{font-size:44px;font-weight:700;color:var(--color-terracotta-text,#991116);opacity:.7}
