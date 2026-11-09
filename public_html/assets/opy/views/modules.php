@@ -370,16 +370,16 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
 <section class="opy-module" data-opy-module="doar" aria-labelledby="opy-module-title">
     <header class="opy-module-header">
         <span class="opy-module-badge"><?php echo Etnias_OpyIcon('heart'); ?><span>Homologação · Apoio Institucional</span></span>
-        <h1 id="opy-module-title">Doe para o Instituto Etnias</h1>
+        <h1 id="opy-module-title">Doe para o Etnias</h1>
         <p>Canal institucional dedicado à sustentabilidade da Casa Opy, formação em tecnologia e comunicação comunitária e fortalecimento de projetos dos povos originários. Este espaço é distinto das campanhas individuais da área Coletas.</p>
     </header>
 
     <div class="opy-module-Callout" role="note">
         <strong>Transparência e segurança nesta homologação</strong>
-        <p>Nenhum pagamento, número de cartão ou transferência bancária é solicitado ou processado nesta tela de homologação. Você pode registrar sua intenção de apoio ou proposta de parceria institucional para validação do fluxo com a equipe do Instituto Etnias.</p>
+        <p>Nenhum pagamento, número de cartão ou transferência bancária é solicitado ou processado nesta tela de homologação. Você pode registrar sua intenção de apoio ou proposta de parceria institucional para validação do fluxo com a equipe do Etnias.</p>
     </div>
 
-    <h2 class="opy-module-subtitle">Frentes apoiadas pelo Instituto Etnias</h2>
+    <h2 class="opy-module-subtitle">Frentes apoiadas pelo Etnias</h2>
     <div class="opy-module-grid">
         <article class="opy-module-card">
             <span class="opy-module-tag">Infraestrutura Digital</span>
@@ -400,7 +400,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
 
     <section class="opy-module-form-section" aria-labelledby="opy-doar-form-title">
         <h2 id="opy-doar-form-title">Registrar intenção de apoio ou parceria</h2>
-        <p>Manifeste como você ou sua organização gostaria de apoiar o Instituto Etnias quando o gateway oficial for ativado no servidor definitivo.</p>
+        <p>Manifeste como você ou sua organização gostaria de apoiar o Etnias quando o gateway oficial for ativado no servidor definitivo.</p>
         <form class="opy-module-form" data-opy-module-form="doar">
             <div class="opy-form-row">
                 <label for="doar-category">Modalidade de apoio pretendida
@@ -426,7 +426,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
                     <input id="doar-title" name="title" type="text" maxlength="160" placeholder="Ex.: Apoio às trilhas do Saberes e conectividade" required>
                 </label>
             </div>
-            <label for="doar-details">Mensagem ou proposta de parceria para o Instituto Etnias
+            <label for="doar-details">Mensagem ou proposta de parceria para o Etnias
                 <textarea id="doar-details" name="details" maxlength="2000" placeholder="Descreva como deseja contribuir ou deixe seu contato institucional para retorno da equipe…" required></textarea>
             </label>
             <div class="opy-form-footer">

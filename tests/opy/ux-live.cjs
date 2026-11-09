@@ -49,7 +49,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
       ['/guardiao/', 'Guardião da Floresta'],
       ['/fotografos/', 'Fotógrafos Indígenas'],
       ['/musica/', 'Catálogo Musical da Casa Opy'],
-      ['/doar/', 'Doe para o Instituto Etnias']
+      ['/doar/', 'Doe para o Etnias']
     ]) {
       await page.goto(base + path);
       await page.getByRole('heading', { name: heading, exact: true }).waitFor();

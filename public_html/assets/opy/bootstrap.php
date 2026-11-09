@@ -26,7 +26,7 @@ function Etnias_OpyUrl($route, $params = array()) {
 }
 function Etnias_OpyAsset($file) {
     global $wo;
-    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.10';
+    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.11';
 }
 function Etnias_OpyItems() {
     global $wo;
@@ -44,9 +44,9 @@ function Etnias_OpyItems() {
         'musica' => array('Músicas', 'musica', 'musica', '', 'O catálogo de artistas, cantos e faixas está sendo preparado e chega em uma próxima atualização. Por enquanto, você pode compartilhar áudio em uma publicação.'),
         'empregos' => array('Empregos', 'jobs', 'empregos', 'job_system', 'As vagas estão desativadas neste ambiente.'),
         'coletas' => array('Coleta', 'funding', 'coletas', 'funding_system', 'As campanhas de arrecadação estão desativadas neste ambiente.'),
-        'sobre' => array('Sobre', 'terms', 'sobre', '', 'Conheça o Etnias e o Instituto Etnias.'),
+        'sobre' => array('Sobre', 'terms', 'sobre', '', 'Conheça o Etnias.'),
         'etnia' => array('EtnIA', '', 'etnia', '', 'A experiência de inteligência do Etnias ainda não está disponível nesta atualização.'),
-        'doar' => array('Doe para o Instituto Etnias', 'doar', 'heart', '', 'O canal de contribuição ao Instituto ainda não foi configurado. Nenhum pagamento é solicitado por esta tela.')
+        'doar' => array('Doe para o Etnias', 'doar', 'heart', '', 'O canal de contribuição ao Etnias ainda não foi configurado. Nenhum pagamento é solicitado por esta tela.')
     );
     if (!empty($GLOBALS['etnias_preview_etnia'])) {
         $items['etnia'][1] = 'etnia';

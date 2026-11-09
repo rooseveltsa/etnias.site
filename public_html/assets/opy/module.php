@@ -8,7 +8,7 @@ $opyModules = array(
     'guardiao' => 'Guardião da Floresta',
     'fotografos' => 'Fotógrafos Indígenas',
     'musica' => 'Catálogo Musical',
-    'doar' => 'Doe para o Instituto Etnias'
+    'doar' => 'Doe para o Etnias'
 );
 if (!isset($page) || !isset($opyModules[$page])) {
     return;
