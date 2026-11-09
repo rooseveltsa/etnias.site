@@ -16,6 +16,12 @@ const textArea = el('creator-text'), status = el('creator-status');
 let mode = 'story', step = 'camera', file = null, recorder = null, recTimer = 0, holdTimer = 0, pressAt = 0;
 const moved = [];
 const say = t => { status.textContent = t; };
+// Emojis na legenda e no story de texto (o mesmo seletor das publicações e do chat).
+for (const input of [caption, textArea]) {
+  if (!window.OpyEmoji?.toggle) break;
+  const [btn, box] = window.OpyEmoji.toggle(input); btn.classList.add('cr-emoji-btn'); box.classList.add('cr-emoji-box');
+  input.parentElement.append(btn, box);
+}
 const setStep = s => { step = s; dlg.dataset.step = s; };
 const isLive = () => !!S.liveSession;
 

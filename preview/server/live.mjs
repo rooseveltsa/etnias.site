@@ -274,14 +274,20 @@ export async function attachRecordings(store, env = process.env, now = Date.now(
   if (!pending.length) return;
   const found = new Map();
   for (const p of pending) {
-    try { const files = (await readdir(join(dir, p.id))).filter(f => f.endsWith('.mp4')).sort(); if (files.length) found.set(p.id, files[0]); } catch {}
+    // Cada queda de rede de quem transmite abre um arquivo novo: guarda todos, em ordem, e o player toca um depois do outro.
+    try {
+      const files = (await readdir(join(dir, p.id))).filter(f => f.endsWith('.mp4')).sort();
+      const sized = await Promise.all(files.map(async f => ({ f, size: (await stat(join(dir, p.id, f))).size })));
+      const parts = sized.filter(x => x.size > 0).map(x => x.f);
+      if (parts.length) found.set(p.id, parts);
+    } catch {}
   }
   const giveUp = new Set(pending.filter(p => !found.has(p.id) && now - p.live.endedAt > RECORDING_WAIT_MS).map(p => p.id));
   if (!found.size && !giveUp.size) return;
   await store.transact(state => {
     for (const p of state.posts || []) {
       if (!p.live) continue;
-      if (found.has(p.id)) { p.media = { url: `/live/recordings/${p.id}/${found.get(p.id)}`, kind: 'video', name: 'live.mp4' }; p.live.recording = 'ok'; }
+      if (found.has(p.id)) { const urls = found.get(p.id).map(f => `/live/recordings/${p.id}/${f}`); p.media = { url: urls[0], kind: 'video', name: 'live.mp4', ...(urls.length > 1 ? { parts: urls } : {}) }; p.live.recording = 'ok'; }
       else if (giveUp.has(p.id)) p.live.recording = 'none';
     }
   });
@@ -289,7 +295,7 @@ export async function attachRecordings(store, env = process.env, now = Date.now(
 
 // Arquivo de gravação de uma publicação visível: só o caminho gravado na própria publicação é servido (sem travessia de pastas).
 export async function recordingFile(post, pathname, env = process.env) {
-  if (!env.OPY_LIVE_RECORDINGS_DIR || !post?.media?.url || post.media.url !== pathname) return null;
+  if (!env.OPY_LIVE_RECORDINGS_DIR || !post?.media?.url || (post.media.url !== pathname && !(post.media.parts || []).includes(pathname))) return null;
   const file = join(env.OPY_LIVE_RECORDINGS_DIR, pathname.slice('/live/recordings/'.length));
   try { const info = await stat(file); return info.isFile() ? { file, info } : null; } catch { return null; }
 }

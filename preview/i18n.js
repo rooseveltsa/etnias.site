@@ -67,7 +67,7 @@
   }
   function mountPickers() {
     document.querySelectorAll('.opy-locale').forEach(el => el.remove());
-    for (const host of document.querySelectorAll('.welcome-panel, .opy-sidebar, .pf-account')) host.append(picker());
+    for (const host of document.querySelectorAll('.welcome-panel, .opy-sidebar, .pf-account, .opy-tools-menu')) host.append(picker());
   }
   async function setLocale(code) {
     write(STORE, code);

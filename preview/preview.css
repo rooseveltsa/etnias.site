@@ -1343,12 +1343,13 @@ html.sv-lock,html.sv-lock body{overflow:hidden;overscroll-behavior:none}
 .cr-host{display:none}
 #opy-creator[data-step=live] .cr-host{display:block}
 #opy-creator[data-step=live] .cr-stage{bottom:0;border-radius:0}
-.cr-host-tools{position:absolute;top:calc(56px + env(safe-area-inset-top));right:10px;z-index:6;display:flex;flex-direction:column;gap:8px}
+.cr-host-tools{position:absolute;top:calc(150px + env(safe-area-inset-top));right:10px;z-index:6;display:flex;flex-direction:column;gap:8px}
 .cr-host-tools button{min-height:40px;padding:0 14px;border:0;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font:600 13px inherit;cursor:pointer}
 .cr-host-tools #live-stop{background:#e01e1e}
 .cr-host-panel{position:absolute;left:0;right:0;bottom:0;z-index:6;max-height:46%;overflow:auto;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.75) 30%)}
 .cr-host-panel .live-host-panel{background:transparent;border:0;color:#fff}
-.cr-host-panel .live-chat{max-height:none}
+.cr-host-panel .live-chat{max-height:min(30dvh,260px);overflow-y:auto;overscroll-behavior:contain}
+.cr-host-panel .live-request{color:var(--color-text-primary)}
 .cr-host-panel #live-status{color:#fff;font-size:13px}
 .cr-host-panel .live-host-tools{font-size:13px}
 @media (min-width:768px){
@@ -1399,3 +1400,68 @@ body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:va
 /* Safari (iPhone): altura em % dentro de grade não preenche; a mídia do story fica absoluta e cobre o cartão inteiro. */
 .sv-media-slot img,.sv-media-slot video,.sv-media>img,.sv-media>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .live-unmute{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483000;min-height:44px;padding:0 20px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+
+/* Convidado da live na tela de quem transmite (mesma posição do quadro enviado ao público) */
+.live-guest-tile{position:absolute;left:0;right:0;bottom:0;width:100%;height:50%;object-fit:cover;z-index:1;pointer-events:none;background:#111}
+.live-stage[data-format=landscape] .live-guest-tile{top:0;left:auto;width:50%;height:100%}
+/* No celular, "Postagem" na barra inferior já abre Criar (Publicação · Story · Live): o menu Recursos não repete essas entradas. */
+@media(max-width:991px){.opy-tools-menu a[href="/#criar"],.opy-tools-menu a[href="/#criar-story"],.opy-tools-menu a[href="/#criar-live"]{display:none!important}}
+.opy-tools-menu .opy-locale{display:flex;margin:6px 12px 8px}.opy-tools-menu .opy-locale select{flex:1}
+/* Emojis na tela Criar */
+.cr-caption,.cr-textcard{align-items:center;gap:6px}
+#opy-creator .cr-emoji-btn{flex:0 0 auto;min-width:44px;min-height:44px;border-radius:50%;background:rgba(0,0,0,.45);font-size:20px}
+.cr-textcard .cr-emoji-btn{position:absolute;right:16px;bottom:calc(140px + env(safe-area-inset-bottom))}
+#opy-creator .cr-emoji-box{position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:20;margin:0 auto;max-width:440px;color:var(--color-text-primary)}
+.cr-textcard .cr-emoji-box{bottom:calc(196px + env(safe-area-inset-bottom));left:16px;right:16px}
+/* Emojis no bate-papo da live: a caixa abre por cima do campo */
+.live-chat-form{position:relative}
+.live-chat-form .comment-emoji-btn{flex:0 0 auto;color:inherit}
+.live-chat-form .live-emoji-box{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:20;color:var(--color-text-primary)}
+/* Aba Vídeos (formato rápido): grade e player de um vídeo por tela */
+.opy-vgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;margin:8px 0}
+@media(min-width:700px){.opy-vgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.opy-vtile{position:relative;aspect-ratio:9/16;padding:0;border:0;border-radius:6px;overflow:hidden;background:#111;cursor:pointer}
+.opy-vtile video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.opy-vtile-meta{position:absolute;left:6px;bottom:6px;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.opy-vtile:focus-visible{outline:3px solid var(--color-focus,#bd171c);outline-offset:2px}
+#opy-vplayer{position:fixed;inset:0;width:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#000;color:#fff;overflow:hidden}
+#opy-vplayer::backdrop{background:#000}
+.vp-track{height:100%;overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none}
+.vp-track::-webkit-scrollbar{display:none}
+.vp-slide{position:relative;height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;display:grid;place-items:center;background:#000}
+.vp-slide video{width:100%;height:100%;object-fit:cover}
+.vp-slide[data-orient=landscape] video{object-fit:contain}
+.vp-close,.vp-sound{position:absolute;top:calc(12px + env(safe-area-inset-top));z-index:3;width:44px;height:44px;border:0;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:20px;cursor:pointer}
+.vp-close{left:12px}.vp-sound{right:12px}
+.vp-info{position:absolute;left:12px;right:84px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:2;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.vp-author{display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;color:#fff;font:700 16px/1.2 inherit;cursor:pointer}
+.vp-text{margin:8px 0 0;max-height:4.8em;overflow:hidden;font-size:15px;line-height:1.6}
+.vp-actions{position:absolute;right:10px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:2;display:flex;flex-direction:column;gap:14px}
+.vp-act{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:52px;padding:0;border:0;background:transparent;color:#fff;cursor:pointer}
+.vp-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.4);font-size:22px}
+.vp-act[aria-pressed=true] .vp-icon{background:#bd171c}
+.vp-count{font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.vp-sheet{position:absolute;left:0;right:0;bottom:0;z-index:4;display:flex;flex-direction:column;max-height:60%;padding:12px 12px calc(12px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;background:var(--color-surface,#fff);color:var(--color-text-primary,#182c34)}
+.vp-sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.vp-sheet-close{width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:18px}
+.vp-comments{flex:1;min-height:80px;margin:0;padding:0;list-style:none;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.vp-comments li{display:flex;flex-direction:column;font-size:14px}.vp-comments strong{font-size:13px}
+.vp-form{position:relative;display:flex;align-items:center;gap:6px;margin-top:8px}
+.vp-form input{flex:1;min-width:0;min-height:44px;padding:8px 14px;border:1px solid var(--color-border-strong);border-radius:999px;font:inherit}
+.vp-form .vp-emoji-box{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:5}
+@media(prefers-reduced-motion:reduce){.vp-track{scroll-behavior:auto}}
+/* Chamada em grupo: grade de participantes */
+.gcall-screen .call-top{top:calc(14px + env(safe-area-inset-top));gap:2px}
+.gcall-grid{position:absolute;top:calc(84px + env(safe-area-inset-top));left:8px;right:8px;bottom:calc(130px + env(safe-area-inset-bottom));display:grid;gap:6px;grid-template-columns:1fr;grid-auto-rows:1fr}
+.gcall-grid[data-count="2"]{grid-template-columns:1fr}
+.gcall-grid[data-count="3"],.gcall-grid[data-count="4"]{grid-template-columns:1fr 1fr}
+.gcall-grid[data-count="5"],.gcall-grid[data-count="6"]{grid-template-columns:1fr 1fr}
+@media(min-width:900px){.gcall-grid[data-count="2"]{grid-template-columns:1fr 1fr}.gcall-grid[data-count="5"],.gcall-grid[data-count="6"]{grid-template-columns:1fr 1fr 1fr}}
+.gcall-tile{position:relative;margin:0;min-height:0;border-radius:12px;overflow:hidden;background:#0e1b20}
+.gcall-tile video{width:100%;height:100%;object-fit:cover;display:block}
+.gcall-tile.is-self video{transform:scaleX(-1)}
+.gcall-tile figcaption{position:absolute;left:8px;bottom:6px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.5);font-size:13px}
+.gcall-screen[data-kind=audio] .gcall-tile video{visibility:hidden}
+.gcall-banner{display:flex;flex-direction:column;gap:6px;margin:0 0 8px}
+.gcall-banner-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid #bd171c;border-radius:12px;background:var(--color-surface)}
+.gcall-banner-row span{font-size:14px}

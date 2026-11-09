@@ -2,6 +2,7 @@
 .opy-enabled {
     --opy-red: #bd171c;
     --opy-red-hover: #991116;
+    --opy-font: Krub, system-ui, sans-serif;
     --opy-ink: #182c34;
     --opy-muted: #52656c;
     --opy-paper: #ffffff;

@@ -66,7 +66,9 @@ function compositeGuest(stream){
  if(!stream){comp.guestVideo=null;comp.guestSource=null;return;}
  // Quem transmite precisa OUVIR o convidado: o elemento toca com som (o cancelamento de eco do microfone atua sobre ele);
  // a mistura enviada ao público segue pela Web Audio, separada.
- const v=make('video','','live-guest-audio');v.muted=false;v.playsInline=true;v.autoplay=true;v.srcObject=stream;v.style.cssText='position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';document.body.append(v);
+ // Visível no palco, na mesma metade em que aparece para o público: quem transmite vê o convidado, e o Android não pausa
+ // vídeo escondido (o que deixava o quadro enviado só com quem transmite).
+ const v=make('video','','live-guest-audio live-guest-tile');v.muted=false;v.playsInline=true;v.autoplay=true;v.srcObject=stream;($('#live-stage')||document.body).append(v);
  playWithSound(v,'Toque para ouvir o convidado');
  comp.guestVideo=v;if(stream.getAudioTracks().length){comp.guestSource=comp.audioCtx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));comp.guestSource.connect(comp.dest);}
  if(comp.audioCtx.state==='suspended')comp.audioCtx.resume().catch(()=>{});
@@ -203,6 +205,7 @@ function bindLiveStudio(){
  $('#live-slow').addEventListener('change',()=>S.liveSession&&liveApi({action:'live_slow',postId:S.liveSession.postId,seconds:Number($('#live-slow').value)}).catch(e=>showError(e.message)));
  $('#live-requests-open').addEventListener('change',()=>S.liveSession&&liveApi({action:'live_requests',postId:S.liveSession.postId,open:$('#live-requests-open').checked}).catch(e=>showError(e.message)));
  const sendHost=async()=>{const input=$('#live-host-text');const copy=input.value.trim();if(!copy||!S.liveSession)return;input.value='';try{await liveApi({action:'live_chat',postId:S.liveSession.postId,text:copy});hostTick();}catch(err){showError(err.message);input.value=copy;}};
+ if(window.OpyEmoji?.toggle){const t=$('#live-host-text');const [eb,ebox]=window.OpyEmoji.toggle(t);ebox.classList.add('live-emoji-box');t.after(eb,ebox);}
  $('#live-host-send').addEventListener('click',sendHost);$('#live-host-text').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendHost();}});
  window.addEventListener('pagehide',()=>{if(S.liveSession)fetch('/api/community',{method:'POST',keepalive:true,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'live_stop',postId:S.liveSession.postId})}).catch(()=>{});});
 }
@@ -250,7 +253,7 @@ async function openLiveViewer(post){
   const reacts=make('div',undefined,'live-react-row');reacts.setAttribute('role','group');reacts.setAttribute('aria-label','Reagir');
   for(const e of liveReactionSet){const b=make('button',e,undefined);b.type='button';b.setAttribute('aria-label','Reagir com '+e);b.onclick=()=>{if(!S.liveViewer)return;floatReaction(burst,e);liveApi({action:'live_react',postId:S.liveViewer.post.id,emoji:e}).catch(()=>{});};reacts.append(b);}
   const form=make('form',undefined,'live-chat-form');const input=make('input');input.maxLength=300;input.placeholder='Comente ao vivo…';input.setAttribute('aria-label','Comentar na live');const send=make('button','Enviar','opy-primary');send.type='submit';
-  const join=make('button','Pedir para participar','preview-secondary live-join');join.type='button';form.append(input,send);
+  const join=make('button','Pedir para participar','preview-secondary live-join');join.type='button';form.append(input);if(window.OpyEmoji?.toggle){const [eb,ebox]=window.OpyEmoji.toggle(input);ebox.classList.add('live-emoji-box');form.append(eb,ebox);}form.append(send);
   const guestBar=make('div',undefined,'live-guest-bar');guestBar.hidden=true;
   side.append(banner,pinned,chat,reacts,form,join,guestBar);
   dlg.append(head,stage,side);dlg.addEventListener('close',closeLiveViewer);document.body.append(dlg);

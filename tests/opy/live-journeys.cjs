@@ -45,7 +45,7 @@ async function api(cookie, body) { const r = await fetch(base + '/api/community'
       assert.equal(await pb.locator('#live-viewer').getAttribute('data-format'), 'portrait');
     });
     await step('3. Comentários chegam em tempo real nos dois lados', async () => {
-      await pb.locator('#live-viewer .live-chat-form input').fill('Olá do Beto!'); await pb.locator('#live-viewer .live-chat-form button').click();
+      await pb.locator('#live-viewer .live-chat-form input').fill('Olá do Beto!'); await pb.locator('#live-viewer .live-chat-form button[type=submit]').click();
       await pa.locator('#live-host-chat').getByText('Olá do Beto!').waitFor({ timeout: 8000 });
       await pa.locator('#live-host-text').fill('Bem-vindo, Beto!'); await pa.locator('#live-host-send').click();
       await pb.locator('#live-viewer .live-chat').getByText('Bem-vindo, Beto!').waitFor({ timeout: 8000 });
@@ -72,7 +72,8 @@ async function api(cookie, body) { const r = await fetch(base + '/api/community'
       await pb.locator('#live-viewer .live-guest-bar').getByText('Você está participando').waitFor({ timeout: 10000 });
     });
     await step('8. Anfitriã e convidado aparecem juntos, um ouve o outro, e o público continua recebendo', async () => {
-      await pa.waitForFunction(() => { const v = [...document.querySelectorAll('video')].find(x => x.style.opacity === '0'); return v && v.videoWidth > 0; }, null, { timeout: 25000 });
+      // A anfitriã VÊ o convidado no próprio palco (queixa real: só via a si mesma) — vídeo visível, com quadros.
+      await pa.waitForFunction(() => { const v = document.querySelector('#live-stage video.live-guest-tile'); return v && v.videoWidth > 0 && v.getBoundingClientRect().width > 50; }, null, { timeout: 25000 });
       await pb.waitForFunction(() => { const v = document.querySelector('#live-viewer video.live-main'); return v && v.videoWidth > 0; }, null, { timeout: 25000 });
       await pa.locator('#live-requests').getByText(beto.name + ' está participando').waitFor({ timeout: 10000 });
       const f = await framesOf(pc); assert.ok(f[0] > 0, 'Carla segue recebendo vídeo: ' + f.join('x'));

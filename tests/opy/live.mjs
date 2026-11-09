@@ -161,3 +161,24 @@ test('convite, pedido, participação com chave e sinalização só entre anfitr
   rejects(() => liveAction(s, beto, { action: 'live_chat', postId, text: 'tarde' }, env, 212000), 409);
   assert.equal(liveNow(s, beto, 212000).length, 0);
 });
+
+// Queixa real: "só salvou 1 segundo de live". Cada queda de rede abre um arquivo novo no MediaMTX; todos entram, em ordem.
+test('gravação em partes: guarda todas em ordem e só serve as partes da própria publicação', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'opy-rec-')), id = 'aaaaaaaa-1111-4111-8111-111111111111';
+  mkdirSync(join(dir, id));
+  writeFileSync(join(dir, id, '2026-11-08_22-00-00-000000_Z.mp4'), 'x'.repeat(10));
+  writeFileSync(join(dir, id, '2026-11-08_22-00-01-000000_Z.mp4'), 'y'.repeat(5000));
+  writeFileSync(join(dir, id, '2026-11-08_22-03-00-000000_Z.mp4'), 'z'.repeat(9000));
+  let state = { posts: [{ id, live: { endedAt: 1000 } }] };
+  const store = { readState: async () => ({ data: state }), transact: async fn => fn(state) };
+  await attachRecordings(store, { OPY_LIVE_RECORDINGS_DIR: dir }, 2000);
+  const media = state.posts[0].media;
+  assert.equal(media.parts.length, 3);
+  assert.equal(media.url, media.parts[0]);
+  assert.ok(media.parts[2].endsWith('22-03-00-000000_Z.mp4'));
+  assert.ok(await recordingFile(state.posts[0], media.parts[2], { OPY_LIVE_RECORDINGS_DIR: dir }));
+  assert.equal(await recordingFile(state.posts[0], `/live/recordings/${id}/../outra.mp4`, { OPY_LIVE_RECORDINGS_DIR: dir }), null);
+});

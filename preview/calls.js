@@ -197,6 +197,147 @@ window.addEventListener('pagehide', () => {
   fetch('/api/community?view=calls', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: call.role === 'callee' && call.status === 'ringing' ? 'call_decline' : 'call_end', callId: call.id }) }).catch(() => {});
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !call) schedule(200); });
-window.OpyCalls = { start };
+
+// ---------- Chamada em grupo (malha, até 6 pessoas) ----------
+// Cada pessoa se liga direto às outras. Quem entra depois oferece a quem já estava; sinais (SDP completo) pela API.
+let gc = null, gcPoll = 0, gcBeat = 0, gcBusy = false;
+const gui = {};
+async function gapi(body, params = {}) {
+  const url = '/api/community?' + new URLSearchParams({ view: 'gcalls', ...params });
+  const response = await fetch(url, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(json.error || 'Não foi possível concluir a chamada em grupo.');
+  return json;
+}
+function gbuild() {
+  if (gui.root) return;
+  const root = node('dialog', undefined, 'call-screen gcall-screen'); root.setAttribute('aria-labelledby', 'gcall-name');
+  const top = node('div', undefined, 'call-top'); const name = node('h2', '', 'call-name'); name.id = 'gcall-name'; const st = node('p', '', 'call-state'); st.setAttribute('role', 'status'); top.append(name, st);
+  const grid = node('div', undefined, 'gcall-grid');
+  const controls = node('div', undefined, 'call-controls');
+  const control = (label, icon, cls, fn) => { const b = node('button', undefined, 'call-btn ' + cls); b.type = 'button'; b.setAttribute('aria-label', label); b.title = label; b.append(svg(icons[icon]), node('span', label)); b.onclick = fn; controls.append(b); return b; };
+  gui.mute = control('Microfone', 'mic', 'is-toggle', () => { const t = gc?.local.getAudioTracks()[0]; if (!t) return; t.enabled = !t.enabled; gui.mute.setAttribute('aria-pressed', String(!t.enabled)); gui.mute.querySelector('span').textContent = t.enabled ? 'Microfone' : 'Sem som'; });
+  gui.camera = control('Câmera', 'cam', 'is-toggle', () => { const t = gc?.local.getVideoTracks()[0]; if (!t) return; t.enabled = !t.enabled; gui.camera.setAttribute('aria-pressed', String(!t.enabled)); gui.camera.querySelector('span').textContent = t.enabled ? 'Câmera' : 'Câmera desligada'; });
+  control('Sair', 'phone', 'is-end', () => leaveGroup());
+  root.append(top, grid, controls); root.addEventListener('cancel', e => e.preventDefault());
+  document.body.append(root); Object.assign(gui, { root, name, st, grid });
+}
+function tile(key, name, stream, self) {
+  let t = gui.grid.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (!t) {
+    t = node('figure', undefined, 'gcall-tile' + (self ? ' is-self' : '')); t.dataset.key = key;
+    const v = node('video'); v.autoplay = true; v.playsInline = true; v.muted = !!self;
+    t.append(v, node('figcaption', self ? 'Você' : name)); gui.grid.append(t);
+  }
+  const v = t.querySelector('video'); if (stream && v.srcObject !== stream) { v.srcObject = stream; v.play?.().catch(() => {}); }
+  gui.grid.dataset.count = String(gui.grid.children.length);
+  return t;
+}
+function dropPeer(key) {
+  const p = gc?.peers.get(key); if (!p) return;
+  p.pc.close(); gc.peers.delete(key); gui.grid.querySelector(`[data-key="${CSS.escape(key)}"]`)?.remove(); gui.grid.dataset.count = String(gui.grid.children.length);
+}
+function peerFor(key, name) {
+  dropPeer(key);
+  const pc = new RTCPeerConnection({ iceServers: gc.iceServers });
+  gc.local.getTracks().forEach(t => pc.addTrack(t, gc.local));
+  const peer = { pc, name, at: Date.now() }; gc.peers.set(key, peer);
+  tile(key, name, null, false);
+  pc.ontrack = e => tile(key, name, e.streams[0], false);
+  pc.onconnectionstatechange = () => { if (gc?.peers.get(key) === peer && pc.connectionState === 'failed') dropPeer(key); };
+  return peer;
+}
+async function offerTo(key, name) {
+  const peer = peerFor(key, name); peer.offered = true;
+  await peer.pc.setLocalDescription(await peer.pc.createOffer()); await gathered(peer.pc);
+  if (gc?.peers.get(key) !== peer) return;
+  await gapi({ action: 'gcall_signal', callId: gc.id, to: key, type: 'offer', sdp: peer.pc.localDescription.sdp });
+}
+async function gsync(view) {
+  if (!gc?.id) return;
+  gc.iceServers = view.iceServers || gc.iceServers;
+  const room = (view.calls || []).find(c => c.id === gc.id);
+  if (!room || !room.joined) { gteardown(room ? 'Você saiu da chamada.' : 'A chamada em grupo terminou.'); return; }
+  const me = room.members.find(m => m.key === view.me);
+  const others = room.members.filter(m => m.key !== view.me);
+  gui.st.textContent = others.length ? `${others.length + 1} pessoas na chamada` : 'Esperando o grupo entrar…';
+  for (const s of (room.signals || []).sort((a, b) => a.seq - b.seq)) {
+    gc.since = Math.max(gc.since, s.seq);
+    const name = room.members.find(m => m.key === s.from)?.name || 'Participante';
+    try {
+      if (s.type === 'offer') {
+        const peer = peerFor(s.from, name);
+        await peer.pc.setRemoteDescription({ type: 'offer', sdp: s.sdp });
+        await peer.pc.setLocalDescription(await peer.pc.createAnswer()); await gathered(peer.pc);
+        await gapi({ action: 'gcall_signal', callId: gc.id, to: s.from, type: 'answer', sdp: peer.pc.localDescription.sdp });
+      } else if (s.type === 'answer') {
+        const peer = gc.peers.get(s.from);
+        if (peer?.pc.signalingState === 'have-local-offer') await peer.pc.setRemoteDescription({ type: 'answer', sdp: s.sdp });
+      }
+    } catch { dropPeer(s.from); }
+  }
+  // Quem já estava antes de mim recebe a minha oferta; quem chegou depois me oferece.
+  for (const m of others) {
+    const earlier = m.joinedAt < me.joinedAt || (m.joinedAt === me.joinedAt && m.key < me.key);
+    const p = gc.peers.get(m.key);
+    // Oferta sem resposta em 15 s (a outra pessoa recarregou, rede caiu): tenta de novo.
+    if (earlier && p?.offered && p.pc.connectionState !== 'connected' && Date.now() - p.at > 15000) dropPeer(m.key);
+    if (earlier && !gc.peers.has(m.key)) offerTo(m.key, m.name).catch(() => dropPeer(m.key));
+  }
+  for (const key of [...gc.peers.keys()]) if (!others.some(m => m.key === key)) dropPeer(key);
+}
+async function gpoll() {
+  clearTimeout(gcPoll);
+  if (gcBusy) { gcPoll = setTimeout(gpoll, 500); return; }
+  gcBusy = true;
+  try {
+    const view = await gapi(null, gc ? { since: String(gc.since) } : {});
+    if (gc) await gsync(view); else paintGroupBanner(view);
+  } catch { /* rede instável: tenta de novo */ }
+  finally { gcBusy = false; }
+  if (gc || document.body.dataset.previewRoute === 'messages') gcPoll = setTimeout(gpoll, gc ? 1500 : document.hidden ? 10000 : 5000);
+}
+async function enterGroup(opts) {
+  if (call || gc) throw Error('Você já está em uma chamada.');
+  const local = await media(opts.kind);
+  gc = { id: '', groupKey: opts.groupKey, name: opts.name, kind: opts.kind, local, peers: new Map(), since: 0, iceServers: [] };
+  gbuild(); gui.root.dataset.kind = opts.kind; gui.name.textContent = opts.name; gui.st.textContent = 'Entrando…';
+  gui.camera.hidden = opts.kind !== 'video'; gui.grid.replaceChildren(); tile('self', 'Você', local, true);
+  if (!gui.root.open) gui.root.showModal();
+  try {
+    const view = await gapi(opts.callId ? { action: 'gcall_join', callId: opts.callId } : { action: 'gcall_start', groupKey: opts.groupKey, kind: opts.kind });
+    const room = view.calls.find(c => c.groupKey === opts.groupKey && c.joined);
+    if (!room) throw Error('Não foi possível entrar na chamada.');
+    gc.id = room.id; gc.kind = room.kind; await gsync(view);
+    clearInterval(gcBeat); gcBeat = setInterval(() => { if (gc?.id) gapi({ action: 'gcall_beat', callId: gc.id }).catch(() => {}); }, 8000);
+    gpoll();
+  } catch (e) { gteardown(e.message); throw e; }
+}
+function gteardown(message) {
+  clearInterval(gcBeat); if (!gc) return;
+  for (const key of [...gc.peers.keys()]) dropPeer(key);
+  gc.local.getTracks().forEach(t => t.stop()); gc = null;
+  if (gui.root?.open) { gui.st.textContent = message || 'Chamada encerrada'; setTimeout(() => { if (!gc && gui.root.open) gui.root.close(); }, 1500); }
+  window.dispatchEvent(new CustomEvent('opy:call-ended'));
+  if (document.body.dataset.previewRoute === 'messages') gcPoll = setTimeout(gpoll, 3000);
+}
+async function leaveGroup() { const id = gc?.id; gteardown('Você saiu da chamada.'); if (id) await gapi({ action: 'gcall_leave', callId: id }).catch(() => {}); }
+// Aviso de chamada em andamento nas conversas dos meus grupos (página de mensagens).
+function paintGroupBanner(view) {
+  let bar = document.getElementById('gcall-banner');
+  const open = (view.calls || []).filter(c => !c.joined);
+  if (!open.length) { bar?.remove(); return; }
+  if (!bar) { bar = node('div', undefined, 'gcall-banner'); bar.id = 'gcall-banner'; bar.setAttribute('role', 'status'); (document.getElementById('chat-workspace') || document.body).prepend(bar); }
+  bar.replaceChildren(...open.map(c => {
+    const row = node('div', undefined, 'gcall-banner-row');
+    row.append(node('span', `📞 Chamada ${c.kind === 'video' ? 'de vídeo' : 'de voz'} em ${c.groupName} · ${c.members.length} ${c.members.length === 1 ? 'pessoa' : 'pessoas'}`));
+    const b = node('button', 'Entrar', 'opy-primary'); b.type = 'button'; b.onclick = () => enterGroup({ groupKey: c.groupKey, name: c.groupName, kind: c.kind, callId: c.id }).catch(e => alert(e.message));
+    row.append(b); return row;
+  }));
+}
+window.addEventListener('pagehide', () => { if (gc?.id) fetch('/api/community?view=gcalls', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'gcall_leave', callId: gc.id }) }).catch(() => {}); });
+if (document.body.dataset.previewRoute === 'messages') gcPoll = setTimeout(gpoll, 800);
+
+window.OpyCalls = { start, startGroup: opts => enterGroup(opts) };
 schedule(500);
 })();

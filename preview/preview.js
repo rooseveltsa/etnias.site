@@ -93,7 +93,14 @@ function picker(root,target,onPick=()=>{root.hidden=true;}){
   root.replaceChildren(search,tabs,grid);paint();
  }).catch(error=>{root.replaceChildren(make('p',error.message,'opy-emoji-status'));});
 }
-window.OpyEmoji={open:picker};
+// Botão de emoji + caixa do seletor para um campo de texto (tela Criar, bate-papo da live). O chamador posiciona os dois.
+function emojiToggle(input){
+ const btn=make('button','😊','comment-emoji-btn');btn.type='button';btn.setAttribute('aria-label','Inserir emoji');btn.setAttribute('aria-expanded','false');
+ const box=make('div',undefined,'comment-emoji-picker');box.hidden=true;
+ btn.onclick=()=>{box.hidden=!box.hidden;btn.setAttribute('aria-expanded',String(!box.hidden));if(!box.hidden)picker(box,input,()=>{box.hidden=true;btn.setAttribute('aria-expanded','false');input.dispatchEvent(new Event('input',{bubbles:true}));});};
+ return [btn,box];
+}
+window.OpyEmoji={open:picker,toggle:emojiToggle};
 const glyph={
  like:'<path d="M8 10v10H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zm0 0 3.4-6.1A2.2 2.2 0 0 1 15.3 5.2L14 10h5.1a2 2 0 0 1 2 2.4l-1 6.2a2 2 0 0 1-2 1.4H8"/>',
  heart:'<path d="M12 20s-6.4-4.1-6.4-8.2A3.6 3.6 0 0 1 12 8.6a3.6 3.6 0 0 1 6.4 3.2C18.4 15.9 12 20 12 20z"/>',
@@ -152,7 +159,7 @@ function personByKey(key, fallbackName='', fallbackAvatar=''){
  const found=(state?.directory||[]).find(p=>p.key===key);
  if(found)return found;
  const myKey=state?.me?`id:${state.me.id}`:'';
- return {key:key||`name:${fallbackName}`,name:fallbackName||'Comunidade',username:'',avatar:fallbackAvatar||'',own:key===myKey,following:false,friendStatus:'none',followersCount:0,friendsCount:0,postsCount:0};
+ return {key:key||`name:${fallbackName}`,name:fallbackName||'Comunidade',username:'',avatar:fallbackAvatar||'',own:key===myKey,following:false,friendStatus:'none',followersCount:0,followingCount:0,friendsCount:0,postsCount:0};
 }
 function mountAudio(media, parent){const audio=document.createElement('audio');audio.preload='metadata';audio.tabIndex=-1;audio.setAttribute('aria-hidden','true');audio.src=media.url;const box=make('div',undefined,'opy-player');const toggle=make('button',undefined,'opy-player-toggle');toggle.type='button';toggle.innerHTML=svg('play');toggle.setAttribute('aria-label','Reproduzir');const body=make('div',undefined,'opy-player-body');const meta=make('div',undefined,'opy-player-meta');const title=make('strong',media.name);const time=make('span','0:00 / 0:00','opy-player-time');meta.append(title,time);const range=document.createElement('input');range.type='range';range.min='0';range.max='1000';range.value='0';range.className='opy-player-range';range.setAttribute('aria-label','Avançar no áudio');range.setAttribute('aria-valuemin','0');range.setAttribute('aria-valuemax','1000');let seeking=false;const paint=()=>{const duration=audio.duration||0;const ratio=duration?audio.currentTime/duration:0;if(!seeking)range.value=String(Math.round(ratio*1000));range.setAttribute('aria-valuenow',range.value);range.setAttribute('aria-valuetext',clock(audio.currentTime)+' de '+clock(duration));time.textContent=clock(audio.currentTime)+' / '+clock(duration);range.style.setProperty('--opy-progress',(ratio*100)+'%');};toggle.addEventListener('click',async()=>{if(audio.paused){all('audio').forEach(other=>{if(other!==audio)other.pause();});try{await audio.play();}catch(e){showError('Não foi possível reproduzir este áudio.');}}else audio.pause();});audio.addEventListener('play',()=>{toggle.innerHTML=svg('pause');toggle.setAttribute('aria-label','Pausar');});audio.addEventListener('pause',()=>{toggle.innerHTML=svg('play');toggle.setAttribute('aria-label','Reproduzir');});audio.addEventListener('timeupdate',paint);audio.addEventListener('loadedmetadata',paint);audio.addEventListener('ended',()=>{audio.currentTime=0;paint();});range.addEventListener('pointerdown',()=>{seeking=true;});range.addEventListener('input',()=>{const duration=audio.duration||0;const ratio=Number(range.value)/1000;range.style.setProperty('--opy-progress',(ratio*100)+'%');time.textContent=clock(ratio*duration)+' / '+clock(duration);});range.addEventListener('change',()=>{if(audio.duration)audio.currentTime=(Number(range.value)/1000)*audio.duration;seeking=false;paint();});body.append(meta,range);box.append(toggle,body,audio);parent.append(box);}
 function appendFile(media, parent){const file=document.createElement('a');file.className='post-file';file.href=media.url;file.setAttribute('download',media.name);file.innerHTML=svg('file');const label=make('span');label.append(make('strong',media.name),make('small','Baixar'));file.append(label);parent.append(file);}
@@ -198,6 +205,10 @@ function autoplayWhenVisible(video){
 function videoBlock(item){
  const box=make('div',undefined,'post-media post-media-video');box.dataset.count='1';
  const video=document.createElement('video');video.className='preview-post-video';video.src=item.media.url;video.controls=true;video.preload='none';video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label','Vídeo da publicação de '+item.author);
+ // Gravação de live (MP4 fragmentado): carrega o começo para mostrar o primeiro quadro em vez da tela preta no iPhone.
+ if(item.live){video.preload='metadata';video.src=item.media.url+'#t=0.1';}
+ // Live que caiu e voltou fica gravada em partes: toca a seguinte quando uma termina.
+ const parts=item.media.parts||[];if(parts.length>1){let i=0;video.addEventListener('ended',()=>{if(++i>=parts.length){i=0;video.src=parts[0];return;}video.src=parts[i];video.play().catch(()=>{});});}
  box.append(video);autoplayWhenVisible(video);return box;
 }
 function openLightbox(urls,index,author){
@@ -551,8 +562,8 @@ function photoGrid(items,{manage=false}={}){
  return g;
 }
 async function addProfilePhoto(input){
- const file=input.files[0];if(!file)return;
- try{if(file.size>2*1024*1024)throw Error('Escolha uma imagem de até 2 MB.');if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type))throw Error('A foto precisa ser PNG, JPG, GIF ou WebP.');
+ let file=input.files[0];if(!file)return;
+ try{file=await shrinkPhoto(file);if(file.size>2*1024*1024)throw Error('Escolha uma imagem de até 2 MB.');if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type))throw Error('A foto precisa ser PNG, JPG, GIF ou WebP.');
   const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Não foi possível ler a imagem.'));r.readAsDataURL(file);});
   await change({action:'publish',text:'',audience:'public',communityId:'',media:{name:file.name,data},file:null,location:''});profileData.key='';render();toast('Foto adicionada ao seu perfil.');}
  catch(e){showError(e.message);}finally{input.value='';}
@@ -732,7 +743,7 @@ function renderProfile(){
  if(meta)id.append(make('p',meta,'pf-meta'));
  const counts=make('p',undefined,'pf-counts');
  const count=(v,one,many)=>{const w=make('span');w.append(make('strong',String(v||0)),document.createTextNode(' '+((v||0)===1?one:many)));return w;};
- counts.append(count(person.postsCount??posts.length,'publicação','publicações'),count(person.followersCount,'seguidor','seguidores'),count(person.friendsCount,'amigo','amigos'));
+ counts.append(count(person.postsCount??posts.length,'publicação','publicações'),count(person.followersCount,'seguidor','seguidores'),count(person.followingCount,'seguindo','seguindo'),count(person.friendsCount,'amigo','amigos'));
  id.append(counts);
  const actions=make('div',undefined,'pf-actions');
  if(own){const e=button('Editar perfil',openProfileEdit,actions);e.className='opy-primary';}
@@ -788,8 +799,9 @@ function openProfile(key){
  location.href=state?.me&&key==='id:'+state.me.id?'/conta/':'/perfil/?u='+encodeURIComponent(key);
 }
 async function uploadProfileMedia(kind,input){
- const file=input.files[0];if(!file)return;const st=$('#profile-edit-status');
+ let file=input.files[0];if(!file)return;const st=$('#profile-edit-status');
  try{
+  file=await shrinkPhoto(file);
   if(file.size>2*1024*1024)throw Error('Escolha uma imagem de até 2 MB.');
   const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Não foi possível ler a imagem.'));r.readAsDataURL(file);});
   if(st)st.textContent='Enviando imagem…';
@@ -1360,9 +1372,11 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   if(feedEl.dataset.sig!==feedSig){feedEl.dataset.sig=feedSig;feedEl.dataset.frame=frameSig;feedEl.dataset.sug=sugSig;feedEl._sigs=new Map(posts.map(p=>[p.id,postSig(p)]));
   const drafts=new Map(all('.community-post',feedEl).map(card=>[card.id,{text:$('.preview-comment-form input',card)?.value||'',open:!$('.preview-comment-form',card)?.hidden}]));
   const feed=feedEl;
-  const cards=posts.map(p=>renderPost(p));
-  if(!key&&!saved&&!suggestionsClosed){const sug=suggestionsRow();if(sug)cards.splice(Math.min(2,cards.length),0,sug);}
-  if(sponsoredPost&&!posts.some(p=>p.id===sponsoredPost.id)){const sp=renderPost(sponsoredPost);sp.id='sponsored-'+sponsoredPost.id;cards.splice(Math.min(4,cards.length),0,sp);}
+  // Aba Vídeos: grade no formato rápido (preview/videos.js); o toque abre um vídeo por tela.
+  const vgrid=view==='videos'&&!saved&&posts.length&&window.OpyVideos;
+  const cards=vgrid?[window.OpyVideos.grid(posts)]:posts.map(p=>renderPost(p));
+  if(!vgrid&&!key&&!saved&&!suggestionsClosed){const sug=suggestionsRow();if(sug)cards.splice(Math.min(2,cards.length),0,sug);}
+  if(!vgrid&&sponsoredPost&&!posts.some(p=>p.id===sponsoredPost.id)){const sp=renderPost(sponsoredPost);sp.id='sponsored-'+sponsoredPost.id;cards.splice(Math.min(4,cards.length),0,sp);}
   if(welcome)cards.unshift(welcome);
   if(fs.pinned&&!posts.some(p=>p.id===fs.pinned.id)){const wrap=make('section',undefined,'opy-pinned');wrap.setAttribute('aria-label','Publicação aberta pelo link');const bar=make('div',undefined,'opy-pinned-bar');bar.append(make('strong','Publicação'));const back=button('Ver feed',()=>{fs.pinned=null;history.replaceState(null,'',location.pathname+location.search);render();},bar);back.className='pf-link';wrap.append(bar,renderPost(fs.pinned));cards.unshift(wrap);}
   feed.replaceChildren(...cards);
@@ -1629,7 +1643,19 @@ function paintSlot(id, item, clearLabel, clear){
  el.append(make('p',item.name+' · '+Math.max(1,Math.ceil(item.bytes/1024))+' KB'));
  button(clearLabel,()=>{clear();paintSlot(id,null);},el);
 }
-async function readSlot(file){if(!file)return null;if(file.size>2*1024*1024)throw Error('Escolha um arquivo de até 2 MB.');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file);});return {name:file.name,data:typedDataUrl(file,data),bytes:file.size};}
+// Fotos de celular passam de 2 MB: reduz no aparelho (lado maior 1600 px, JPEG) antes de enviar, como as redes fazem.
+async function shrinkPhoto(file){
+ if(!/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type)||file.size<=1.5*1024*1024)return file;
+ let img;try{img=await createImageBitmap(file);}catch{img=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(Error('Não foi possível abrir esta foto. Tente outra ou tire pela câmera.'));i.src=URL.createObjectURL(file);});}
+ const w=img.width||img.naturalWidth,h=img.height||img.naturalHeight;
+ for(const [side,q] of [[1600,.85],[1280,.8],[1080,.72]]){
+  const k=Math.min(1,side/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg',q));
+  if(blob&&blob.size<=1.9*1024*1024)return new File([blob],file.name.replace(/\.\w+$/,'')+'.jpg',{type:'image/jpeg'});
+ }
+ return file;
+}
+async function readSlot(file){if(!file)return null;file=await shrinkPhoto(file);if(file.size>2*1024*1024)throw Error('Escolha um arquivo de até 2 MB.');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file);});return {name:file.name,data:typedDataUrl(file,data),bytes:file.size};}
 function selectFormat(tool){
  // Live abre na tela Criar em tela cheia (câmera, título e botão de transmitir no padrão do Instagram).
  if(tool==='live'&&window.OpyCreator){window.OpyCreator.open('live');tool='text';}
@@ -1795,7 +1821,7 @@ if(!window.__opyPressBound){
   document.addEventListener('pointercancel',release,{passive:true});
 }
 // Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
-window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,recorderMime,readSlot,
+window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,shrinkPhoto,recorderMime,readSlot,
  get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
  get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};
 })();

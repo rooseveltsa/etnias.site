@@ -7,6 +7,7 @@ import { createSession, verifySession, sessionCookie, sessionAccount, addSession
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
+import { groupCallActions, groupCallAction, groupCallsView, settleGroupCalls } from './groupcalls.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
@@ -42,13 +43,14 @@ function accountsOf(state) {
   return state.accounts;
 }
 function usernameOf(value) {
-  const username = text(String(value || ''), 24).toLowerCase();
+  // Muita gente digita o @ antes do usuário, como nas outras redes.
+  const username = text(String(value || '').trim().replace(/^@+/, ''), 24).toLowerCase();
   if (!/^[a-z0-9][a-z0-9._]{2,23}$/.test(username)) fail(400, 'Use um usuário de 3 a 24 caracteres: letras, números, ponto ou _.');
   return username;
 }
 function loginIdentity(value) {
-  const identity = text(String(value || ''), 80).toLowerCase();
-  if (!identity.includes('@')) return usernameOf(identity);
+  const identity = text(String(value || '').trim(), 80).toLowerCase();
+  if (!identity.includes('@') || identity.startsWith('@')) return usernameOf(identity);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)) fail(400, 'Informe o usuário ou o e-mail da conta Google.');
   return identity;
 }
@@ -97,7 +99,7 @@ function friendStatusOf(state, myKey, targetKey) {
 }
 const PAGE_SIZE = 30;
 const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '' } : null;
+const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '', ...(m.parts ? { parts: m.parts } : {}) } : null;
 const personAvatar = acc => acc?.avatarUrl || profileUrl(acc?.avatarId);
 // Povos já declarados na rede, para sugerir na edição do perfil (sem lista fechada: a pessoa escreve como se nomeia).
 function povosOf(state) { const count = new Map(); for (const a of state.accounts || []) if (a.belonging === 'indigena' && a.povo) count.set(a.povo, (count.get(a.povo) || 0) + 1); return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 80).map(([name]) => name); }
@@ -188,7 +190,7 @@ function socialCounts(state, me) {
   return { followers, posts };
 }
 function personFor(state, me, ctx, key, counts) {
-  const base = { key, following: ctx.followed.has(key), friendStatus: friendStatusOf(state, ctx.myKey, key), followersCount: counts.followers.get(key) || 0, friendsCount: (state.friends?.[key] || []).length, postsCount: counts.posts.get(key) || 0 };
+  const base = { key, following: ctx.followed.has(key), friendStatus: friendStatusOf(state, ctx.myKey, key), followersCount: counts.followers.get(key) || 0, followingCount: key.startsWith('id:') && Array.isArray(state.follows?.[key.slice(3)]) ? state.follows[key.slice(3)].length : 0, friendsCount: (state.friends?.[key] || []).length, postsCount: counts.posts.get(key) || 0 };
   if (key.startsWith('id:')) {
     const acc = ctx.accountsById.get(key.slice(3));
     if (!acc) return null;
@@ -388,7 +390,7 @@ export default async function handler(req, res) {
       const me = member(account);
       const path = new URL(req.url, 'http://local');
       if (pathname.startsWith('/live/recordings/')) {
-        const post = state.posts.find(p => p.media?.url === pathname && visible(p, me, state));
+        const post = state.posts.find(p => (p.media?.url === pathname || p.media?.parts?.includes(pathname)) && visible(p, me, state));
         const found = await recordingFile(post, pathname);
         if (!found) fail(404, 'Gravação não encontrada.');
         return sendFile(req, res, found.file, found.info, 'video/mp4');
@@ -420,6 +422,10 @@ export default async function handler(req, res) {
       if (path.searchParams.get('view') === 'live' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(liveView(state, me, path.searchParams)));
+      }
+      if (path.searchParams.get('view') === 'gcalls' && path.pathname.replace(/\/$/, '') === '/api/community') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(groupCallsView(state, me, path.searchParams)));
       }
       if (path.searchParams.get('view') === 'calls' && path.pathname.replace(/\/$/, '') === '/api/community') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -524,7 +530,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(body.text || '', 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -572,14 +578,16 @@ export default async function handler(req, res) {
       const minute = Math.floor(Date.now() / 60000);
       const limit = state.limits[me.id];
       // Batimento de audiência e reações rápidas da live não contam no limite por minuto (são frequentes por natureza).
-      if (!['live_watch', 'live_react', 'live_signal', 'boost_seen'].includes(body.action)) {
+      if (!['live_watch', 'live_react', 'live_signal', 'boost_seen', 'gcall_beat', 'gcall_signal'].includes(body.action)) {
         if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
         state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
       }
       for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
       settleCalls(state);
+      settleGroupCalls(state);
       settleLives(state);
       if (callActions.includes(body.action)) { callResult = callAction(state, me, body); return; }
+      if (groupCallActions.includes(body.action)) { const r = groupCallAction(state, me, body); if (r.notify?.length) pushNotice = { to: r.notify, payload: r.push }; return; }
       if (liveActions.includes(body.action)) { liveResult = liveAction(state, me, body); if (liveResult.notify?.length) pushNotice = { to: liveResult.notify, payload: liveResult.push }; return; }
       if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
@@ -883,6 +891,7 @@ export default async function handler(req, res) {
     // A senha provisória só existe nesta resposta: não fica no estado nem no registro.
     if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URL(req.url, 'http://local').searchParams), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
     if (callActions.includes(body.action)) return res.end(JSON.stringify(callsView(data, activeMe, new URLSearchParams({ id: callResult?.callId || '' }))));
+    if (groupCallActions.includes(body.action)) return res.end(JSON.stringify(groupCallsView(data, activeMe, new URLSearchParams({ since: String(Number(body.since) || 0) }))));
     if (body.chatView) return res.end(JSON.stringify(chatSnapshot(data, activeMe, new URLSearchParams({ key: body.viewKey || '' }))));
     if (liveResult?.silent) return res.end(JSON.stringify({ ok: true, live: { postId: liveResult.postId, guestToken: liveResult.guestToken || '' } }));
     const fresh = body.action === 'live_stop' ? (await readState()).data : data;

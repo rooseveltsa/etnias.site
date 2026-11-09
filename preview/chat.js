@@ -32,7 +32,17 @@ const accepts={document:'application/pdf,text/plain',camera:'image/jpeg,image/pn
 function syncMobileView() {
  const ws=$('#chat-workspace');
  if(ws&&ws.dataset)ws.dataset.mobileView=key?'thread':'list';
+ fitMessenger();
 }
+// No celular a conversa ocupa só o que sobra entre o cabeçalho e a barra inferior (que muda com a fonte do aparelho),
+// para os botões de aceitar/responder nunca ficarem por baixo da barra.
+function fitMessenger() {
+ const m=document.querySelector('#chat-workspace .chat-messenger');if(!m?.getBoundingClientRect||typeof innerWidth!=='number')return;
+ if(innerWidth>700){m.style.height='';return;}
+ const bar=document.querySelector('.opy-bottom'),barH=bar&&getComputedStyle(bar).display!=='none'?bar.getBoundingClientRect().height:0;
+ m.style.height=Math.max(320,Math.floor(innerHeight-(m.getBoundingClientRect().top+scrollY)-barH-12))+'px';
+}
+window.addEventListener('resize',fitMessenger);
 syncMobileView();
 function button(label, fn, parent) { const b=node('button',label,'preview-secondary');b.type='button';b.onclick=async()=>{b.disabled=true;try{await fn();}catch(e){status(e.message);}finally{b.disabled=false;}};parent.append(b);return b; }
 async function request(body, params={}) {
@@ -107,8 +117,8 @@ function message(m, showDay) {
  return article;
 }
 function paintNotice(selected) {
- const box=$('#chat-notice'),actions=$('#chat-notice-actions');actions.replaceChildren();
- box.hidden=!selected?.notice;if(!selected?.notice)return;
+ const notice=$('#chat-notice'),actions=$('#chat-notice-actions');actions.replaceChildren();
+ notice.hidden=!selected?.notice;if(!selected?.notice)return;
  $('#chat-notice-text').textContent=selected.notice;
  if(selected.relation==='request_in'){
   const ok=button('Aceitar',async()=>{await action({action:'chat_request_accept',key});box='main';render();status('Conversa aceita.');},actions);ok.className='opy-primary';
@@ -196,7 +206,7 @@ function render() {
  const avEl=$('#chat-avatar');if(avEl)avEl.replaceWith(Object.assign(avatarEl(selected?.name||'C',selected?.avatar),{id:'chat-avatar'}));
  const typingNames=selected?.typing||[];
  $('#chat-subtitle').textContent=selected ? (selected.blocked?'Envio bloqueado.':typingNames.length?typingNames.join(', ')+' está digitando…':selected.group?selected.members.length+' participantes':'Conversa privada'+(selected.username?' · @'+selected.username:'')) : 'Encontre alguém pelo nome ou crie um grupo.';
- $('#chat-call-audio').hidden=!selected?.canCall;$('#chat-call-video').hidden=!selected?.canCall;
+ $('#chat-call-audio').hidden=!(selected?.canCall||selected?.group);$('#chat-call-video').hidden=!(selected?.canCall||selected?.group);
  $('#chat-options').hidden=!selected;$('#chat-older').hidden=!data.hasMore;
  paintNotice(selected);
  $('#chat-form').hidden=!selected||!selected.canSend||selected.relation==='request_in';
@@ -226,9 +236,10 @@ async function send(job){
  try{data=await request(job);pending.delete(destination);drafts.delete(destination);if(key===destination){if($('#chat-text').value===submittedText&&submittedText===job.text){$('#chat-text').value='';grow();}if(attachment===submittedAttachment&&attachment?.data===job.media?.data){attachment=null;$('#chat-file').value='';}if(reply===submittedReply&&reply?.id===job.replyTo)reply=null;older=false;render();$('#chat-log').scrollTop=$('#chat-log').scrollHeight;}status('');}
  catch(e){status(e.message);}finally{sending=false;paintDraft();}
 }
-async function fileData(file){if(file.size>2*1024*1024)throw Error('Escolha um anexo de até 2 MB.');const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o anexo.'));reader.readAsDataURL(file);});return {name:file.name,data:content.replace(/^data:[^;]+(?:;codecs=[^;]+)?;base64,/, 'data:'+file.type.split(';')[0]+';base64,')};}
+async function fileData(file){file=await (window.OpyShared?.shrinkPhoto||(f=>f))(file);if(file.size>2*1024*1024)throw Error('Escolha um anexo de até 2 MB.');const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o anexo.'));reader.readAsDataURL(file);});return {name:file.name,data:content.replace(/^data:[^;]+(?:;codecs=[^;]+)?;base64,/, 'data:'+file.type.split(';')[0]+';base64,')};}
 function call(kind){
  const selected=data?.selected;if(!selected)return;
+ if(selected.group){if(!window.OpyCalls?.startGroup){status('As chamadas não carregaram. Recarregue a página.');return;}window.OpyCalls.startGroup({groupKey:selected.key,name:selected.name,kind}).catch(e=>status(e.message));return;}
  if(!selected.canCall){status('Você poderá ligar quando a conversa com '+selected.name+' estiver aceita.');return;}
  if(!window.OpyCalls){status('As chamadas não carregaram. Recarregue a página.');return;}
  window.OpyCalls.start({key:selected.key,name:selected.name,kind}).catch(e=>status(e.message));
