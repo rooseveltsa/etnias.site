@@ -80,7 +80,7 @@ test('vínculo confirmado: conta nova herda legacyId, conteúdo e relações; se
   const chefe = state.accounts.find(a => a.username === 'chefe');
   assert.equal(chefe.id, 'real-1'); assert.equal(chefe.legacyId, 3); assert.equal(chefe.name, 'Chefe');
   assert.equal(chefe.password, 'x'); assert.equal(chefe.legacyPassword, undefined);
-  assert.equal(chefe.avatarUrl, undefined, 'foto enviada na Casa Opy prevalece'); assert.equal(chefe.bio, 'Bio antiga');
+  assert.equal(chefe.avatarUrl, undefined, 'foto enviada no Etnias prevalece'); assert.equal(chefe.bio, 'Bio antiga');
   const old = state.posts.find(p => p.id === 'legacy-100');
   assert.equal(old.reactions['real-1'], 'wow', 'reação própria mantida (legado tinha like)');
   assert.deepEqual(state.follows['real-1'], ['id:' + accountIdOf(1)]);

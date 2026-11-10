@@ -12,7 +12,7 @@ Pessoas da comunidade Etnias, povos indígenas, organizações, projetos e criad
 
 ## Product Purpose
 
-Organizar o Etnias.site como uma grande aldeia digital, com convivência, conhecimento, cultura, economia e participação comunitária acessíveis pela Casa Opy.
+Organizar o Etnias.site como uma grande aldeia digital, com convivência, conhecimento, cultura, economia e participação comunitária acessíveis pelo Etnias.
 
 ## Capabilities and Constraints
 
@@ -22,7 +22,7 @@ EtnIA é o chatbot de orientação do parente sobre o site e o projeto, conforme
 
 ## Brand Commitments
 
-Nome Etnias.site, Casa Opy, Maracá para notificações, vermelho como destaque e fundos claros. Representar povos vivos, diversos e contemporâneos; evitar grafismos sem contexto e estereótipos.
+Nome Etnias.site, Etnias, Maracá para notificações, vermelho como destaque e fundos claros. Representar povos vivos, diversos e contemporâneos; evitar grafismos sem contexto e estereótipos.
 
 ## Evidence on Hand
 

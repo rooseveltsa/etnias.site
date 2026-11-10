@@ -194,6 +194,16 @@ function socialCounts(state, me) {
   for (const p of state.posts) if (visible(p, me, state)) { const k = authorKeyOf(p); posts.set(k, (posts.get(k) || 0) + 1); }
   return { followers, posts };
 }
+// Presença: última leitura autenticada de cada conta (o cliente consulta a cada 4–20 s com a aba aberta).
+// shortcut: só em memória e num processo; reiniciar zera e vários servidores exigiriam um store compartilhado.
+const lastSeen = new Map();
+const ONLINE_MS = 90_000;
+// Como nas redes conhecidas, o "online" só aparece para amizades ou quem se segue mutuamente.
+function onlineFor(state, ctx, acc, me) {
+  if (acc.id === me.id || !(Date.now() - (lastSeen.get(acc.id) || 0) < ONLINE_MS)) return false;
+  const key = `id:${acc.id}`;
+  return friendStatusOf(state, ctx.myKey, key) === 'friends' || (ctx.followed.has(key) && Array.isArray(state.follows?.[acc.id]) && state.follows[acc.id].includes(ctx.myKey));
+}
 function personFor(state, me, ctx, key, counts) {
   const base = { key, following: ctx.followed.has(key), friendStatus: friendStatusOf(state, ctx.myKey, key), followersCount: counts.followers.get(key) || 0, followingCount: key.startsWith('id:') && Array.isArray(state.follows?.[key.slice(3)]) ? state.follows[key.slice(3)].length : 0, friendsCount: (state.friends?.[key] || []).length, postsCount: counts.posts.get(key) || 0 };
   if (key.startsWith('id:')) {
@@ -203,7 +213,7 @@ function personFor(state, me, ctx, key, counts) {
     if (access === 'none') return null;
     // Perfil só para amizades: quem não é amizade vê o cartão (nome, foto, apresentação) e o botão de pedir amizade.
     if (access === 'limited') return { ...base, postsCount: 0, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: '', belonging: '', povo: '', avatar: personAvatar(acc), cover: '', joinedAt: 0, verified: !!acc.verified, own: false, locked: true };
-    return { ...base, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
+    return { ...base, online: onlineFor(state, ctx, acc, me), name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
   }
   // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
@@ -390,9 +400,10 @@ export default async function handler(req, res) {
     if (req.method === 'GET' || (req.method === 'HEAD' && pathname.startsWith('/live/recordings/'))) {
       const state = (await readState()).data;
       const account = sessionAccount(state, session);
-      if (!account) fail(401, 'Entre para ver a Casa Opy.');
+      if (!account) fail(401, 'Entre para ver o Etnias.');
       if (isSuspended(account)) fail(403, suspensionMessage(account));
       const me = member(account);
+      lastSeen.set(me.id, Date.now());
       const path = new URL(req.url, 'http://local');
       if (pathname.startsWith('/live/recordings/')) {
         const post = state.posts.find(p => (p.media?.url === pathname || p.media?.parts?.includes(pathname)) && visible(p, me, state));
@@ -536,7 +547,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(snapshot(data, member(account))));
     }
     const signedIn = sessionAccount((await readState()).data, session);
-    if (!signedIn) fail(401, 'Entre para ver a Casa Opy.');
+    if (!signedIn) fail(401, 'Entre para ver o Etnias.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
     if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');

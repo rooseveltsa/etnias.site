@@ -32,7 +32,7 @@ function Etnias_OpyItems() {
     global $wo;
     $config = Etnias_OpyConfig();
     $items = array(
-        'opy' => array('Opy', 'home', 'opy-symbol', '', 'Sua casa de entrada para a comunidade.'),
+        'opy' => array('Início', 'home', 'opy-symbol', '', 'Sua casa de entrada para a comunidade.'),
         'saberes' => array('Saberes', 'saberes', 'saberes', '', 'Cursos comunitários, oficinas e Área do Aluno estão sendo preparados e chegam em uma próxima atualização.'),
         'conexoes' => array('Conexão', 'search', 'conexoes', '', 'Encontre pessoas e fortaleça suas relações na comunidade.'),
         'grupos' => array('Grupos', 'suggested-groups', 'grupos', 'groups', 'As comunidades estão desativadas neste ambiente.'),
@@ -50,7 +50,7 @@ function Etnias_OpyItems() {
     );
     if (!empty($GLOBALS['etnias_preview_etnia'])) {
         $items['etnia'][1] = 'etnia';
-        $items['etnia'][4] = 'Converse para saber como usar o Etnias e a Casa Opy.';
+        $items['etnia'][4] = 'Converse para saber como usar o Etnias.';
     }
     $urlKeys = array('saberes' => 'saberes_url', 'etnia' => 'etnia_url', 'doar' => 'donation_url', 'musica' => 'music_url');
     $modulesEnabled = !isset($wo['config']['opy_modules']) || (string) $wo['config']['opy_modules'] !== '0';

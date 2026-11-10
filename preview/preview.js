@@ -341,7 +341,7 @@ function renderPost(post, communityContext=null){
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
  const repostInput=make('input');repostInput.maxLength=1000;repostInput.placeholder='Adicione um comentário ao repostar (opcional)…';repostInput.setAttribute('aria-label','Comentário do repost');
  const repostSubmit=make('button','Repostar agora','opy-primary');repostSubmit.type='submit';
- if(navigator.share){const shareNative=make('button','Compartilhar…','preview-secondary');shareNative.type='button';shareNative.onclick=()=>navigator.share({title:'Casa Opy · '+post.author,text:(post.text||'').slice(0,140),url:location.origin+'/#post-'+post.id}).catch(()=>{});repostForm.append(shareNative);}
+ if(navigator.share){const shareNative=make('button','Compartilhar…','preview-secondary');shareNative.type='button';shareNative.onclick=()=>navigator.share({title:'Etnias · '+post.author,text:(post.text||'').slice(0,140),url:location.origin+'/#post-'+post.id}).catch(()=>{});repostForm.append(shareNative);}
  const copyLink=make('button','Copiar link','preview-secondary');copyLink.type='button';
  copyLink.onclick=async()=>{const url=location.origin+'/#post-'+post.id;try{await navigator.clipboard.writeText(url);copyLink.textContent='Link copiado ✓';setTimeout(()=>{copyLink.textContent='Copiar link';},1800);}catch{prompt('Link da publicação:',url);}};
  repostForm.append(repostInput,repostSubmit,copyLink);
@@ -535,7 +535,7 @@ function welcomeCard(){
  const done=steps.filter(s=>s[1]).length;
  if(closed||done===steps.length)return null;
  const box=make('section',undefined,'opy-welcome');box.id='opy-welcome';box.setAttribute('aria-labelledby','opy-welcome-title');box.dataset.sig=done+'|'+steps.map(s=>Number(s[1])).join('');
- const head=make('div',undefined,'opy-welcome-head');const h=make('h2',`Boas-vindas à Casa Opy, ${state.me.name.split(' ')[0]}`);h.id='opy-welcome-title';
+ const head=make('div',undefined,'opy-welcome-head');const h=make('h2',`Boas-vindas ao Etnias, ${state.me.name.split(' ')[0]}`);h.id='opy-welcome-title';
  const close=make('button','✕','opy-welcome-close');close.type='button';close.setAttribute('aria-label','Fechar primeiros passos');close.onclick=()=>{try{localStorage.setItem(key,'1');}catch{}box.remove();};
  head.append(h,close);
  const bar=make('div',undefined,'opy-welcome-bar');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax',String(steps.length));bar.setAttribute('aria-valuenow',String(done));bar.setAttribute('aria-label','Primeiros passos');const fill=make('span');fill.style.width=(done/steps.length*100)+'%';bar.append(fill);
@@ -737,7 +737,7 @@ function renderProfile(){
  const ec=$('#profile-edit-cover');if(ec){ec.replaceChildren();if(state.me.cover){const im=make('img');im.src=state.me.cover;im.alt='';ec.append(im);}}
  const signature=JSON.stringify([person,posts.map(p=>[p.id,p.reaction,p.comments?.length,p.saved,p.editedAt]),comms.map(c=>c.id),profileTab,profileData.hasMore]);
  if(signature===profileSignature)return;profileSignature=signature;
- document.title=person.name+' · Casa Opy';
+ document.title=person.name+' · Etnias';
  const cover=make('div',undefined,'pf-cover');
  if(person.cover){const img=make('img');img.src=person.cover;img.alt='Capa de '+person.name;cover.append(img);}
  if(own){const b=button('Editar capa',()=>$('#profile-cover-input').click(),cover);b.className='pf-cover-btn';}
@@ -745,24 +745,31 @@ function renderProfile(){
  const av=make('div',undefined,'pf-avatar');av.append(avatarNode(person.name,person.avatar,168));
  if(own){const b=button('',()=>$('#profile-avatar-input').click(),av);b.className='pf-avatar-btn';b.setAttribute('aria-label','Trocar foto do perfil');b.title='Trocar foto do perfil';}
  const id=make('div',undefined,'pf-id');const h1=make('h1',person.name);if(person.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');h1.append(' ',v);}if(person.plan){const chip=make('span',person.plan.nome,'pf-plan-chip');chip.style.setProperty('--plan',person.plan.cor);chip.title='Plano '+person.plan.nome;h1.append(' ',chip);}id.append(h1);
- const meta=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.affiliation].filter(Boolean).join(' · ');
- if(meta)id.append(make('p',meta,'pf-meta'));
- const counts=make('p',undefined,'pf-counts');
- const count=(v,one,many)=>{const w=make('span');w.append(make('strong',String(v||0)),document.createTextNode(' '+((v||0)===1?one:many)));return w;};
- counts.append(count(person.postsCount??posts.length,'publicação','publicações'),count(person.followersCount,'seguidor','seguidores'),count(person.followingCount,'seguindo','seguindo'),count(person.friendsCount,'amigo','amigos'));
- id.append(counts);
+ const blockPerson=!own&&key.startsWith('id:')?async()=>{if(!confirm('Bloquear '+person.name+'? Vocês deixam de se ver na rede, a amizade e o seguir são desfeitos. A pessoa não é avisada. Dá para desbloquear em Configurações.'))return;try{await change({action:'block_set',key,blocked:true});toast(person.name+' foi bloqueado(a).');location.href='/';}catch(e){showError(e.message);}}:null;
  const actions=make('div',undefined,'pf-actions');
- if(own){const e=button('Editar perfil',openProfileEdit,actions);e.className='opy-primary';}
+ if(own){const e=button('Editar perfil',openProfileEdit,actions);e.className='pf-pill pf-pill-brown';}
  else{
-  const liveOn=(state.lives||[]).find(l=>l.authorKey===key);if(liveOn){const w=button('Assistir ao vivo',()=>openLiveViewer({id:liveOn.postId,author:person.name,avatar:person.avatar,live:{format:liveOn.format}}),actions);w.className='opy-primary live-profile-btn';}
-  const f=button(person.following?'Seguindo':'Seguir',()=>change({action:'follow',authorKey:key}),actions);f.className=person.following?'preview-secondary':'opy-primary';f.setAttribute('aria-pressed',String(!!person.following));
+  const liveOn=(state.lives||[]).find(l=>l.authorKey===key);if(liveOn){const w=button('Assistir ao vivo',()=>openLiveViewer({id:liveOn.postId,author:person.name,avatar:person.avatar,live:{format:liveOn.format}}),actions);w.className='pf-pill pf-pill-live live-profile-btn';}
+  const f=button(person.following?'Seguindo':'Seguir',()=>change({action:'follow',authorKey:key}),actions);f.className='pf-pill pf-pill-green';f.setAttribute('aria-pressed',String(!!person.following));
   if(key.startsWith('id:')){
-   const m=button('Mensagem',()=>openPrivateChat(key),actions);m.className='preview-secondary';
-   const fr=button(friendLabel(person.friendStatus),()=>change({action:'friend',authorKey:key}),actions);fr.className='preview-secondary';fr.setAttribute('aria-pressed',String(person.friendStatus==='friends'));
-   const bl=button('Bloquear',async()=>{if(!confirm('Bloquear '+person.name+'? Vocês deixam de se ver na rede, a amizade e o seguir são desfeitos. A pessoa não é avisada. Dá para desbloquear em Configurações.'))return;try{await change({action:'block_set',key,blocked:true});toast(person.name+' foi bloqueado(a).');location.href='/';}catch(e){showError(e.message);}},actions);bl.className='preview-secondary pf-block';
+   const m=button('Mensagem',()=>openPrivateChat(key),actions);m.className='pf-pill pf-pill-brown';
+   const fr=button(friendLabel(person.friendStatus),()=>change({action:'friend',authorKey:key}),actions);fr.className='pf-pill pf-pill-line';fr.setAttribute('aria-pressed',String(person.friendStatus==='friends'));
   }
  }
- head.append(av,id,actions);
+ const info=button('',()=>{profileTab='about';renderProfile();$('.pf-tabs')?.scrollIntoView({block:'nearest'});},actions);info.className='pf-info';info.setAttribute('aria-label','Ver informações do perfil');info.title='Sobre';
+ id.append(actions);
+ // Linha do modelo: "● online | @usuario" (online só aparece para amizades ou quem se segue mutuamente).
+ const handle=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.affiliation].filter(Boolean).join(' · ');
+ const meta=make('p',undefined,'pf-meta');
+ if(person.online){meta.append(make('span','online','pf-online'));if(handle)meta.append(make('span','|','pf-sep'));av.classList.add('is-online');}
+ if(handle)meta.append(make('span',handle,'pf-handle'));
+ if(meta.childNodes.length)id.append(meta);
+ const counts=make('p',undefined,'pf-counts');
+ const compact=new Intl.NumberFormat('pt-BR',{notation:'compact',maximumFractionDigits:1});
+ const count=(v,one,many)=>{const w=make('span',undefined,'pf-count');w.append(make('strong',compact.format(v||0)),make('small',(v||0)===1?one:many));return w;};
+ counts.append(count(person.followingCount,'seguindo','seguindo'),count(person.followersCount,'seguidor','seguidores'),count(person.postsCount??posts.length,'publicação','publicações'));
+ id.append(counts);
+ head.append(av,id);
  const tabs=make('nav',undefined,'pf-tabs');tabs.setAttribute('aria-label','Seções do perfil');
  for(const [k,label] of [['posts','Publicações'],['about','Sobre'],['photos','Fotos'],['communities','Comunidades']]){const b=button(label,()=>{profileTab=k;renderProfile();},tabs);b.className='pf-tab';b.setAttribute('aria-pressed',String(profileTab===k));}
  const top=make('section',undefined,'pf-top');top.append(cover,head,tabs);
@@ -786,7 +793,8 @@ function renderProfile(){
   const row=(t,v)=>{if(v)dl.append(make('dt',t),make('dd',v));};
   row('Nome',person.name);row('Usuário',person.username?'@'+person.username:'');row('Pertencimento',person.belonging==='indigena'?'Indígena'+(person.povo?' · '+person.povo:''):person.belonging==='nao_indigena'?'Não indígena':'');row('Povo, território ou organização',person.affiliation);row('Apresentação',person.bio);
   row('Na rede desde',person.joinedAt?new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(new Date(person.joinedAt)):'');
-  c.append(dl);main.append(c);
+  row('Amizades',person.friendsCount?String(person.friendsCount):'');
+  c.append(dl);if(blockPerson){const bl=button('Bloquear',blockPerson,c);bl.className='preview-secondary pf-block';}main.append(c);
  }else if(profileTab==='photos'){
   const c=make('section',undefined,'pf-card');const head=make('div',undefined,'pf-card-head');head.append(make('h2','Fotos'));
   if(own){const lab=make('label','Adicionar foto','preview-secondary pf-file');const inp=make('input');inp.type='file';inp.accept='image/jpeg,image/png,image/webp,image/gif';inp.hidden=true;inp.onchange=()=>addProfilePhoto(inp);lab.append(inp);head.append(lab);}
@@ -919,7 +927,7 @@ function renderCommunities(){
   titleRow.append(av,titleWrap);
   const desc=make('p',current.description,'community-hero-desc');
   const leaders=[...(current.admins||[]),...(current.moderators||[])];
-  const leaderText=make('small','Coordenação e moderação: '+(leaders.length?leaders.map(l=>`${l.name} (${l.role==='admin'?'Admin':'Mod'})`).join(', '):'Equipe Casa Opy'),'community-leaders');
+  const leaderText=make('small','Coordenação e moderação: '+(leaders.length?leaders.map(l=>`${l.name} (${l.role==='admin'?'Admin':'Mod'})`).join(', '):'Equipe Etnias'),'community-leaders');
   const actionBar=make('div',undefined,'community-hero-actions');
   const joinLabel=current.joined?'Sair da comunidade':isPending?'Cancelar solicitação (pendente)':isPrivate?'Solicitar participação':'Participar da comunidade';
   const joinBtn=button(joinLabel,()=>joinCommunity(current),actionBar);
@@ -1040,7 +1048,7 @@ function renderCommunities(){
     make('h3','Regras de convivência e governança cultural'),
     make('p',current.rules||'Respeito mútuo, escuta ativa e proteção aos saberes tradicionais.'),
     make('h3','Princípios CARE e proteção de conhecimentos'),
-    make('p','A Casa Opy reconhece que cada povo, organização e coletivo possui protocolos próprios de comunicação. Informações culturais sensíveis, ritos e conhecimentos tradicionais restritos não devem ser expostos sem autorização expressa de seus guardiões.'),
+    make('p','O Etnias reconhece que cada povo, organização e coletivo possui protocolos próprios de comunicação. Informações culturais sensíveis, ritos e conhecimentos tradicionais restritos não devem ser expostos sem autorização expressa de seus guardiões.'),
     make('h3','Visibilidade desta comunidade'),
     make('p',isPrivate?'Comunidade Privada: apenas membros aprovados pelos administradores ou moderadores podem ler e publicar no feed da comunidade.':'Comunidade Pública: aberta à leitura e entrada de contas autenticadas na plataforma, com moderação ativa.')
    );
@@ -1521,7 +1529,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
  }
  if(state.saberes){let myCount=0;all('[data-saber-enroll]').forEach(b=>{const info=state.saberes[b.dataset.saberEnroll]||{enrolled:false,count:0};if(info.enrolled)myCount++;b.setAttribute('aria-pressed',String(info.enrolled));b.textContent=info.enrolled?'Inscrito na trilha (avaliação)':'Inscrever-se na trilha';const meta=$(`[data-saber-count="${b.dataset.saberEnroll}"]`);if(meta)meta.textContent=info.count?`${info.count} inscrição(ões) nesta homologação`:'Em avaliação';});if($('#opy-saberes-summary'))$('#opy-saberes-summary').textContent=myCount>0?`Você acompanha ${myCount} trilha(s) formativa(s) nesta sessão de homologação.`:'Selecione abaixo as trilhas de seu interesse para acompanhar seu painel formativo nesta sessão.';}
  if(state.music){all('[data-music-like]').forEach(b=>{const info=state.music[b.dataset.musicLike]||{liked:false,count:0};b.setAttribute('aria-pressed',String(info.liked));const span=$('span',b);if(span)span.textContent=info.liked?'Faixa apoiada':'Apoiar faixa';const meta=$(`[data-music-count="${b.dataset.musicLike}"]`);if(meta)meta.textContent=`${info.count} apoio(s) na homologação`;});}
- const etniaLog=$('#etnia-log');if(etniaLog&&Array.isArray(state.etnia)){const items=state.etnia;const signature=items.map(item=>item.role+'\n'+item.text+'\n'+(item.sourceTitle||'')).join('\u0001')||'hello';if(etniaLog.dataset.signature!==signature){const nodes=[];if(!items.length)nodes.push(etniaBubble('etnia','Olá. Pergunte como publicar, o que é a Casa Opy ou o que já funciona nesta prévia.',''));for(const item of items)nodes.push(etniaBubble(item.role,item.text,item.sourceTitle?`Fonte: ${item.sourceTitle}${item.revised?' · revisão '+item.revised:''}`:''));etniaLog.dataset.signature=signature;etniaLog.replaceChildren(...nodes);if(etniaLog.dataset.stick!=='0')etniaLog.scrollTop=etniaLog.scrollHeight;}}
+ const etniaLog=$('#etnia-log');if(etniaLog&&Array.isArray(state.etnia)){const items=state.etnia;const signature=items.map(item=>item.role+'\n'+item.text+'\n'+(item.sourceTitle||'')).join('\u0001')||'hello';if(etniaLog.dataset.signature!==signature){const nodes=[];if(!items.length)nodes.push(etniaBubble('etnia','Olá. Pergunte como publicar, o que é o Etnias ou o que já funciona nesta prévia.',''));for(const item of items)nodes.push(etniaBubble(item.role,item.text,item.sourceTitle?`Fonte: ${item.sourceTitle}${item.revised?' · revisão '+item.revised:''}`:''));etniaLog.dataset.signature=signature;etniaLog.replaceChildren(...nodes);if(etniaLog.dataset.stick!=='0')etniaLog.scrollTop=etniaLog.scrollHeight;}}
  const tickets=$('#iara-tickets');if(tickets&&Array.isArray(state.iaraTickets)){const signature=JSON.stringify(state.iaraTickets);tickets.setAttribute('aria-busy','false');if(tickets.dataset.signature!==signature){tickets.dataset.signature=signature;tickets.replaceChildren(...state.iaraTickets.map(ticket=>{const card=make('article',undefined,'iara-ticket');card.append(make('h3',ticket.sectorTitle),make('small',ticket.protocol),make('p',ticket.status==='cancelado'?'Cancelado':'Aguardando encaminhamento à equipe'),make('p',ticket.description),make('p','Próximo passo: '+ticket.nextAction),make('small','Fonte: '+ticket.sourceTitle+' · '+date(ticket.createdAt)));const actions=make('div',undefined,'iara-ticket-actions');button('Baixar briefing',()=>{const content=[ticket.protocol,'Setor: '+ticket.sector,'Skill: '+ticket.skill,'Status: '+ticket.status,'Criado: '+date(ticket.createdAt),'',ticket.description,'','Proximo passo: '+ticket.nextAction,'','Fonte: '+ticket.sourceTitle,'Recepcao da homologacao. Sem envio ao Hermes ou publicacao externa.'].join('\n');const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=ticket.protocol+'.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},actions);if(ticket.status!=='cancelado')button('Cancelar pedido',async()=>{if(confirm('Cancelar este pedido?'))await change({action:'iara_cancel',ticketId:ticket.id});},actions);card.append(actions);return card;}));if(!state.iaraTickets.length)tickets.append(make('p','Você ainda não tem pedidos. Descreva o primeiro acima.'));}}
  if(state.submissions){all('[data-opy-submissions]').forEach(box=>{const mod=box.dataset.opySubmissions;const items=state.submissions.filter(s=>s.module===mod);box.replaceChildren(...items.map(s=>{const card=make('article',undefined,'opy-submission-card');card.id='submission-'+s.id;const head=make('div',undefined,'opy-submission-head');head.append(make('span','Protocolo '+s.protocol,'opy-submission-protocol'),make('small',s.category+(s.audience==='private'?' · Somente minha sessão':'')));const meta=make('div',undefined,'opy-submission-meta');meta.append(make('span',`${s.community} · ${s.author} · ${date(s.createdAt)}`));if(s.own)button('Remover registro',()=>change({action:'module_delete',submissionId:s.id}),meta);card.append(head,make('h3',s.title),make('p',s.details),meta);return card;}));if(!items.length)box.append(make('p','Nenhum registro enviado ainda nesta homologação.','opy-module-empty'));});}
 }

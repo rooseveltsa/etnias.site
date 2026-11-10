@@ -22,14 +22,14 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
     const content = `Ensaio funcional de UX ${Date.now()}`;
     await page.locator('.postText').fill(content);
     await page.getByRole('button', { name: 'Localização', exact: true }).click();
-    await page.getByLabel('Um único lugar').fill('Aldeia Casa Opy');
+    await page.getByLabel('Um único lugar').fill('Aldeia Etnias');
     await page.getByRole('button', { name: 'Publicar', exact: true }).click();
     const post = page.locator('.community-post').filter({ hasText: content });
     await post.waitFor();
     await other.goto(base);
     const received = other.locator('.community-post').filter({ hasText: content });
     await received.waitFor();
-    await received.getByText('Localização · Aldeia Casa Opy', { exact: true }).waitFor();
+    await received.getByText('Localização · Aldeia Etnias', { exact: true }).waitFor();
     await received.getByRole('button', { name: 'Amei', exact: true }).click();
     await received.getByRole('button', { name: 'Comentar', exact: true }).click();
     await received.getByLabel('Seu comentário').fill('Comentário recebido por outro navegador');
@@ -48,7 +48,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
       ['/saberes/', 'Saberes e Trilhas de Conhecimento'],
       ['/guardiao/', 'Guardião da Floresta'],
       ['/fotografos/', 'Fotógrafos Indígenas'],
-      ['/musica/', 'Catálogo Musical da Casa Opy'],
+      ['/musica/', 'Catálogo Musical do Etnias'],
       ['/doar/', 'Doe para o Etnias']
     ]) {
       await page.goto(base + path);
@@ -56,7 +56,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
     }
     await page.goto(base + '/saberes/');
     const proposalTitle = `Oficina de Ensaio ${Date.now()}`;
-    await page.locator('#saberes-community').fill('Coletivo Casa Opy');
+    await page.locator('#saberes-community').fill('Coletivo Etnias');
     await page.locator('#saberes-title').fill(proposalTitle);
     await page.locator('#saberes-details').fill('Ementa de avaliação para homologação do módulo Saberes.');
     await page.getByRole('button', { name: 'Registrar proposta no Saberes', exact: true }).click();
@@ -76,7 +76,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
       assert.equal(await other.locator('.opy-bottom').isVisible(), true);
       assert.equal(await other.locator('.opy-topbar .messages-notification-container').isVisible(), true, 'Chat acessível no cabeçalho com a barra anterior');
       await other.getByRole('button', { name: 'Opy', exact: true }).click();
-      await other.getByRole('button', { name: 'Fechar Casa Opy' }).click();
+      await other.getByRole('button', { name: 'Fechar Etnias' }).click();
     }
     await page.goto(base);
     const cleanup = page.locator('.community-post').filter({ hasText: content });

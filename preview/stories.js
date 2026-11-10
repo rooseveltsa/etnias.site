@@ -1,4 +1,4 @@
-// Visualizador de stories da Casa Opy, no padrão Instagram/TikTok. Usa a ponte window.OpyShared de preview.js e a API
+// Visualizador de stories do Etnias, no padrão Instagram/TikTok. Usa a ponte window.OpyShared de preview.js e a API
 // atual (story_seen, story_react, story_reply, story_delete) mais story_report. Os stories vêm agrupados por pessoa;
 // a barra de progresso só corre com a mídia tocando (foto 5 s, vídeo pela duração real) e qualquer motivo de pausa
 // (segurar, digitar, menu, aba escondida, botão) para o tempo. Trocar de pessoa gira um cubo 3D; com

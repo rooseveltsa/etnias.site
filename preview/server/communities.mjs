@@ -59,13 +59,13 @@ export function ensureCommunities(state) {
       {
         id: 'avaliacao-casa-opy',
         slug: 'avaliacao-casa-opy',
-        name: 'Avaliação da Casa Opy',
+        name: 'Avaliação do Etnias',
         category: 'Projeto & Rede',
         visibility: 'public',
         coverTone: 'terracotta',
         description: 'Um grupo aberto para acompanhar e conversar sobre a atualização da plataforma, navegação, acessibilidade e próximos passos.',
         rules: 'Respeite a diversidade dos participantes. Compartilhe apenas conteúdos e relatos autorizados. Conhecimentos tradicionais restritos não devem ser publicados.',
-        governanceNote: 'Espaço de homologação coordenado pela equipe do projeto Casa Opy.',
+        governanceNote: 'Espaço de homologação coordenado pela equipe do projeto Etnias.',
         createdAt: 1762250000000,
         members: [...new Set(joinedKeys)],
         admins: [],
@@ -174,8 +174,8 @@ function isStaff(c, memberKey) {
   return c.admins?.includes(memberKey) || c.moderators?.includes(memberKey);
 }
 
-function accountSummary(state, memberKey, c) {
-  const acc = (state.accounts || []).find(a => keyOf(a) === memberKey);
+function accountSummary(byKey, memberKey, c) {
+  const acc = byKey.get(memberKey);
   return {
     key: memberKey,
     name: acc?.name || 'Participante',
@@ -187,6 +187,10 @@ function accountSummary(state, memberKey, c) {
 export function projectCommunities(state, me) {
   const mine = keyOf(me);
   const list = ensureCommunities(state);
+  // Índices montados uma vez por requisição: buscar conta e contar posts dentro do laço custava O(membros × contas).
+  const byKey = new Map((state.accounts || []).map(a => [keyOf(a), a]));
+  const postsCounts = new Map();
+  for (const p of state.posts || []) if (p.communityId && (p.audience !== 'private' || p.authorId === me.id)) postsCounts.set(p.communityId, (postsCounts.get(p.communityId) || 0) + 1);
   return list.map(c => {
     const joined = c.members.includes(mine);
     const pending = (c.pendingRequests || []).includes(mine);
@@ -195,9 +199,9 @@ export function projectCommunities(state, me) {
     const staff = isStaff(c, mine);
     const canSeeMembers = c.visibility === 'public' || joined || staff;
     const members = canSeeMembers
-      ? c.members.map(k => accountSummary(state, k, c))
+      ? c.members.map(k => accountSummary(byKey, k, c))
       : [];
-    const postsCount = (state.posts || []).filter(p => p.communityId === c.id && (p.audience !== 'private' || p.authorId === me.id)).length;
+    const postsCount = postsCounts.get(c.id) || 0;
     return {
       id: c.id,
       slug: c.slug || c.id,
@@ -218,10 +222,10 @@ export function projectCommunities(state, me) {
       canManage: c.admins.includes(mine),
       canModerate: staff,
       members,
-      admins: c.admins.map(k => accountSummary(state, k, c)),
-      moderators: (c.moderators || []).map(k => accountSummary(state, k, c)),
+      admins: c.admins.map(k => accountSummary(byKey, k, c)),
+      moderators: (c.moderators || []).map(k => accountSummary(byKey, k, c)),
       entryQuestions: c.entryQuestions || [],
-      pendingRequests: staff ? (c.pendingRequests || []).map(k => ({ ...accountSummary(state, k, c), answers: c.requestAnswers?.[k]?.answers || [] })) : []
+      pendingRequests: staff ? (c.pendingRequests || []).map(k => ({ ...accountSummary(byKey, k, c), answers: c.requestAnswers?.[k]?.answers || [] })) : []
     };
   });
 }

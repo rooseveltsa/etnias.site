@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-// Centro de gestão da Casa Opy. Dados de GET /api/community?view=admin; ações admin_* respondem com a visão atualizada.
+// Centro de gestão do Etnias. Dados de GET /api/community?view=admin; ações admin_* respondem com a visão atualizada.
 const root = document.getElementById('admin-app'); if (!root) return;
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; if (cls) e.className = cls; return e; };
 const svgEl = tag => document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -312,7 +312,7 @@ const views = {
 function go(next) { tab = next; history.replaceState(null, '', '#' + next); render(); root.querySelector('.adm-main')?.focus(); }
 function render() {
   if (!data) return;
-  const head = el('header', undefined, 'adm-head'); const t = el('div'); t.append(el('h1', translatorOnly ? 'Traduções' : 'Centro de gestão'), el('p', translatorOnly ? 'Ajude a levar a Casa Opy para a sua língua.' : `${data.viewer.name} · ${data.role === 'admin' ? 'Administração' : 'Moderação'} · atualizado ${fmtDate(Date.now())}`, 'adm-muted'));
+  const head = el('header', undefined, 'adm-head'); const t = el('div'); t.append(el('h1', translatorOnly ? 'Traduções' : 'Centro de gestão'), el('p', translatorOnly ? 'Ajude a levar o Etnias para a sua língua.' : `${data.viewer.name} · ${data.role === 'admin' ? 'Administração' : 'Moderação'} · atualizado ${fmtDate(Date.now())}`, 'adm-muted'));
   head.append(t, btn('Atualizar', load));
   const nav = el('nav', undefined, 'adm-tabs'); nav.setAttribute('aria-label', 'Áreas do centro de gestão');
   // "Desenvolvimento" é a prestação de contas do contrato: só a administração vê.

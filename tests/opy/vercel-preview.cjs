@@ -37,7 +37,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8101';
     await page.getByRole('button', { name: 'Opy', exact: true }).click();
     await page.locator('#opy-menu [data-opy-destination=grupos]').click();
     await page.getByRole('heading', { name: 'Grupos', exact: true }).waitFor();
-    await page.locator('.opy-search input[name=query]').fill('Casa Opy');
+    await page.locator('.opy-search input[name=query]').fill('Etnias');
     await page.locator('.opy-search button').click();
     await page.getByRole('heading', { name: 'Pesquisar no Etnias' }).waitFor();
     await page.getByRole('link', { name: 'Chat — mensagens' }).click();

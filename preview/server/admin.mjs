@@ -6,7 +6,7 @@ import { decideBoost, boostQueue } from './impulsos.mjs';
 // Prestação de contas do desenvolvimento (contrato × entregas). Só administradores veem; atualizado a cada entrega.
 import development from './desenvolvimento.json' with { type: 'json' };
 
-// Centro de gestão da Casa Opy: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
+// Centro de gestão do Etnias: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
 // comunicados e registro de transparência. Toda ação fica no adminLog com autor, alvo e motivo.
 export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end', 'admin_verify', 'admin_verification_decide', 'admin_plan_decide', 'admin_boost_decide'];
 const DAY = 864e5;
@@ -205,7 +205,7 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     adminOnly();
     const title = text(body.title, 80), message = text(body.text, 600);
     const link = String(body.link || '').trim();
-    if (link && !/^\/[a-z0-9/?=&._%-]*$/i.test(link)) fail(400, 'O link precisa ser um endereço interno da Casa Opy, como /grupos/.');
+    if (link && !/^\/[a-z0-9/?=&._%-]*$/i.test(link)) fail(400, 'O link precisa ser um endereço interno do Etnias, como /grupos/.');
     const days = Number(body.days); if (!Number.isInteger(days) || days < 1 || days > 90) fail(400, 'Escolha de 1 a 90 dias.');
     state.announcements ||= [];
     state.announcements.push({ id: randomUUID(), title, text: message, link, createdAt: now, until: now + days * DAY, by: actor.name });

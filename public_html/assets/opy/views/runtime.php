@@ -11,7 +11,7 @@ $opyConfig = Etnias_OpyConfig();
     <?php $opyEtniaBarra = $opyItems['etnia']; $opyEtniaBarra['icon'] = 'intelligence'; echo Etnias_OpyItem('etnia', $opyEtniaBarra); ?>
 </nav>
 <dialog id="opy-menu" class="opy-dialog opy-drawer" aria-labelledby="opy-menu-title">
-    <div class="opy-dialog-heading"><div><h2 id="opy-menu-title">Casa Opy</h2><p>Encontre seu caminho no Etnias.</p></div><button type="button" data-opy-close aria-label="Fechar Casa Opy"><?php echo Etnias_OpyIcon('close'); ?></button></div>
+    <div class="opy-dialog-heading"><div><h2 id="opy-menu-title">Etnias</h2><p>Encontre seu caminho no Etnias.</p></div><button type="button" data-opy-close aria-label="Fechar Etnias"><?php echo Etnias_OpyIcon('close'); ?></button></div>
     <?php require __DIR__ . '/sidebar.php'; ?>
     <nav class="opy-create-links" aria-label="Criar">
         <p class="opy-create-title">Criar</p>

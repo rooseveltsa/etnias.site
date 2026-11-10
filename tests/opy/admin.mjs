@@ -79,7 +79,7 @@ test('alertas: denúncias e sinais automáticos, com encerramento registrado', (
 test('comunicados: só administração publica, link interno, prazo e fechamento por pessoa', () => {
   const s = fresh();
   rejects(() => act(s, boss, { action: 'admin_announce', title: 'Assembleia', text: 'Sábado', link: 'https://golpe.example', days: 3 }), 400);
-  act(s, boss, { action: 'admin_announce', title: 'Assembleia', text: 'Sábado na Casa Opy', link: '/grupos/', days: 3 });
+  act(s, boss, { action: 'admin_announce', title: 'Assembleia', text: 'Sábado no Etnias', link: '/grupos/', days: 3 });
   const id = s.announcements[0].id;
   assert.equal(admin.announcementsFor(s, acc(s, ana), 2000).length, 1);
   s.announcementDismiss = { [ana.id]: [id] };

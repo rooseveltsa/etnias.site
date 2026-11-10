@@ -1,4 +1,4 @@
-// Live Experience da Casa Opy. Usa os globais de preview.js ($, all, make, button, api, apiGet, change, S.state, toast, showError,
+// Live Experience do Etnias. Usa os globais de preview.js ($, all, make, button, api, apiGet, change, S.state, toast, showError,
 // avatarNode, openProfile, plural, S.cameraStream, startCamera, stopCamera, S.cameraFacing, S.liveSession, S.liveMode, S.liveViewer).
 // Arquitetura: o anfitrião captura câmera e microfone, compõe o quadro (sozinho ou com um convidado) num canvas e publica
 // por WHIP no MediaMTX; espectadores assistem por WHEP (um para muitos, escala no servidor). O convidado conversa com o
@@ -260,7 +260,7 @@ async function openLiveViewer(post){
   form.onsubmit=async e=>{e.preventDefault();const copy=input.value.trim();if(!copy||!S.liveViewer)return;input.value='';try{await liveApi({action:'live_chat',postId:S.liveViewer.post.id,text:copy});viewerTick();}catch(err){status.textContent=err.message;input.value=copy;}};
   join.onclick=async()=>{if(!S.liveViewer)return;try{await liveApi({action:'live_request',postId:S.liveViewer.post.id});viewerTick();}catch(err){status.textContent=err.message;}};
   full.onclick=()=>{if(document.fullscreenElement)document.exitFullscreen?.();else (stage.requestFullscreen?.()||video.webkitEnterFullscreen?.());};
-  share.onclick=()=>{const url=location.origin+'/#post-'+S.liveViewer.post.id;if(navigator.share)navigator.share({title:'Live de '+S.liveViewer.post.author+' · Casa Opy',url}).catch(()=>{});else navigator.clipboard?.writeText(url).then(()=>toast('Link da live copiado.')).catch(()=>{});};
+  share.onclick=()=>{const url=location.origin+'/#post-'+S.liveViewer.post.id;if(navigator.share)navigator.share({title:'Live de '+S.liveViewer.post.author+' · Etnias',url}).catch(()=>{});else navigator.clipboard?.writeText(url).then(()=>toast('Link da live copiado.')).catch(()=>{});};
   follow.onclick=()=>{const key=S.liveViewer?.view?.live.host.key;if(key)change({action:'follow',authorKey:key}).then(viewerTick).catch(e=>showError(e.message));};
   who.onclick=()=>{const key=S.liveViewer?.view?.live.host.key;if(key)openProfile(key);};
  }

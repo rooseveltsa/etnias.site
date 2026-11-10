@@ -20,7 +20,7 @@ const base = 'http://127.0.0.1:8098';
       return page;
     }
     const sender = await signIn('opy_teste', 2);
-    const text = `Mensagem de ensaio Casa Opy ${Date.now()}`;
+    const text = `Mensagem de ensaio Etnias ${Date.now()}`;
     await sender.locator('#sendMessage').fill(text);
     const sent = sender.waitForResponse(r => r.url().includes('s=send_message'));
     await sender.locator('form.sendMessages .send-button').click();

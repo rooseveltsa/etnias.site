@@ -156,7 +156,7 @@ async function api(cookie, body) {
       // Bloquear pelo perfil de outra pessoa e desbloquear em Configurações.
       const target = await registerAccount(base, { name: 'Eva ' + Date.now().toString(36) });
       const evaId = (await (await fetch(base + '/api/community', { headers: { cookie: target.cookie } })).json()).me.id;
-      await p3.goto(base + '/perfil/?u=' + encodeURIComponent('id:' + evaId)); await p3.locator('.pf-block').waitFor();
+      await p3.goto(base + '/perfil/?u=' + encodeURIComponent('id:' + evaId)); await p3.locator('.pf-info').click(); await p3.locator('.pf-block').waitFor(); // Bloquear fica na aba Sobre (botão i)
       p3.once('dialog', d => d.accept()); await p3.locator('.pf-block').dispatchEvent('click');
       await p3.waitForURL(u => new URL(u).pathname === '/', { timeout: 10000 });
       await p3.goto(base + '/configuracoes/'); await p3.locator('.set-people button:has-text("Desbloquear")').waitFor();

@@ -6,7 +6,7 @@ const sources = [
     title: 'Implantação IAra v1.0 · documento de 05/11/2026',
     revised: '2026-11-05',
     terms: ['iara', 'assistente de conteudo', 'pedido de card'],
-    answer: 'A IAra organiza pedidos de conteúdo e operação do Etnias. Na área IAra você descreve o pedido, recebe um protocolo com triagem inicial e pode baixar o briefing ou cancelar. O pedido fica privado para a sua conta, aguardando encaminhamento humano. Essa recepção ainda não envia tarefas ao Hermes nem produz ou publica peças. Instagram, LinkedIn e notificações externas aguardam configuração. A EtnIA continua orientando sobre o site e a Casa Opy.'
+    answer: 'A IAra organiza pedidos de conteúdo e operação do Etnias. Na área IAra você descreve o pedido, recebe um protocolo com triagem inicial e pode baixar o briefing ou cancelar. O pedido fica privado para a sua conta, aguardando encaminhamento humano. Essa recepção ainda não envia tarefas ao Hermes nem produz ou publica peças. Instagram, LinkedIn e notificações externas aguardam configuração. A EtnIA continua orientando sobre o site e o Etnias.'
   },
   {
     id: 'publicar',
@@ -17,21 +17,21 @@ const sources = [
   },
   {
     id: 'casa-opy',
-    title: 'O que é a Casa Opy',
+    title: 'O que é o Etnias',
     revised,
-    terms: ['casa opy', 'o que e a casa', 'o que e opy', 'aldeia digital', 'projeto opy'],
-    answer: 'A Casa Opy é a atualização da navegação do Etnias, pensada como aldeia digital: convivência, conhecimento, cultura e participação. Nesta prévia funcionam a entrada, o feed com acervo autorizado e as interações de homologação. Cursos, pagamentos e serviços que o projeto só descreve como proposta não estão em funcionamento.'
+    terms: ['o que e o etnias', 'o que e etnias', 'etnias 2', 'casa opy', 'o que e a casa', 'o que e opy', 'aldeia digital', 'projeto opy'],
+    answer: 'O Etnias 2.0 é a nova versão da rede Etnias, pensada como aldeia digital: convivência, conhecimento, cultura e participação. Nesta prévia funcionam a entrada, o feed com acervo autorizado e as interações de homologação. Cursos, pagamentos e serviços que o projeto só descreve como proposta não estão em funcionamento.'
   },
   {
     id: 'conta',
     title: 'Como entrar na prévia',
     revised,
     terms: ['criar conta', 'minha senha', 'usuario e senha', 'entrar na casa', 'cadastro', 'conta antiga', 'senha antiga', 'contas antigas'],
-    answer: 'Não há usuário compartilhado. Em Entre na Casa Opy, toque em Criar conta e preencha nome, usuário, chave Google (o e-mail da conta Google), telefone com DDD e senha, com no mínimo 8 caracteres. Chave Google e telefone são obrigatórios. Na volta, use Entrar. As contas antigas do Etnias não entram por esta prévia.'
+    answer: 'Não há usuário compartilhado. Em Entre no Etnias, toque em Criar conta e preencha nome, usuário, chave Google (o e-mail da conta Google), telefone com DDD e senha, com no mínimo 8 caracteres. Chave Google e telefone são obrigatórios. Na volta, use Entrar. As contas antigas do Etnias não entram por esta prévia.'
   },
   {
     id: 'caminhos',
-    title: 'Caminhos da Casa Opy',
+    title: 'Caminhos do Etnias',
     revised: '2026-11-07',
     terms: ['barra inferior', 'maraca', 'menu lateral', 'onde fica o chat', 'notificacoes'],
     answer: 'O feed é a casa. A barra de baixo traz Feed, Mercado, Postagem, Saberes e EtnIA. Opy abre o menu lateral. Chat e Maracá ficam no cabeçalho: o Chat reúne suas conversas privadas e grupos por convite, e o Maracá mostra reações e comentários nas suas publicações.'
@@ -69,7 +69,7 @@ const sources = [
     title: 'O que a EtnIA responde',
     revised,
     terms: ['quem e voce', 'o que voce pode', 'o que voce sabe', 'para que serve a etnia', 'o que a etnia'],
-    answer: 'Eu oriento sobre o uso do Etnias e sobre a Casa Opy, com o material aprovado desta prévia. Não represento um povo, não sou liderança e não completo lacuna de rito, história ou conhecimento sem fonte autorizada. Quando o material não alcança a pergunta, eu digo isso.'
+    answer: 'Eu oriento sobre o uso do Etnias, com o material aprovado desta prévia. Não represento um povo, não sou liderança e não completo lacuna de rito, história ou conhecimento sem fonte autorizada. Quando o material não alcança a pergunta, eu digo isso.'
   },
   {
     id: 'interagir',
@@ -90,7 +90,7 @@ const sources = [
     title: 'O que esta prévia faz',
     revised: '2026-11-07',
     terms: ['etnias.site', 'site oficial', 'esta previa', 'homologacao', 'o que funciona', 'o que ja funciona'],
-    answer: 'Esta é a prévia de homologação da Casa Opy. Ela não altera o domínio etnias.site nem o banco antigo. Dá para criar uma conta daqui, ver o acervo autorizado, publicar, reagir, comentar, salvar e conversar em privado pelo Chat. Saberes, Guardião, fotógrafos, música e doação são protótipos de tela, não serviços concluídos.'
+    answer: 'Esta é a prévia de homologação do Etnias. Ela não altera o domínio etnias.site nem o banco antigo. Dá para criar uma conta daqui, ver o acervo autorizado, publicar, reagir, comentar, salvar e conversar em privado pelo Chat. Saberes, Guardião, fotógrafos, música e doação são protótipos de tela, não serviços concluídos.'
   },
   {
     id: 'revisao',
@@ -128,10 +128,10 @@ export function answerEtnia(question, earlier = '') {
   const prior = fold(earlier);
   if (!normalized) return refusal('unknown', 'Escreva a pergunta para eu procurar no material desta prévia.');
   if (/ignore as regras|finja que|voce agora|prompt do sistema|revela (o|a) instruc/.test(normalized)) {
-    return refusal('policy', 'Eu mantenho as regras desta conversa. Posso orientar sobre o Etnias e a Casa Opy com o material aprovado desta prévia, e não amplio isso por um pedido na mensagem.');
+    return refusal('policy', 'Eu mantenho as regras desta conversa. Posso orientar sobre o Etnias com o material aprovado desta prévia, e não amplio isso por um pedido na mensagem.');
   }
   if (/\b(rito|ritos|ritual|pajelanca|reza|rezar|canto sagrado|ayahuasca|daime|conhecimento restrito|conhecimento sagrado|medicina tradicional)\b/.test(normalized)) {
-    return refusal('restricted', 'Não trato de rito, reza ou conhecimento restrito de um povo. Não há fonte autorizada para isso nesta prévia, e eu não completo essa lacuna. Posso orientar sobre o uso do Etnias e da Casa Opy.');
+    return refusal('restricted', 'Não trato de rito, reza ou conhecimento restrito de um povo. Não há fonte autorizada para isso nesta prévia, e eu não completo essa lacuna. Posso orientar sobre o uso do Etnias e do Etnias.');
   }
   const found = best(normalized);
   if (found && found.score >= 2) return reply(found.source);
@@ -141,7 +141,7 @@ export function answerEtnia(question, earlier = '') {
     const fromEarlier = best(prior);
     if (fromEarlier && fromEarlier.score >= 2) return reply(fromEarlier.source);
   }
-  return refusal('unknown', 'Não encontrei informação suficiente no material aprovado desta prévia, então não vou improvisar. Posso orientar, por exemplo, sobre como publicar, o que é a Casa Opy e o que já funciona aqui.');
+  return refusal('unknown', 'Não encontrei informação suficiente no material aprovado desta prévia, então não vou improvisar. Posso orientar, por exemplo, sobre como publicar, o que é o Etnias e o que já funciona aqui.');
 }
 
 export function etniaSourceIds() {

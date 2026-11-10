@@ -43,7 +43,7 @@ async function api(cookie, body) {
       await page.locator('#opy-menu[open]').waitFor();
       assert.equal(await page.getAttribute('.opy-house', 'aria-expanded'), 'true');
       const text = await page.locator('#opy-menu').textContent();
-      for (const t of ['Encontre seu caminho no Etnias', 'Opy', 'Saberes', 'Conexão', 'Comunidades', 'Páginas', 'Blogs', 'Mercado', 'Eventos', 'Filmes', 'Músicas', 'Empregos', 'Coleta', 'Sobre', 'Sair', 'Comunidade ou aldeia']) assert.ok(text.includes(t), 'item ' + t);
+      for (const t of ['Encontre seu caminho no Etnias', 'Início', 'Saberes', 'Conexão', 'Comunidades', 'Páginas', 'Blogs', 'Mercado', 'Eventos', 'Filmes', 'Músicas', 'Empregos', 'Coleta', 'Sobre', 'Sair', 'Comunidade ou aldeia']) assert.ok(text.includes(t), 'item ' + t);
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('#opy-menu').open);
       assert.equal(await page.getAttribute('.opy-house', 'aria-expanded'), 'false');

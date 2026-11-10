@@ -1,5 +1,5 @@
 ---
-name: Etnias — Casa Opy
+name: Etnias
 description: Shared navigation and composer extension for the existing Etnias social application.
 colors:
   opy-red: "#bd171c"
@@ -100,13 +100,13 @@ components:
     width: "440px"
 ---
 
-# Design System: Etnias — Casa Opy
+# Design System: Etnias
 
 ## Overview
 
-**Creative North Star: "Casa Opy"**
+**Creative North Star: "Etnias"**
 
-Casa Opy organizes an existing community application through the supplied Etnias identity: red emphasis, light surfaces and readable navigation. The material is a practical social interface with compact controls, modest corners and a clear hierarchy. It represents a living, contemporary community without adding unverified cultural ornament.
+Etnias organizes an existing community application through the supplied Etnias identity: red emphasis, light surfaces and readable navigation. The material is a practical social interface with compact controls, modest corners and a clear hierarchy. It represents a living, contemporary community without adding unverified cultural ornament.
 
 This record covers the shared Opy layer in `public_html/assets/opy/opy.css`, `opy.js`, `bootstrap.php` and `views/*.php`, as integrated into Sunshine and WoWonder. It does not establish a replacement identity or a system for vendor feed cards, stories, avatars, advertisements, publisher widget interiors or dropdown contents. Those retain theme rules except for the explicit Opy overrides described here. The brand image is the optimized existing Sunshine logo; no new authorship or cultural provenance is asserted.
 

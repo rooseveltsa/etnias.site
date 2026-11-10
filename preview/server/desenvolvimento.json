@@ -1,6 +1,6 @@
 {
  "atualizadoEm": "2026-11-08",
- "nota": "Prestação de contas do desenvolvimento da plataforma Etnias (Casa Opy). Mantido no código (preview/server/desenvolvimento.json) e atualizado a cada entrega. Visível só para quem administra.",
+ "nota": "Prestação de contas do desenvolvimento da plataforma Etnias. Mantido no código (preview/server/desenvolvimento.json) e atualizado a cada entrega. Visível só para quem administra.",
  "contrato": {
   "titulo": "Contrato de Prestação de Serviços Técnicos Especializados de Engenharia de Software",
   "contratante": "ETNIAS.SITE LTDA (CNPJ 62.583.352/0001-74), por Eliaquim Camilo Francisco",
@@ -66,7 +66,7 @@
   {
    "item": "Plataforma Etnias: arquitetura, backend e frontend, autenticação, usuários, perfis, publicação e feed interativo",
    "status": "entregue",
-   "evidencia": "Casa Opy em produção em https://etnias.site desde 2026-11-07, com o acervo e as contas do Etnias antigo integrados em 2026-11-08 (7.418 contas, 6.647 publicações, 13 GB de mídia). Feed paginado, perfis com foto e capa, reações, comentários em conversa, repost, enquetes, stories.",
+   "evidencia": "Etnias em produção em https://etnias.site desde 2026-11-07, com o acervo e as contas do Etnias antigo integrados em 2026-11-08 (7.418 contas, 6.647 publicações, 13 GB de mídia). Feed paginado, perfis com foto e capa, reações, comentários em conversa, repost, enquetes, stories.",
    "falta": ""
   },
   {
@@ -120,7 +120,7 @@
   },
   {
    "data": "2026-11-07",
-   "titulo": "Casa Opy: rede social completa",
+   "titulo": "Etnias: rede social completa",
    "detalhe": "Feed, perfis, compositor, comentários, comunidades, chat privado (Direct com solicitações), chamadas WebRTC com TURN próprio, stories, Centro de gestão, traduções (en/es e línguas indígenas pela comunidade), revisão de design e auditoria de usabilidade."
   },
   {
@@ -130,7 +130,7 @@
   },
   {
    "data": "2026-11-08",
-   "titulo": "Rede viva — Fase 1: legado dentro da Casa Opy",
+   "titulo": "Rede viva — Fase 1: legado dentro do Etnias",
    "detalhe": "Importação idempotente do Etnias antigo: contas (com senha original), publicações, comentários, reações, grupos, relações; mídia referenciada copiada para a VPS (13 GB). Contas em conflito vinculadas por decisão da contratante."
   },
   {
@@ -186,7 +186,7 @@
   {
    "data": "2026-11-09",
    "titulo": "Cabeçalho global — casa OPY, pesquisa central, Mensagens, Maracá, perfil e Recursos numa linha",
-   "detalhe": "Barra em uma única linha em todas as larguras (celular 116→56 px, desktop 80→64 px; o feed ganha 60 px no celular). Casa OPY ao lado da marca abre o menu 'Encontre seu caminho no Etnias' (agora com Sair); áreas ainda sem servidor (Páginas, Blogs, Mercado, Eventos, Filmes, Empregos, Coletas) passam a mostrar 'Em breve' em vez de página de enfeite. Pesquisa central com sugestões reais, limpar, teclado e termo preservado; no celular vira ícone que abre sobre a barra. Badges sobre os ícones (99+), zerando ao ler; 'Seguir de volta' no Maracá. Menu pessoal com Meu perfil, Editar perfil, Configurações, Privacidade, Segurança, Verificação, Trocar de conta e Sair. Botão Recursos com criar publicação/story/live/comunidade, Interatividade, tema escuro e, só para a equipe, Centro de gestão e Traduções. Validação: tests/opy/header-browser.cjs (12 jornadas em 1440, 390 e 320 px) e tests/opy/header-measure.cjs (7 larguras)."
+   "detalhe": "Barra em uma única linha em todas as larguras (celular 116→56 px, desktop 80→64 px; o feed ganha 60 px no celular). Etnias ao lado da marca abre o menu 'Encontre seu caminho no Etnias' (agora com Sair); áreas ainda sem servidor (Páginas, Blogs, Mercado, Eventos, Filmes, Empregos, Coletas) passam a mostrar 'Em breve' em vez de página de enfeite. Pesquisa central com sugestões reais, limpar, teclado e termo preservado; no celular vira ícone que abre sobre a barra. Badges sobre os ícones (99+), zerando ao ler; 'Seguir de volta' no Maracá. Menu pessoal com Meu perfil, Editar perfil, Configurações, Privacidade, Segurança, Verificação, Trocar de conta e Sair. Botão Recursos com criar publicação/story/live/comunidade, Interatividade, tema escuro e, só para a equipe, Centro de gestão e Traduções. Validação: tests/opy/header-browser.cjs (12 jornadas em 1440, 390 e 320 px) e tests/opy/header-measure.cjs (7 larguras)."
   },
   {
    "data": "2026-11-09",
@@ -336,7 +336,7 @@
  "infra": [
   {
    "item": "VPS Hostinger srv2135798 (179.66.136.125), 4 CPU, 16 GB, 193 GB",
-   "detalhe": "Produção: Casa Opy (Docker), TURN, servidor de live, e o sistema antigo ao lado. Uso atual: ~1,4 GB de memória e 14 GB de disco.",
+   "detalhe": "Produção: Etnias (Docker), TURN, servidor de live, e o sistema antigo ao lado. Uso atual: ~1,4 GB de memória e 14 GB de disco.",
    "custo": "Já contratada pela contratante"
   },
   {
@@ -423,7 +423,7 @@
   },
   {
    "item": "Chave do backup",
-   "estado": "Na VPS (/root/.casa-opy) e nas Senhas do Mac da contratada ('Casa Opy - chave do backup'). Recomendado: cópia em cofre da contratante."
+   "estado": "Na VPS (/root/.casa-opy) e nas Senhas do Mac da contratada ('Etnias - chave do backup'). Recomendado: cópia em cofre da contratante."
   },
   {
    "item": "Vercel",

@@ -1,7 +1,7 @@
 import { verifySession } from './server/session.mjs';
 
 /**
- * Casa Opy opens on the welcome screen. A signed account cookie may open the app.
+ * Etnias opens on the welcome screen. A signed account cookie may open the app.
  * Creating an account and signing in happen on /api/community. There is no shared browser password.
  */
 export const config = { matcher: '/:path*' };

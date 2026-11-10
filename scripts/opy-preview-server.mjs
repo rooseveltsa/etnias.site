@@ -106,4 +106,4 @@ http.createServer(async (req, res) => {
 }).on('error', error => {
   console.error(error.code === 'EADDRINUSE' ? `A porta ${port} está ocupada. Feche a outra prévia ou use PORT=8102 node scripts/dev-opy.mjs.` : error.message);
   process.exitCode = 1;
-}).listen(port, host, () => console.log(`Casa Opy ouvindo em http://${host}:${port}`));
+}).listen(port, host, () => console.log(`Etnias ouvindo em http://${host}:${port}`));

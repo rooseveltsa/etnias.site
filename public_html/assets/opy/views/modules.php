@@ -10,7 +10,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
     <header class="opy-module-header">
         <span class="opy-module-badge"><?php echo Etnias_OpyIcon('saberes'); ?><span>Homologação · Educação e Formação</span></span>
         <h1 id="opy-module-title">Saberes e Trilhas de Conhecimento</h1>
-        <p>Espaço da Casa Opy dedicado a cursos comunitários, oficinas, Área do Aluno e conteúdos OnDemand. Nesta etapa de homologação você pode experimentar a inscrição nas trilhas formativas e enviar propostas de cursos ou materiais para a curadoria da equipe.</p>
+        <p>Espaço do Etnias dedicado a cursos comunitários, oficinas, Área do Aluno e conteúdos OnDemand. Nesta etapa de homologação você pode experimentar a inscrição nas trilhas formativas e enviar propostas de cursos ou materiais para a curadoria da equipe.</p>
     </header>
 
     <div class="opy-module-Callout" role="note">
@@ -30,7 +30,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
             <ul class="opy-module-list">
                 <li>Módulo 1: Ética da imagem, autoria coletiva e protocolos de consentimento</li>
                 <li>Módulo 2: Captação em campo com celular, áudio e edição acessível</li>
-                <li>Módulo 3: Gestão de acervos comunitários e circulação na Casa Opy</li>
+                <li>Módulo 3: Gestão de acervos comunitários e circulação no Etnias</li>
             </ul>
             <div class="opy-module-actions">
                 <button type="button" class="opy-secondary-btn" data-saber-enroll="saberes-comunicacao" aria-pressed="false">Inscrever-se na trilha</button>
@@ -117,7 +117,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
     <header class="opy-module-header">
         <span class="opy-module-badge"><?php echo Etnias_OpyIcon('guardiao'); ?><span>Homologação · Monitoramento Socioambiental</span></span>
         <h1 id="opy-module-title">Guardião da Floresta</h1>
-        <p>Ferramenta em homologação para estruturar o registro de ocorrências territoriais, ambientais e iniciativas de proteção comunitária na Casa Opy.</p>
+        <p>Ferramenta em homologação para estruturar o registro de ocorrências territoriais, ambientais e iniciativas de proteção comunitária no Etnias.</p>
     </header>
 
     <div class="opy-module-alert" role="region" aria-label="Aviso importante sobre emergências">
@@ -269,7 +269,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
 <section class="opy-module" data-opy-module="musica" aria-labelledby="opy-module-title">
     <header class="opy-module-header">
         <span class="opy-module-badge"><?php echo Etnias_OpyIcon('musica'); ?><span>Homologação · Sonoridades e Créditos Culturais</span></span>
-        <h1 id="opy-module-title">Catálogo Musical da Casa Opy</h1>
+        <h1 id="opy-module-title">Catálogo Musical do Etnias</h1>
         <p>Espaço dedicado a cantos autorizados para difusão pública, música indígena contemporânea (rap, hip-hop, MPB, experimental), paisagens sonoras e fichas técnicas com créditos culturais completos. Para compartilhar uma gravação rápida na conversa diária, você também pode usar o botão Áudio no compositor do feed.</p>
     </header>
 
@@ -281,9 +281,9 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
                 <span class="opy-module-meta" data-music-count="canto-alvorada">Apoios na sessão</span>
             </div>
             <h3>Frequências da Alvorada (Amostra Técnica)</h3>
-            <p>Demonstração do reprodutor de áudio da Casa Opy com ficha catalográfica, verificação de autoria, língua e licença comunitária.</p>
+            <p>Demonstração do reprodutor de áudio do Etnias com ficha catalográfica, verificação de autoria, língua e licença comunitária.</p>
             <dl class="opy-module-dl">
-                <div><dt>Intérprete / Coletivo</dt><dd>Laboratório Sonoro Casa Opy</dd></div>
+                <div><dt>Intérprete / Coletivo</dt><dd>Laboratório Sonoro Etnias</dd></div>
                 <div><dt>Contexto e Direitos</dt><dd>Áudio sintético de homologação · Uso livre para teste de player</dd></div>
             </dl>
             <div class="opy-module-actions">
@@ -329,7 +329,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
 
     <section class="opy-module-form-section" aria-labelledby="opy-musica-form-title">
         <h2 id="opy-musica-form-title">Cadastrar artista, canto ou faixa para o catálogo</h2>
-        <p>Músicos, intérpretes e coletivos culturais podem submeter a ficha técnica de suas obras para compor o acervo musical da Casa Opy.</p>
+        <p>Músicos, intérpretes e coletivos culturais podem submeter a ficha técnica de suas obras para compor o acervo musical do Etnias.</p>
         <form class="opy-module-form" data-opy-module-form="musica">
             <div class="opy-form-row">
                 <label for="musica-category">Gênero ou expressão sonora
@@ -371,7 +371,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
     <header class="opy-module-header">
         <span class="opy-module-badge"><?php echo Etnias_OpyIcon('heart'); ?><span>Homologação · Apoio Institucional</span></span>
         <h1 id="opy-module-title">Doe para o Etnias</h1>
-        <p>Canal institucional dedicado à sustentabilidade da Casa Opy, formação em tecnologia e comunicação comunitária e fortalecimento de projetos dos povos originários. Este espaço é distinto das campanhas individuais da área Coletas.</p>
+        <p>Canal institucional dedicado à sustentabilidade do Etnias, formação em tecnologia e comunicação comunitária e fortalecimento de projetos dos povos originários. Este espaço é distinto das campanhas individuais da área Coletas.</p>
     </header>
 
     <div class="opy-module-Callout" role="note">
@@ -383,7 +383,7 @@ $opyHomeUrl = !empty($wo['config']['site_url']) ? Etnias_OpyUrl('home') : '/inde
     <div class="opy-module-grid">
         <article class="opy-module-card">
             <span class="opy-module-tag">Infraestrutura Digital</span>
-            <h3>Manutenção da Casa Opy e Acervo</h3>
+            <h3>Manutenção do Etnias e Acervo</h3>
             <p>Servidores seguros, armazenamento de mídias da comunidade, desenvolvimento contínuo de acessibilidade e proteção dos dados coletivos.</p>
         </article>
         <article class="opy-module-card">

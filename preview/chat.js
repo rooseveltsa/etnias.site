@@ -152,7 +152,7 @@ function paintContext() {
  closeBtn.id='chat-context-close';
  panel.append(head);
  if(selected.bio||selected.description)panel.append(node('p',selected.bio||selected.description,'chat-context-bio'));
- panel.append(node('p',selected.group?'Grupo privado com convite. Mensagens anteriores à sua entrada não são exibidas.':'Conversa direta privada entre contas autenticadas da Casa Opy.','chat-context-note'));
+ panel.append(node('p',selected.group?'Grupo privado com convite. Mensagens anteriores à sua entrada não são exibidas.':'Conversa direta privada entre contas autenticadas do Etnias.','chat-context-note'));
  if(selected.group&&selected.members?.length){
   const sec=node('section',undefined,'chat-context-section');
   sec.append(node('h4','Participantes ('+selected.members.length+')'));
