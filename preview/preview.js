@@ -323,7 +323,7 @@ function renderPost(post, communityContext=null){
  const total=reacted.reduce((sum,[id])=>sum+post.reactions[id],0);
  const sharesCount=post.shares||0;
  const form=make('form',undefined,'preview-comment-form');form.hidden=!openCommentForms.has(post.id);form.id='comment-'+post.id;
- const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário (até 500 caracteres)';input.setAttribute('aria-label','Seu comentário');
+ const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário…';input.setAttribute('aria-label','Seu comentário');
  const charCount=make('small','0/500','comment-char-count');charCount.hidden=true;
  input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';charCount.hidden=input.value.length<400;});
  // Campo no padrão das redes: pílula larga com o texto; emoji e enviar (seta) ficam dentro dela; enviar só acende com texto.
@@ -1842,16 +1842,24 @@ function offerInstall(){
   steps.hidden=true;
   steps.textContent='No iPhone, o site não abre a instalação. Na barra do Safari: Compartilhar, Adicionar à Tela de Início, Adicionar.';
   const hide=()=>{bar.remove();document.body.classList.remove('has-install');};
+  const panel=document.querySelector('.welcome-panel');
+  // Dentro da rede a faixa pode ser fechada e some por 30 dias; na tela de entrada ela fica.
+  const closedKey='opy-install-fechado';
+  if(!panel){try{if(Date.now()-Number(localStorage.getItem(closedKey)||0)<30*864e5)return;}catch{}}
+  const close=make('button','✕','install-close');
+  close.type='button';
+  close.setAttribute('aria-label','Fechar');
+  close.addEventListener('click',()=>{try{localStorage.setItem(closedKey,String(Date.now()));}catch{}hide();});
   const mount=()=>{
     apk.className=(deferred?'preview-secondary':'opy-primary')+' install-apk';
-    bar.replaceChildren(mark,...(deferred||ios?[install]:[]),...(android?[apk]:[]),steps);
+    bar.replaceChildren(mark,...(deferred||ios?[install]:[]),...(android?[apk]:[]),...(panel?[]:[close]),steps);
     document.body.classList.add('has-install');
     if(!bar.isConnected){
-      const panel=document.querySelector('.welcome-panel');
       const notice=document.querySelector('.preview-notice');
       if(panel)panel.prepend(bar);
       else if(notice)notice.insertAdjacentElement('afterend',bar);
-      else document.body.prepend(bar);
+      // Dentro do conteúdo: o cabeçalho continua no topo e os menus fixos não cobrem a faixa.
+      else (document.querySelector('#conteudo')||document.body).prepend(bar);
     }
   };
   install.addEventListener('click',async()=>{

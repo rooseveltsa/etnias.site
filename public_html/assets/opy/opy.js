@@ -239,16 +239,21 @@
         }
         return node.isContentEditable === true;
     }
+    var baseHeight = 0, baseWidth = 0;
     function viewportChange() {
         var viewport = window.visualViewport;
-        var shrunk = !!(viewport && window.innerHeight - viewport.height > 160);
-        document.body.classList.toggle('opy-keyboard-open', typingField(document.activeElement) && shrunk);
+        // O WebView do Android encolhe a própria janela com o teclado: compara com a maior altura já vista nesta largura.
+        if (window.innerWidth !== baseWidth) { baseWidth = window.innerWidth; baseHeight = 0; }
+        baseHeight = Math.max(baseHeight, window.innerHeight);
+        var visible = viewport ? Math.min(viewport.height, window.innerHeight) : window.innerHeight;
+        document.body.classList.toggle('opy-keyboard-open', typingField(document.activeElement) && baseHeight - visible > 160);
     }
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', viewportChange);
         window.visualViewport.addEventListener('scroll', viewportChange);
     }
     document.addEventListener('focusin', viewportChange);
+    window.addEventListener('resize', viewportChange);
     document.addEventListener('focusout', function () { window.setTimeout(viewportChange, 80); });
 
     var activeAudio = null;

@@ -46,6 +46,11 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   assert.equal(await pa.locator('#chat-workspace').getAttribute('data-mobile-view'),'list');
   await pa.locator('#chat-list .chat-person-btn').first().click();
   assert.equal(await pa.locator('#chat-workspace').getAttribute('data-mobile-view'),'thread');
+  // O voltar do aparelho fecha a conversa e mostra a lista, sem sair do chat
+  await pa.goBack();
+  assert.equal(await pa.locator('#chat-workspace').getAttribute('data-mobile-view'),'list');
+  await pa.locator('#chat-list .chat-person-btn').first().click();
+  assert.equal(await pa.locator('#chat-workspace').getAttribute('data-mobile-view'),'thread');
 
   for(const width of [320,390,768,1440]){
    await pa.setViewportSize({width,height:900});
@@ -82,10 +87,12 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   // 3. Composer reconstruído, diagnóstico honesto de Live e publicação com foto
   await pa.goto(base+'/');
   await pa.locator('#compose-tab-live').click();
-  await pa.locator('#compose-live').getByText('Sua live, direto do aparelho').waitFor();
+  // Live abre na tela Criar em tela cheia
+  await pa.locator('#opy-creator[open]').waitFor();
+  await pa.locator('#creator-close').click();
   await pa.locator('#compose-tab-photo').click();
   await pa.locator('#publisher-photo').setInputFiles({name:'foto-qa.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6UVsAAAAASUVORK5CYII=','base64')});
-  await pa.locator('#photo-slot img.compose-slot-preview').waitFor();
+  await pa.locator('#photo-slot .compose-thumb img').waitFor();
   await pa.locator('#preview-text').fill('Publicação com foto do novo composer');
   await pa.locator('#opy-compose button[type="submit"]').click();
   await pa.locator('#preview-feed .community-post').filter({hasText:'Publicação com foto do novo composer'}).waitFor();

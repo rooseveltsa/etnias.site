@@ -7,6 +7,7 @@
                 <span class="opy-logo-crop"><img src="<?php echo Etnias_OpyEscape(Etnias_OpyAsset('etnias-logo.png')); ?>" alt="" width="150" height="40"></span>
                 <svg class="opy-brand-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
+            <?php if (function_exists('Etnias_OpyToolsMenu')) { echo Etnias_OpyToolsMenu(); } ?>
         </div>
         <form class="opy-search" id="opy-search" action="<?php echo Etnias_OpyEscape(rtrim($wo['config']['site_url'], '/') . '/index.php'); ?>" method="get" role="search" autocomplete="off">
             <input type="hidden" name="link1" value="search">
@@ -14,10 +15,10 @@
             <label class="opy-sr-only" for="opy-search-query">Pesquisar no Etnias</label>
             <input id="opy-search-query" type="search" name="query" placeholder="Pesquisar pessoas e publicações" maxlength="200" enterkeyhint="search" aria-controls="opy-search-results" aria-autocomplete="list" value="<?php echo Etnias_OpyEscape(isset($_GET['query']) && is_string($_GET['query']) ? $_GET['query'] : ''); ?>">
             <button type="button" class="opy-search-clear" aria-label="Limpar pesquisa" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-            <button type="submit" class="opy-search-submit" aria-label="Pesquisar"><?php echo Etnias_OpyIcon('pesquisar'); ?></button>
+            <button type="submit" class="opy-search-submit" aria-label="Pesquisar"><?php echo Etnias_OpyIcon('search'); ?></button>
             <div id="opy-search-results" class="opy-search-results" role="listbox" aria-label="Sugestões de pesquisa" hidden></div>
         </form>
-        <button type="button" class="opy-search-open" aria-label="Pesquisar" aria-controls="opy-search" aria-expanded="false"><?php echo Etnias_OpyIcon('pesquisar'); ?></button>
+        <button type="button" class="opy-search-open" aria-label="Pesquisar" aria-controls="opy-search" aria-expanded="false"><?php echo Etnias_OpyIcon('search'); ?></button>
         <div class="opy-member-controls">
             <?php
             // Preserve the vendor's account, chat, requests and notification handlers.

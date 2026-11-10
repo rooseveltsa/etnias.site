@@ -41,8 +41,10 @@ $chatIcon = function ($name) {
    <button type="button" id="chat-older" class="chat-older" hidden>Carregar mensagens anteriores</button>
    <div id="chat-log" role="log" aria-label="Mensagens" aria-live="polite" tabindex="0"><p class="chat-empty">Escolha uma pessoa ou crie um grupo.</p></div>
    <div id="chat-notice" class="chat-notice" hidden><p id="chat-notice-text"></p><div id="chat-notice-actions"></div></div>
+   <p id="chat-status" role="status">Conectando…</p><div id="chat-retry"></div>
    <form id="chat-form" hidden>
     <div id="chat-reply"></div><p id="chat-attachment"></p>
+    <div id="chat-recording" class="chat-recording" hidden><span class="chat-rec-dot" aria-hidden="true"></span><span id="chat-rec-time" class="chat-rec-time" role="timer">0:00</span><span class="chat-rec-label">Gravando</span><button type="button" id="chat-rec-cancel" class="chat-rec-cancel">Cancelar</button></div>
     <div class="chat-compose-row">
      <button id="chat-plus" type="button" class="chat-icon-btn" aria-label="Anexar" aria-haspopup="dialog" aria-controls="chat-sheet"><?php echo $chatIcon('plus'); ?></button>
      <div class="chat-input-pill">
@@ -53,7 +55,6 @@ $chatIcon = function ($name) {
     </div>
     <input id="chat-file" type="file" hidden>
    </form>
-   <p id="chat-status" role="status">Conectando…</p><div id="chat-retry"></div>
   </section>
   <aside id="chat-context" class="chat-context" aria-label="Informações da conversa" hidden></aside>
  </div>
@@ -69,5 +70,5 @@ $chatIcon = function ($name) {
   <p class="chat-hint">Até 2 MB por anexo. Áudio e vídeo só carregam quando você toca.</p>
   <form method="dialog"><button class="preview-secondary chat-sheet-close">Fechar</button></form>
  </dialog>
- <dialog id="chat-dialog" aria-labelledby="chat-dialog-title"><form method="dialog"><button class="preview-secondary">Fechar</button></form><h2 id="chat-dialog-title"></h2><div id="chat-dialog-body"></div></dialog>
+ <dialog id="chat-dialog" aria-labelledby="chat-dialog-title"><header class="chat-dialog-head"><h2 id="chat-dialog-title"></h2><form method="dialog"><button class="chat-icon-btn" aria-label="Fechar" title="Fechar"><?php echo $chatIcon('close'); ?></button></form></header><div id="chat-dialog-body"></div><p id="chat-dialog-error" class="chat-dialog-error" role="alert"></p></dialog>
 </section>

@@ -33,7 +33,7 @@ async function api(cookie, body) {
       const centers = [r.brand, r.search, r.chat, r.maraca, r.avatar, r.tools].map(b => b.cy);
       assert.equal(await page.evaluate(() => document.querySelector('.opy-brand')?.matches('button[data-opy-open="opy-menu"]')), true, 'o logo da casa é o botão do menu OPY');
       assert.ok(Math.max(...centers) - Math.min(...centers) < 8, 'tudo alinhado na mesma linha');
-      assert.ok(r.brand.x < r.search.x && r.search.x + r.search.w < r.chat.x && r.chat.x < r.maraca.x && r.maraca.x < r.avatar.x && r.avatar.x < r.tools.x, 'ordem: logo OPY, pesquisa, chat, maracá, perfil, recursos');
+      assert.ok(r.brand.x < r.tools.x && r.tools.x + r.tools.w <= r.search.x && r.search.x + r.search.w < r.chat.x && r.chat.x < r.maraca.x && r.maraca.x < r.avatar.x, 'ordem: logo OPY, recursos, pesquisa, chat, maracá, perfil');
       const searchCenter = r.search.x + r.search.w / 2; assert.ok(Math.abs(searchCenter - r.vw / 2) < r.vw * 0.12, 'pesquisa centralizada');
       assert.equal(await page.locator('.opy-control-label:visible').count(), 0, 'sem textos ao lado dos ícones');
     });

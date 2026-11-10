@@ -4,11 +4,11 @@ $opyItems = Etnias_OpyItems();
 $opyConfig = Etnias_OpyConfig();
 ?>
 <nav class="opy-bottom" aria-label="Ações frequentes">
-    <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>" data-opy-feed aria-label="Voltar ao feed e atualizar"><?php echo Etnias_OpyIcon('feed'); ?><span>Feed</span></a>
-    <?php $opyGruposBarra = $opyItems['grupos']; $opyGruposBarra['label'] = 'Comunidades'; echo Etnias_OpyItem('grupos', $opyGruposBarra); ?>
-    <a class="opy-nav-item opy-create" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>#opy-compose" data-opy-compose><?php echo Etnias_OpyIcon('postagem'); ?><span>Postagem</span></a>
-    <?php $opySaberesBarra = $opyItems['saberes']; $opySaberesBarra['icon'] = 'saberes-barra'; echo Etnias_OpyItem('saberes', $opySaberesBarra); ?>
-    <?php echo Etnias_OpyItem('etnia', $opyItems['etnia']); ?>
+    <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>" data-opy-feed aria-label="Voltar ao feed e atualizar"><?php echo Etnias_OpyIcon('home'); ?><span>Feed</span></a>
+    <?php $opyGruposBarra = $opyItems['grupos']; $opyGruposBarra['label'] = 'Comunidades'; $opyGruposBarra['icon'] = 'people'; echo Etnias_OpyItem('grupos', $opyGruposBarra); ?>
+    <a class="opy-nav-item opy-create" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>#opy-compose" data-opy-compose><?php echo Etnias_OpyIcon('plus'); ?><span>Postagem</span></a>
+    <?php $opySaberesBarra = $opyItems['saberes']; $opySaberesBarra['icon'] = 'book'; echo Etnias_OpyItem('saberes', $opySaberesBarra); ?>
+    <?php $opyEtniaBarra = $opyItems['etnia']; $opyEtniaBarra['icon'] = 'intelligence'; echo Etnias_OpyItem('etnia', $opyEtniaBarra); ?>
 </nav>
 <dialog id="opy-menu" class="opy-dialog opy-drawer" aria-labelledby="opy-menu-title">
     <div class="opy-dialog-heading"><div><h2 id="opy-menu-title">Casa Opy</h2><p>Encontre seu caminho no Etnias.</p></div><button type="button" data-opy-close aria-label="Fechar Casa Opy"><?php echo Etnias_OpyIcon('close'); ?></button></div>

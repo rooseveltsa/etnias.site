@@ -90,8 +90,6 @@
 .opy-bottom .opy-nav-item[aria-current="page"] { background: #f6e3d9; color: var(--opy-red-hover); }
 .opy-bottom .opy-pending { position: absolute; top: 4px; right: 14px; width: 5px; height: 5px; }
 .opy-bottom .opy-soon { position: absolute; top: 2px; right: 4px; margin: 0; padding: 1px 5px; font-size: 9px; }
-.opy-bottom .opy-nav-item img.opy-picture { width: 36px; height: 36px; flex: 0 0 36px; }
-.opy-bottom .opy-create img.opy-picture { width: 40px; height: 40px; flex-basis: 40px; padding: 0; margin: 0; border-radius: 0; background: transparent; color: inherit; }
 .opy-dialog { color: var(--opy-ink); background: var(--opy-paper); width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); padding: 28px; border: 0; border-radius: 16px; box-shadow: 0 12px 60px #142a3433; overscroll-behavior: contain; font: inherit; }
 .opy-dialog::backdrop { background: #132b3c80; }
 .opy-dialog-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
@@ -149,8 +147,6 @@ body.opy-scroll-lock { position: fixed; left: 0; right: 0; width: 100%; overflow
     .opy-feed-intro { padding: 8px 2px 20px; }
     .opy-feed-heading { gap: 12px; }
     .opy-feed-heading img.opy-picture { width: 52px; height: 52px; flex-basis: 52px; }
-    .opy-bottom .opy-nav-item img.opy-picture { width: 32px; height: 32px; flex-basis: 32px; }
-    .opy-bottom .opy-create img.opy-picture { width: 36px; height: 36px; flex-basis: 36px; }
     .opy-feed-intro h1 { font-size: 26px; }
     .opy-feed-intro p { font-size: 13px; }
     .opy-enabled .opy-bottom { bottom: 0; left: 0; transform: none; width: 100%; gap: 4px; padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-radius: 0; box-shadow: 0 -4px 20px #182c3414; }
@@ -316,10 +312,8 @@ body.opy-scroll-lock { position: fixed; left: 0; right: 0; width: 100%; overflow
 .opy-search input::-webkit-search-cancel-button { display: none; }
 .opy-search > button { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--opy-muted); cursor: pointer; }
 .opy-search > button svg { width: 20px; height: 20px; }
-.opy-search > button img.opy-picture { width: 26px; height: 26px; flex-basis: 26px; }
 .opy-search-close { display: none !important; }
 .opy-search-open { display: none; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
-.opy-search-open img.opy-picture { width: 26px; height: 26px; flex-basis: 26px; }
 .opy-search-results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 70; max-height: min(70vh, 480px); overflow: auto; padding: 6px; border: 1px solid var(--opy-line); border-radius: 14px; background: var(--opy-paper); box-shadow: 0 12px 32px rgba(24, 44, 52, .16); }
 .opy-search-results a { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 10px; border-radius: 10px; color: var(--opy-ink); text-decoration: none; }
 .opy-search-results a:hover, .opy-search-results a[aria-selected="true"] { background: var(--opy-hover, #efe6da); }
@@ -442,9 +436,21 @@ body.opy-scroll-lock { position: fixed; left: 0; right: 0; width: 100%; overflow
     .opy-enabled { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
     .opy-enabled .opy-bottom { gap: 0; padding: 2px max(4px, env(safe-area-inset-right)) calc(2px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)); border-top: 1px solid var(--opy-line); box-shadow: none; transition: transform .25s ease; will-change: transform; }
     .opy-bottom .opy-nav-item { min-height: 50px; padding: 4px 2px; gap: 2px; font-size: 10px; border-radius: 10px; }
-    .opy-bottom .opy-nav-item img.opy-picture { width: 26px; height: 26px; flex-basis: 26px; }
-    .opy-bottom .opy-create img.opy-picture { width: 30px; height: 30px; flex-basis: 30px; }
     .opy-bottom .opy-soon { top: 0; right: 2px; font-size: 8px; padding: 0 4px; }
     body.opy-bar-hidden .opy-bottom { transform: translateY(calc(100% + 8px)); }
 }
 @media (prefers-reduced-motion: reduce) { .opy-enabled .opy-bottom { transition: none; } }
+/* Revisão mobile 2026-11: busca sem contorno retangular dentro da pílula. */
+.opy-enabled .opy-search input:focus-visible { outline: none; }
+.opy-enabled .opy-search:focus-within { border-color: var(--opy-focus); box-shadow: 0 0 0 2px var(--opy-focus); }
+/* Ícones planos nas duas barras (mesmo traço, mesmo tamanho) e Recursos ao lado do logo, antes da pesquisa. */
+.opy-topbar .opy-icon, .opy-bottom .opy-icon { stroke-width: 1.9; }
+.opy-search-open { color: var(--opy-ink); }
+.opy-search-open svg { width: 22px; height: 22px; }
+.opy-bottom .opy-nav-item svg.opy-icon { width: 24px; height: 24px; flex: 0 0 24px; }
+/* Postagem: o "+" numa pílula urucum, o único item preenchido da barra. */
+.opy-bottom .opy-create svg.opy-icon { box-sizing: border-box; width: 40px; height: 26px; flex: 0 0 26px; padding: 3px 10px; border-radius: 9px; background: var(--opy-red); color: #fff; stroke-width: 2.4; }
+.opy-topbar-start .opy-tools .opy-account-menu { left: 0; right: auto; }
+@media (max-width: 700px) {
+    .opy-topbar-start .opy-tools .opy-account-menu { left: 8px; right: auto; }
+}

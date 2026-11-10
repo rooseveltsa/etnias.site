@@ -26,7 +26,7 @@ function Etnias_OpyUrl($route, $params = array()) {
 }
 function Etnias_OpyAsset($file) {
     global $wo;
-    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261109.14';
+    return rtrim($wo['config']['site_url'], '/') . '/assets/opy/' . $file . '?v=20261110.1';
 }
 function Etnias_OpyItems() {
     global $wo;
@@ -139,6 +139,7 @@ function Etnias_OpyIcon($name) {
         'plus' => '<path d="M12 4v16M4 12h16"/>',
         'close' => '<path d="m6 6 12 12M18 6 6 18"/>',
         'search' => '<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/>',
+        'maraca-traco' => '<ellipse cx="14.6" cy="9.4" rx="4.6" ry="6" transform="rotate(45 14.6 9.4)"/><path d="m10.6 13.4-7.1 7.1"/><path d="m11.4 7.4 5.2 5.2"/><path d="m13.6 5.2 5.2 5.2"/><path d="m19.7 4.3 1.6-1.6"/>',
         'leaf' => '<path d="M20 3C6 2 2 8 5 14s13 6 15-11ZM4 21 16 8"/>',
         'camera' => '<path d="M8 6 10 3h4l2 3h5v15H3V6z"/><circle cx="12" cy="13" r="4"/>',
         'games' => '<path d="M6 6h12l4 12c1 4-3 5-5 1l-2-3H9l-2 3c-2 4-6 3-5-1zM5 11h6M8 8v6M16 10v1M19 13v1"/>',
