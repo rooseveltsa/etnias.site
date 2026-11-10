@@ -40,11 +40,12 @@ foreach (array('preview.css','preview.js','chat.js','calls.js','live.js','storie
 $folder = $destination . '/assets/i18n'; if (!is_dir($folder)) mkdir($folder, 0755, true);
 foreach (glob($root . '/preview/i18n/*.json') as $file) if (basename($file) !== 'source.json') copy($file, $folder . '/' . basename($file));
 $folder = $destination . '/assets/fonts'; if (!is_dir($folder)) mkdir($folder, 0755, true);
-foreach (array('krub-400.ttf','krub-600.ttf') as $font) {
+foreach (array('krub-400.ttf','krub-600.ttf','funnel-display-800.ttf') as $font) {
     if (!is_file($root . '/preview/fonts/' . $font)) throw new RuntimeException('Missing bundled font');
     copy($root . '/preview/fonts/' . $font, $folder . '/' . $font);
 }
 copy($root . '/preview/fonts/OFL.txt', $folder . '/OFL.txt');
+copy($root . '/preview/fonts/OFL-funnel-display.txt', $folder . '/OFL-funnel-display.txt');
 file_put_contents($destination . '/robots.txt', "User-agent: *\nDisallow: /\n");
 copy($root . '/preview/manifest.webmanifest', $destination . '/manifest.webmanifest');
 copy($root . '/preview/sw.js', $destination . '/sw.js');
