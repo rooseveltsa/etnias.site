@@ -7,7 +7,7 @@
   "scope": "/",
   "display": "standalone",
   "background_color": "#31271d",
-  "theme_color": "#ffffff",
+  "theme_color": "#f4ede4",
   "icons": [
     { "src": "/assets/opy/icon-192.png?v=20261105.2", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/assets/opy/icon-512.png?v=20261105.2", "sizes": "512x512", "type": "image/png", "purpose": "any" },

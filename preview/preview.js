@@ -594,7 +594,7 @@ function planCard(card,p){
  const c=card('Plano',undefined,'plano');const cur=p.current;
  const now=make('div',undefined,'set-plan-now');
  if(cur.id==='gratuito')now.append(make('strong','Conta gratuita'),make('small','Tudo o que a rede oferece hoje continua disponível sem custo.'));
- else{const chip=make('span',cur.nome,'pf-plan-chip');chip.style.setProperty('--plan',cur.cor||'#bd171c');now.append(chip);now.append(make('small',[cur.ativo?'Ativo':'Encerrado',cur.origem==='legado'?'herdado do Etnias 1.0':cur.origem==='teste'?'ativado em teste':'',cur.until?(cur.ativo?'válido até ':'terminou em ')+dayBR(cur.until):'vitalício'].filter(Boolean).join(' · ')));}
+ else{const chip=make('span',cur.nome,'pf-plan-chip');chip.style.setProperty('--plan',cur.cor||'#b84a27');now.append(chip);now.append(make('small',[cur.ativo?'Ativo':'Encerrado',cur.origem==='legado'?'herdado do Etnias 1.0':cur.origem==='teste'?'ativado em teste':'',cur.until?(cur.ativo?'válido até ':'terminou em ')+dayBR(cur.until):'vitalício'].filter(Boolean).join(' · ')));}
  c.append(now);
  const ben=make('ul',undefined,'set-benefits');for(const b of p.beneficios){const li=make('li');li.append(make('span',b.texto),make('small',BENEFIT_PT[b.estado]||b.estado,'is-'+b.estado));if(b.motivo)li.title=b.motivo;ben.append(li);}
  c.append(make('h3','Benefícios dos planos na 2.0'),ben);
@@ -703,7 +703,7 @@ function renderSettings(){
  const blk=card('Pessoas bloqueadas','Quem está bloqueado não vê seu perfil nem suas publicações, não manda mensagem e não pede amizade. A pessoa não é avisada.');
  blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
  const look=card('Aparência','Preferência deste aparelho.','aparencia');
- look.append(radioGroup('set-theme','Tema',[['light','Dia'],['terra','Terra'],['dark','Noite']],['dark','terra'].includes(document.documentElement.dataset.theme)?document.documentElement.dataset.theme:'light',v=>applyTheme(v)));
+ look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
@@ -1126,7 +1126,7 @@ function renderCommunities(){
  }
 }
 // Tema claro/escuro (preferência guardada no aparelho; preview/theme.js aplica antes da pintura).
-function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-checked',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',{dark:'#101c20',terra:'#f4ede4'}[theme]||'#ffffff');}
+function applyTheme(theme){document.documentElement.dataset.theme=theme;try{localStorage.setItem('opy-theme',theme);}catch{}$('#opy-theme-toggle')?.setAttribute('aria-checked',String(theme==='dark'));$('meta[name=theme-color]')?.setAttribute('content',theme==='dark'?'#120d08':'#f4ede4');}
 $('#opy-theme-toggle')?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
 $('#opy-theme-toggle')?.setAttribute('aria-checked',String(document.documentElement.dataset.theme==='dark'));
 // Contas deste aparelho (só nome, @ e foto; nunca senha): trocar exige entrar de novo, por segurança.
