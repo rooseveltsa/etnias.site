@@ -24,7 +24,10 @@ function upsertPost(list,post){const i=list.findIndex(p=>p.id===post.id);if(i>=0
 function dropPost(id){for(const l of [feed.posts,profileData.posts,communityPosts.posts,state?.posts||[]]){const i=l.findIndex(p=>p.id===id);if(i>=0)l.splice(i,1);}}
 const byNewest=(a,b)=>b.createdAt-a.createdAt||(a.id<b.id?1:-1);
 function mergePage(list,page){const seen=new Set(page.map(p=>p.id));return [...page,...list.filter(p=>!seen.has(p.id))].sort(byNewest);}
+// Últimas leituras da API (em memória) para o pedido condicional; declarado antes de qualquer chamada.
+const lastRead=new Map(), notModified=new WeakSet();
 const apiGet=params=>api(null,'?'+new URLSearchParams(params));
+const profilePrefetch=(()=>{if(document.body.dataset.previewRoute!=='profile')return null;const key=new URLSearchParams(location.search).get('u');if(!key)return null;const req=apiGet({view:'profile',key});req.catch(()=>{});return {key,req};})();
 const expandedComments=new Set(), openCommentForms=new Set(), replyTargets=new Map();
 let profileTab='posts', dockChatKey='';
 const seenStories=new Set((()=>{try{return JSON.parse(localStorage.getItem('opy_seen_stories')||'[]');}catch{return[];}})());
@@ -33,7 +36,7 @@ const fullDate=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeSt
 // Tempo relativo até 7 dias, como nas redes que as pessoas já usam; depois, a data completa.
 const date=value=>{const d=(Date.now()-new Date(value).getTime())/1000;if(d<45)return 'agora';if(d<3600)return `há ${Math.max(1,Math.round(d/60))} min`;if(d<86400)return `há ${Math.round(d/3600)} h`;if(d<172800)return 'ontem';if(d<604800)return `há ${Math.round(d/86400)} dias`;return fullDate(value);};
 function showError(message){let el=$('#community-error');if(!el){el=make('p',undefined,'preview-feedback');el.id='community-error';el.setAttribute('role','alert');$('.middlecol').prepend(el);}el.textContent=message;}
-async function api(body,query=''){const response=await fetch('/api/community'+query,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json().catch(()=>({}));if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;throw error;}return data;}
+async function api(body,query=''){const prev=body?null:lastRead.get(query);const response=await fetch('/api/community'+query,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:prev?{'If-None-Match':prev.etag}:{},...(body?{body:JSON.stringify(body)}:{})});if(response.status===304&&prev){const copy=structuredClone(prev.data);notModified.add(copy);return copy;}const data=await response.json().catch(()=>({}));if(!body&&response.ok&&response.headers.get('ETag')){lastRead.set(query,{etag:response.headers.get('ETag'),data:structuredClone(data)});if(lastRead.size>40)lastRead.delete(lastRead.keys().next().value);}if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;throw error;}return data;}
 // Estado vazio com próximo passo: título, explicação e ações (href ou função).
 function emptyState(title,text,actions=[]){
  const box=make('div',undefined,'opy-empty');box.append(make('strong',title),make('p',text));
@@ -724,7 +727,8 @@ function renderProfile(){
  const key=profileKey();if(!key)return;
  const own=key==='id:'+state.me.id;
  if(profileData.key!==key){profileData.key=key;profileData.person=null;profileData.posts=[];profileData.hasMore=false;profileData.loading=true;profileSignature='';
-  apiGet({view:'profile',key}).then(d=>{if(profileData.key!==key)return;profileData.person=d.person;profileData.posts=d.posts;profileData.hasMore=d.hasMore;profileData.loading=false;renderProfile();}).catch(e=>{profileData.loading=false;root.replaceChildren(emptyState(e.status===404?'Pessoa não encontrada':'Não foi possível carregar o perfil',e.status===404?'Este perfil não existe ou não está disponível.':e.message,[['Voltar ao feed','/']]));});
+  const profileReq=profilePrefetch&&profilePrefetch.key===key&&!profilePrefetch.used?(profilePrefetch.used=true,profilePrefetch.req):apiGet({view:'profile',key});
+  profileReq.then(d=>{if(profileData.key!==key)return;profileData.person=d.person;profileData.posts=d.posts;profileData.hasMore=d.hasMore;profileData.loading=false;renderProfile();}).catch(e=>{profileData.loading=false;root.replaceChildren(emptyState(e.status===404?'Pessoa não encontrada':'Não foi possível carregar o perfil',e.status===404?'Este perfil não existe ou não está disponível.':e.message,[['Voltar ao feed','/']]));});
   return;
  }
  if(profileData.loading&&!profileData.person)return;
@@ -1601,7 +1605,7 @@ function restoreFeedFromSession(){
   if(saved.view&&saved.view!==view){view=saved.view;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v.dataset.feedView===view)));}
   feed.posts=saved.posts;feed.hasMore=saved.hasMore;feed.restoreY=saved.y||1;feed.restoreAnchor=saved.anchor?{id:saved.anchor,top:saved.anchorTop}:null;}catch{}
 }
-async function refresh(){try{const g=feedGen;const next=await api();if(g!==feedGen)return;state=next;restoreFeedFromSession();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(state.me?.mustChangePassword)openPasswordDialog(true);if(!all('#preview-feed input, #preview-feed textarea').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
+async function refresh(){try{const g=feedGen;const next=await api();if(g!==feedGen||notModified.has(next))return;state=next;restoreFeedFromSession();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(state.me?.mustChangePassword)openPasswordDialog(true);if(!all('#preview-feed input, #preview-feed textarea').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
 all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();});$('#feed-location-query')?.addEventListener('input',()=>render());
 // Barra de modalidades fixa sob o cabeçalho; ganha sombra quando os Stories saem da tela (doc. 5.1 e 6.1).
 (()=>{const bar=$('.feed-chips'),stories=$('.story-section'),top=$('.opy-topbar');if(!bar)return;

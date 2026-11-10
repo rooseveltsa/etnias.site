@@ -12,10 +12,15 @@ const icons = {
 let call = null, pc = null, local = null, poller = 0, ringer = null, tick = 0, connectedAt = 0, disconnectTimer = 0, busy = false, facing = 'user';
 const ui = {}, originalTitle = document.title;
 
+// Consulta periódica (3 s) condicional: com a mesma ETag o servidor devolve 304 vazio e reaproveitamos a última resposta.
+let lastCalls = null;
 async function api(body, params = {}) {
   const url = '/api/community?' + new URLSearchParams({ view: 'calls', ...params });
-  const response = await fetch(url, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+  const prev = !body && lastCalls?.url === url ? lastCalls : null;
+  const response = await fetch(url, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : prev ? { headers: { 'If-None-Match': prev.etag } } : {}) });
+  if (response.status === 304 && prev) return structuredClone(prev.json);
   const json = await response.json().catch(() => ({}));
+  if (!body && response.ok && response.headers.get('ETag')) lastCalls = { url, etag: response.headers.get('ETag'), json: structuredClone(json) };
   if (!response.ok) throw Error(json.error || 'Não foi possível concluir a chamada.');
   return json;
 }

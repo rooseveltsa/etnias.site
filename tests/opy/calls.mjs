@@ -85,7 +85,9 @@ test('credenciais TURN efêmeras no formato do coturn (use-auth-secret)', () => 
   const [stun, turn] = calls.iceServers(alice, env, 1_000_000);
   assert.deepEqual(stun.urls, ['stun:turn.exemplo.org:3478']);
   assert.deepEqual(turn.urls, ['turn:turn.exemplo.org:3478?transport=udp', 'turns:turn.exemplo.org:5349']);
-  assert.equal(turn.username, `${1000 + 6 * 3600}:${alice.id}`);
+  assert.equal(turn.username, `${Math.ceil((1000 + 6 * 3600) / 600) * 600}:${alice.id}`);
+  assert.ok(Number(turn.username.split(":")[0]) - 1000 >= 6 * 3600, "a credencial vale ao menos 6 h");
+  assert.equal(calls.iceServers(alice, env, 1_000_000 + 59_000)[1].username, turn.username, "mesma credencial dentro do bloco de 10 min");
   assert.equal(turn.credential, createHmac('sha1', env.OPY_TURN_SECRET).update(turn.username).digest('base64'));
   assert.deepEqual(calls.iceServers(alice, { OPY_TURN_URLS: 'turn:x', OPY_TURN_SECRET: 'curto' }), [{ urls: ['stun:stun.l.google.com:19302'] }], 'segredo fraco não gera credencial');
 });

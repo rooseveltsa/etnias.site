@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
 import handler from '../preview/server/community.mjs';
@@ -57,9 +58,22 @@ function compressText(req, res) {
   const end = res.end.bind(res);
   res.end = (body, ...rest) => {
     const type = String(res.getHeader('content-type') || '');
-    if (body && (typeof body === 'string' || Buffer.isBuffer(body)) && Buffer.byteLength(body) > 1024 && !res.getHeader('content-encoding') && /json|javascript|css|html|text|svg|manifest/.test(type)) {
+    if (body && (typeof body === 'string' || Buffer.isBuffer(body)) && Buffer.byteLength(body) > 1024 && !res.getHeader('content-encoding') && /json|javascript|css|html|text|svg|manifest|font\/ttf/.test(type)) {
       res.setHeader('Content-Encoding', 'gzip'); res.setHeader('Vary', 'Accept-Encoding'); res.removeHeader('Content-Length');
       return end(gzipSync(body), ...rest);
+    }
+    return end(body, ...rest);
+  };
+}
+// Leituras da API: a atualização automática (4–20 s) reenviava a carga inteira mesmo sem mudança (~10 MB/h no celular).
+// Com ETag, o cliente manda If-None-Match e recebe 304 vazio quando nada mudou. A resposta segue private, no-store.
+function conditionalRead(req, res) {
+  const end = res.end.bind(res);
+  res.end = (body, ...rest) => {
+    if (res.statusCode === 200 && body && (typeof body === 'string' || Buffer.isBuffer(body))) {
+      const tag = '"' + createHash('sha1').update(body).digest('base64url') + '"';
+      res.setHeader('ETag', tag);
+      if (req.headers['if-none-match'] === tag) { res.statusCode = 304; res.removeHeader('Content-Type'); return end(); }
     }
     return end(body, ...rest);
   };
@@ -88,6 +102,7 @@ http.createServer(async (req, res) => {
   compressText(req, res);
   if (pathname.startsWith('/live/') && !pathname.startsWith('/live/recordings/')) return await proxyLive(req, res, pathname);
   if (path === '/api/community' || path === '/api/media' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
+    if (req.method === 'GET' && path === '/api/community') conditionalRead(req, res);
     if (req.method === 'POST') {
       let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 20*1024*1024) { res.writeHead(413); return res.end(); } }
       try { req.body = JSON.parse(raw); } catch { res.writeHead(400); return res.end(); }

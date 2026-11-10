@@ -1731,7 +1731,7 @@ body:not(.opy-welcome) .install-bar .install-apk.preview-secondary{display:none}
 .pf-pill-live{background:var(--color-terracotta)}
 .pf-actions .pf-pill-line{background:transparent;color:var(--pf-brown-text);box-shadow:inset 0 0 0 1.5px var(--pf-brown)}
 .pf-pill:hover{filter:brightness(1.08)}
-.pf-actions .pf-info{flex:0 0 32px;display:inline-grid;place-items:center;width:32px;height:32px;min-width:0;min-height:0;padding:0;border:0;border-radius:50%;background:var(--pf-green);color:#fff;font:700 18px/1 Georgia,"Times New Roman",serif;cursor:pointer}
+.pf-actions .pf-info{flex:0 0 40px;display:inline-grid;place-items:center;width:40px;height:40px;min-width:0;min-height:0;padding:0;border:0;border-radius:50%;background:var(--pf-green);color:#fff;font:700 20px/1 Georgia,"Times New Roman",serif;cursor:pointer}
 .pf-actions .pf-info::before{content:"i"}
 .pf-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:0;color:var(--color-text-secondary);font-size:15px}
 .pf-online{display:inline-flex;align-items:center;gap:6px;color:var(--color-text-primary)}
@@ -1741,6 +1741,7 @@ body:not(.opy-welcome) .install-bar .install-apk.preview-secondary{display:none}
 .pf-count{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;font-size:14px}
 .pf-count strong{font-size:24px;font-weight:800;color:var(--color-text-primary);font-variant-numeric:tabular-nums}
 .pf-card .pf-block{margin-top:14px}
+.pf-cover-btn{top:16px;bottom:auto}
 @media(max-width:700px){
  .pf-head{grid-template-columns:auto minmax(0,1fr);align-items:start;gap:14px;margin-top:-40px;padding:0 16px 16px;text-align:left}
  .pf-avatar>.preview-avatar{width:96px;height:96px;font-size:38px;border-width:4px}

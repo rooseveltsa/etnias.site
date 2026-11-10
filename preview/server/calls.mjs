@@ -104,7 +104,9 @@ export function iceServers(me, env = process.env, now = Date.now()) {
   const servers = [];
   if (stun.length) servers.push({ urls: stun });
   if (turn.length && secret.length >= 16) {
-    const username = `${Math.floor(now / 1000) + TURN_TTL_S}:${me.id}`;
+    // Vencimento arredondado para cima em blocos de 10 min: vale ao menos TURN_TTL_S e a resposta de view=calls
+    // fica idêntica entre consultas, o que permite ao cliente receber 304 na consulta periódica (a cada 3 s).
+    const username = `${Math.ceil((Math.floor(now / 1000) + TURN_TTL_S) / 600) * 600}:${me.id}`;
     servers.push({ urls: turn, username, credential: createHmac('sha1', secret).update(username).digest('base64') });
   }
   // shortcut: sem STUN/TURN configurado, usa o STUN público do Google; funciona na maioria das redes, mas não atravessa CGNAT. Configure o coturn da VPS.
