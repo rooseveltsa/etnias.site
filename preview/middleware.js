@@ -10,7 +10,8 @@ function isPublic(pathname) {
   return pathname === '/entrar' || pathname.startsWith('/entrar/')
     || pathname === '/assets' || pathname.startsWith('/assets/')
     || pathname === '/api' || pathname.startsWith('/api/')
-    || pathname === '/manifest.webmanifest' || pathname === '/sw.js';
+    || pathname === '/manifest.webmanifest' || pathname === '/sw.js'
+    || pathname === '/robots.txt' || pathname === '/sitemap.xml';
 }
 
 function safeNext(pathname, search) {

@@ -63,4 +63,9 @@ if (!is_file($root.'/preview/middleware.js')) throw new RuntimeException('Missin
 copy($root.'/preview/middleware.js', $project.'/middleware.js');
 // APK do app Android (gerado em apps/mobile; fora do git). Prefere o de produção assinado (apps/mobile/scripts/build-android.sh); sem build, o link do site dá 404.
 $apk=$root.'/apps/mobile/android/app/build/outputs/apk/release/app-release.apk'; if (!is_file($apk)) $apk=$root.'/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk'; if (is_file($apk)) { $folder=$destination.'/assets/app'; if (!is_dir($folder)) mkdir($folder,0755,true); copy($apk,$folder.'/etnias-android.apk'); }
+// Busca: robots e sitemap só expõem a apresentação pública; a imagem de compartilhamento acompanha a página.
+file_put_contents($destination . '/robots.txt', "User-agent: *\nAllow: /$\nAllow: /entrar/$\nAllow: /assets/\nAllow: /manifest.webmanifest\nDisallow: /\n\nSitemap: https://etnias.site/sitemap.xml\n");
+file_put_contents($destination . '/sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://etnias.site/</loc><lastmod>' . gmdate('Y-m-d') . '</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>' . "\n");
+if (!is_file($root . '/preview/og-etnias.png')) throw new RuntimeException('Missing preview/og-etnias.png');
+copy($root . '/preview/og-etnias.png', $destination . '/assets/og-etnias.png');
 $archive=$destination.'/assets/archive'; if (!is_dir($archive)) mkdir($archive,0755,true); foreach(glob($root.'/preview/archive/*') as $file) copy($file,$archive.'/'.basename($file));

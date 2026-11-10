@@ -64,7 +64,7 @@ function compressText(req, res) {
     return end(body, ...rest);
   };
 }
-const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json','.json':'application/json; charset=utf-8','.apk':'application/vnd.android.package-archive' };
+const types = { '.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ttf':'font/ttf','.webmanifest':'application/manifest+json','.txt':'text/plain; charset=utf-8','.xml':'application/xml; charset=utf-8','.json':'application/json; charset=utf-8','.apk':'application/vnd.android.package-archive' };
 const port = Number(process.env.PORT) || 8101;
 // Na VPS o container precisa ouvir 0.0.0.0; o proxy HTTPS do host fica na frente. Localmente segue em 127.0.0.1.
 const host = process.env.HOST || '127.0.0.1';
@@ -95,7 +95,14 @@ http.createServer(async (req, res) => {
     return handler(req, res);
   }
   const gate = await middleware(new Request(url, { headers: req.headers }));
+  // Busca: só a apresentação pública ("/" para quem não entrou, /entrar/, robots e sitemap) é indexável; o resto da rede segue noindex e atrás do login.
+  const indexable = path === '/' || path === '/entrar' || path === '/robots.txt' || path === '/sitemap.xml' || pathname.startsWith('/assets/');
+  if (gate && path === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
+    res.removeHeader('X-Robots-Tag'); res.setHeader('Content-Type', types['.html']); res.setHeader('Cache-Control', 'no-cache');
+    return res.end(await readFile(join(root, 'entrar', 'index.html')));
+  }
   if (gate) { res.writeHead(gate.status, Object.fromEntries(gate.headers)); return res.end(); }
+  if (indexable) res.removeHeader('X-Robots-Tag');
   const file = resolve(root, '.' + decodeURIComponent(pathname) + (pathname.endsWith('/') ? 'index.html' : ''));
   if (!file.startsWith(root + sep) || !types[extname(file)]) { res.writeHead(404); return res.end(); }
   // Assets com versão na URL (?v=) nunca mudam: o navegador guarda por um ano e as páginas seguintes não baixam 1,8 MB de novo.
