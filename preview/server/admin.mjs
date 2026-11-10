@@ -36,7 +36,7 @@ export function suspensionMessage(account) {
   const s = account.suspension;
   return s.until ? `Sua conta está suspensa até ${new Date(s.until).toLocaleDateString('pt-BR')}. Motivo: ${s.reason}` : `Sua conta está suspensa. Motivo: ${s.reason}`;
 }
-function log(state, actor, action, target, reason = '', extra = {}) {
+export function log(state, actor, action, target, reason = '', extra = {}) {
   state.adminLog ||= [];
   state.adminLog.push({ id: randomUUID(), at: Date.now(), by: keyOf(actor), byName: actor.name, action, target, reason, ...extra });
   if (state.adminLog.length > 2000) state.adminLog = state.adminLog.slice(-2000);

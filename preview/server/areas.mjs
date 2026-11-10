@@ -3,6 +3,7 @@
 // Quem publicou é ligado à conta da 2.0 pelo id do 1.0; conteúdo de quem a pessoa bloqueou ou de conta desativada não aparece.
 import { readFileSync, existsSync } from 'node:fs';
 import { profileAccess } from './account.mjs';
+import { marketList, marketDetail, MARKET_CATEGORIES } from './mercado.mjs';
 
 const file = new URL('legado-areas.json', import.meta.url);
 const data = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
@@ -22,7 +23,11 @@ export function areaView(state, me, params) {
   const allowed = item => { const a = authorOf(item); return !a || profileAccess(state, me.id, a.id) !== 'none'; };
   const strip = ({ id, ...a }) => a;
   const items = (data[type] || []).filter(allowed);
-  const id = Number(params.get('id'));
+  // Mercado: anúncios dos membros (id texto) vêm antes dos recuperados do 1.0 (id numérico), com a mesma busca e categorias.
+  const rawId = String(params.get('id') || '');
+  if (type === 'mercado' && rawId && !/^\d+$/.test(rawId)) return { type, ...marketDetail(state, me, rawId) };
+  const members = type === 'mercado' ? marketList(state, me) : [];
+  const id = Number(rawId);
   if (id) {
     const item = items.find(x => x.id === id);
     if (!item) fail(404, 'Este conteúdo não existe mais ou não está disponível para você.');
@@ -30,8 +35,10 @@ export function areaView(state, me, params) {
     return { type, item, author: author && strip(author), own: !!author && author.id === me.id };
   }
   const q = plain(params.get('q')).slice(0, 80), cat = String(params.get('category') || '');
-  const filtered = items.filter(x => (!q || plain(`${x.title} ${x.summary || ''} ${x.description || ''} ${x.category || ''}`).includes(q)) && (!cat || x.category === cat));
+  const match = x => (!q || plain(`${x.title} ${x.summary || ''} ${x.description || ''} ${x.category || ''}`).includes(q)) && (!cat || x.category === cat);
+  const filtered = items.filter(match);
   const summary = x => { const { content, description, ...rest } = x; return { ...rest, excerpt: String(x.summary || description || content || '').replace(/\s+/g, ' ').slice(0, 180), author: (a => a && strip(a))(authorOf(x)) }; };
-  return { type, total: items.length, categories: [...new Set(items.map(x => x.category).filter(Boolean))].sort(), items: filtered.slice(0, 60).map(summary), origem: data.origem || '' };
+  const mine = members.filter(match).slice(0, 60).map(({ description, ...x }) => x);
+  return { type, total: items.length, categories: [...new Set([...(type === 'mercado' ? MARKET_CATEGORIES : []), ...items.map(x => x.category).filter(Boolean)])].sort(), items: [...mine, ...filtered.slice(0, 60).map(summary)], origem: data.origem || '', ...(type === 'mercado' ? { categoriesFixed: MARKET_CATEGORIES } : {}) };
 }
 export const areasAvailable = () => AREAS.filter(t => (data[t] || []).length);

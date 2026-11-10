@@ -322,5 +322,7 @@ window.addEventListener('online',refresh);
 window.addEventListener('opy:call-ended',()=>refresh());
 // shortcut: polling com a tela visível serve à homologação; migrar para eventos (SSE na VPS) antes de ampliar o público.
 setInterval(()=>{if(!document.hidden&&!$('#chat-dialog').open&&!$('#chat-sheet').open)refresh();},4000);
+// Mensagem sugerida por outra tela (ex.: "Tenho interesse" no Mercado): só preenche o campo; quem envia é a pessoa.
+try{const d=JSON.parse(sessionStorage.getItem('opy_chat_draft')||'null');sessionStorage.removeItem('opy_chat_draft');if(d&&d.key===key&&typeof d.text==='string'){$('#chat-text').value=d.text.slice(0,1000);grow();}}catch{}
 refresh();
 })();

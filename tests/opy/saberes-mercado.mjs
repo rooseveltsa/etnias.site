@@ -91,3 +91,58 @@ test('saberes: só a equipe publica; membro acompanha e conclui aulas; remoção
   assert.equal(state.trilhaProgress[Object.keys(state.trilhaProgress)[0]][t.id], undefined, 'progresso removido');
   assert.equal((await get({ view: 'saberes', id: t.id }, ana)).status, 404);
 });
+
+test('mercado: membro anuncia, edita só o seu, avalia uma vez, bloqueio esconde e remoção apaga as fotos', async () => {
+  const beto = await register('beto'), caio = await register('caio');
+  const item = { action: 'market_save', title: 'Cesto de palha', description: 'Feito à mão.', price: 'R$ 80', category: 'Artesanato', location: 'Manaus/AM', photos: [png, png] };
+  assert.equal((await post({ ...item, category: 'Carros' }, ana)).status, 400, 'categoria fora da lista');
+  assert.equal((await post({ ...item, photos: [png, png, png, png, png] }, ana)).status, 400, 'até 4 fotos');
+  assert.equal((await post({ ...item, price: '' }, ana)).status, 400, 'preço em texto é obrigatório');
+  assert.equal(media.size, 0, 'fotos de um anúncio recusado são descartadas');
+  const made = await post(item, ana);
+  assert.equal(made.status, 200);
+  const x = made.data.item;
+  assert.equal(made.data.own, true);
+  assert.equal(x.images.length, 2);
+  assert.equal((await call('GET', x.images[0], null, beto)).status, 200, 'foto visível para membros');
+
+  const list = await get({ view: 'area', type: 'mercado' }, beto);
+  assert.equal(list.data.items[0].id, x.id, 'anúncio de membro vem primeiro');
+  assert.equal(list.data.items[0].price, 'R$ 80');
+  assert.ok(list.data.categories.includes('Arte e grafismo'));
+  assert.equal((await get({ view: 'area', type: 'mercado', q: 'palha' }, beto)).data.items[0].id, x.id, 'busca encontra');
+  assert.ok(!(await get({ view: 'area', type: 'mercado', category: 'Alimentos' }, beto)).data.items.some(i => i.id === x.id), 'filtro de categoria');
+
+  assert.equal((await post({ ...item, id: x.id, title: 'Outro', photos: [] }, beto)).status, 403, 'só o dono edita');
+  const edited = await post({ action: 'market_save', id: x.id, title: 'Cesto grande', description: 'Feito à mão.', price: 'A combinar', category: 'Artesanato', keepPhotos: [made.data.item.photoIds[1]] }, ana);
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.item.price, 'A combinar');
+  assert.equal(edited.data.item.images.length, 1);
+  assert.equal(media.size, 1, 'foto tirada na edição é apagada');
+
+  assert.equal((await post({ action: 'market_review', id: x.id, stars: 5 }, ana)).status, 400, 'dono não avalia');
+  assert.equal((await post({ action: 'market_review', id: x.id, stars: 6 }, beto)).status, 400);
+  await post({ action: 'market_review', id: x.id, stars: 2, text: 'Demorou.' }, beto);
+  const reviewed = await post({ action: 'market_review', id: x.id, stars: 4, text: 'Chegou bem.' }, beto);
+  assert.deepEqual(reviewed.data.rating, { avg: 4, count: 1 }, 'uma avaliação por conta, editável');
+  assert.equal(reviewed.data.myReview.text, 'Chegou bem.');
+  await post({ action: 'market_review', id: x.id, stars: 5 }, caio);
+  assert.deepEqual((await get({ view: 'area', type: 'mercado' }, beto)).data.items[0].rating, { avg: 4.5, count: 2 });
+
+  const anaKey = 'id:' + state.accounts.find(a => a.username === 'ana').id;
+  assert.equal((await post({ action: 'block_set', key: anaKey, blocked: true }, caio)).status, 200);
+  assert.ok(!(await get({ view: 'area', type: 'mercado' }, caio)).data.items.some(i => i.id === x.id), 'bloqueado não vê o anúncio');
+  assert.equal((await get({ view: 'area', type: 'mercado', id: x.id }, caio)).status, 404);
+  assert.equal((await call('GET', edited.data.item.images[0], null, caio)).status, 404, 'nem a foto');
+  assert.equal((await get({ view: 'area', type: 'mercado', id: x.id }, ana)).data.reviews.length, 1, 'quem foi bloqueada não vê a avaliação de quem bloqueou');
+
+  assert.equal((await post({ action: 'market_delete', id: x.id }, beto)).status, 403, 'outro membro não remove');
+  const second = (await post({ ...item, photos: [png] }, ana)).data.item;
+  const moderated = await post({ action: 'market_delete', id: second.id, reason: 'Teste de moderação' }, equipe);
+  assert.equal(moderated.status, 200);
+  assert.ok(state.adminLog.some(l => l.action === 'Anúncio removido do Mercado'), 'remoção pela equipe fica no registro');
+  const gone = await post({ action: 'market_delete', id: x.id }, ana);
+  assert.equal(gone.status, 200);
+  assert.equal(media.size, 0, 'fotos apagadas com os anúncios');
+  assert.equal((await get({ view: 'area', type: 'mercado', id: x.id }, beto)).status, 404);
+});

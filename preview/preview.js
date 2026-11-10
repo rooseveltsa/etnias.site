@@ -1228,17 +1228,22 @@ const areaMoney=(v,cur)=>{try{return new Intl.NumberFormat('pt-BR',{style:'curre
 const areaCover=x=>x.cover||x.image||(x.images&&x.images[0])||x.avatar||'';
 function areaLink(type,extra){const u=new URL(location.href);for(const [k,v] of Object.entries(extra)){if(v)u.searchParams.set(k,v);else u.searchParams.delete(k);}return u.pathname+u.search;}
 function areaAuthor(a,label){const box=make('div',undefined,'area-author');if(!a){box.append(make('small','Publicado no Etnias 1.0'));return box;}const link=make('a',undefined,'area-author-link');link.href='/perfil/?u='+encodeURIComponent(a.key);link.append(avatarNode(a.name,a.avatar,32),make('span',(label?label+' ':'')+a.name));box.append(link);return box;}
+// Títulos e textos escritos pelas pessoas não passam pela tradução automática da interface.
+const noI18n=el=>{el.dataset.noI18n='';return el;};
 function renderArea(root){
  const type=root.dataset.area,meta=AREA_META[type];if(!meta)return;
  const params=new URLSearchParams(location.search),id=params.get('id')||'',q=params.get('q')||'',cat=params.get('categoria')||'';
- const key=[type,id,q,cat].join('|');if(root.dataset.key===key)return;root.dataset.key=key;
- apiGet({view:'area',type,...(id?{id}:{}),...(q?{q}:{}),...(cat?{category:cat}:{})}).then(d=>{if(root.dataset.key!==key)return;root.replaceChildren(id?areaDetail(type,meta,d):areaList(type,meta,d,q,cat));if(id)document.title=d.item.title+' · Etnias';}).catch(e=>{root.replaceChildren(emptyState('Não foi possível abrir',e.message,[['Voltar para '+meta.titulo,location.pathname]]));});
+ // Mercado: ?anunciar=novo abre o formulário de anúncio; ?anunciar=ID edita um anúncio próprio.
+ const sell=type==='mercado'?params.get('anunciar')||'':'',target=sell&&sell!=='novo'?sell:id;
+ const key=[type,id,q,cat,sell].join('|');if(root.dataset.key===key)return;root.dataset.key=key;
+ apiGet({view:'area',type,...(target?{id:target}:{}),...(q?{q}:{}),...(cat?{category:cat}:{})}).then(d=>{if(root.dataset.key!==key)return;root.replaceChildren(sell?marketForm(d,sell!=='novo'):id?areaDetail(type,meta,d):areaList(type,meta,d,q,cat));if(id)document.title=d.item.title+' · Etnias';}).catch(e=>{root.replaceChildren(emptyState('Não foi possível abrir',e.message,[['Voltar para '+meta.titulo,location.pathname]]));});
 }
 function areaList(type,meta,d,q,cat){
  const box=make('div',undefined,'area-list');
  const head=make('header',undefined,'area-head');head.append(make('p',meta.sub+' · '+plural(d.total,'item','itens')+' recuperados do Etnias 1.0','area-sub'));
  const f=make('form',undefined,'area-search');f.setAttribute('role','search');const i=make('input');i.type='search';i.name='q';i.value=q;i.placeholder='Buscar em '+meta.titulo;i.setAttribute('aria-label','Buscar em '+meta.titulo);const b=make('button','Buscar','preview-secondary');b.type='submit';f.append(i,b);
  f.onsubmit=e=>{e.preventDefault();location.href=areaLink(type,{q:i.value.trim(),categoria:'',id:''});};head.append(f);
+ if(type==='mercado'){const add=make('a','Anunciar no Mercado','opy-primary area-new');add.href=areaLink(type,{anunciar:'novo',id:'',q:'',categoria:''});head.append(add);}
  if(d.categories.length>1){const chips=make('nav',undefined,'area-chips');chips.setAttribute('aria-label','Categorias');for(const c of ['',...d.categories]){const a=make('a',c||'Todas','area-chip');a.href=areaLink(type,{categoria:c,id:''});if(c===cat)a.setAttribute('aria-current','true');chips.append(a);}head.append(chips);}
  box.append(head);
  if(!d.items.length){box.append(emptyState(meta.vazio,q?'Tente outra palavra.':'Ainda não há itens nesta área.',[]));return box;}
@@ -1247,11 +1252,12 @@ function areaList(type,meta,d,q,cat){
   const cover=areaCover(x);const fig=make('div',undefined,'area-card-cover');const noCover=()=>{fig.classList.add('is-empty');fig.replaceChildren(make('span',(x.title||'?').trim().slice(0,1).toLocaleUpperCase('pt-BR'),'area-card-initial'));};if(cover){const img=make('img');img.src=cover;img.alt='';img.loading='lazy';img.decoding='async';img.onerror=noCover;fig.append(img);}else noCover();
   if(type==='mercado'&&x.sold)fig.append(make('span','Vendido','area-badge'));if(type==='empregos'&&!x.open)fig.append(make('span','Encerrada','area-badge'));
   const body=make('div',undefined,'area-card-body');
-  const line=type==='mercado'?areaMoney(x.price,x.currency):type==='eventos'?areaDate(x.start):type==='coletas'?'Meta '+areaMoney(x.goal,'BRL'):type==='filmes'?[x.genre,x.release].filter(Boolean).join(' · '):type==='empregos'?[x.type,x.location].filter(Boolean).join(' · '):[x.category,x.createdAt?areaDate(x.createdAt):''].filter(Boolean).join(' · ');
-  if(line)body.append(make('small',line,'area-card-meta'));body.append(make('strong',x.title));if(x.excerpt)body.append(make('p',x.excerpt,'area-card-excerpt'));
+  const line=type==='mercado'?(x.member?x.price:areaMoney(x.price,x.currency)):type==='eventos'?areaDate(x.start):type==='coletas'?'Meta '+areaMoney(x.goal,'BRL'):type==='filmes'?[x.genre,x.release].filter(Boolean).join(' · '):type==='empregos'?[x.type,x.location].filter(Boolean).join(' · '):[x.category,x.createdAt?areaDate(x.createdAt):''].filter(Boolean).join(' · ');
+  if(line)body.append(noI18n(make('small',line,'area-card-meta')));body.append(noI18n(make('strong',x.title)));if(x.excerpt)body.append(noI18n(make('p',x.excerpt,'area-card-excerpt')));
+  if(x.rating?.count)body.append(make('small',marketStars(x.rating),'area-card-rating'));
   if(x.author)body.append(make('small',x.author.name,'area-card-who'));
   a.append(fig,body);grid.append(a);}
- box.append(grid,make('p','Conteúdo recuperado do Etnias 1.0. Publicar novos itens nesta área chega numa próxima etapa da 2.0.','area-note'));
+ box.append(grid,make('p',type==='mercado'?'Anúncios dos membros aparecem primeiro; os demais foram recuperados do Etnias 1.0. Não há pagamento pelo site: combine direto com quem vende, pelo chat.':'Conteúdo recuperado do Etnias 1.0. Publicar novos itens nesta área chega numa próxima etapa da 2.0.','area-note'));
  return box;
 }
 function areaICS(x){
@@ -1269,28 +1275,66 @@ function areaDetail(type,meta,d){
  if(type==='mercado'&&x.images.length){const g=make('div',undefined,'area-gallery');x.images.forEach((u,k)=>{const b=make('button',undefined,'area-thumb');b.type='button';b.setAttribute('aria-label','Ampliar foto '+(k+1)+' de '+x.images.length);const img=make('img');img.src=u;img.alt='';b.append(img);b.onclick=()=>openLightbox(x.images,k,a?.name||'');g.append(b);});box.append(g);}
  const head=make('header',undefined,'area-detail-head');
  if(type==='paginas'&&x.avatar){const av=make('img',undefined,'area-page-avatar');av.src=x.avatar;av.alt='';head.append(av);}
- const h=make('h1',x.title);if(type==='paginas'&&x.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Página verificada');h.append(' ',v);}head.append(h);
+ const h=noI18n(make('h1',x.title));if(type==='paginas'&&x.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Página verificada');h.append(' ',v);}head.append(h);
  const facts=[];
  if(type==='blogs')facts.push(x.category,areaDate(x.createdAt),x.views?plural(x.views,'leitura','leituras'):'');
  if(type==='paginas')facts.push(x.category);
- if(type==='mercado')facts.push(areaMoney(x.price,x.currency),x.condition==='usado'?'Usado':'Novo',x.location,x.category,x.sold?'Vendido':'');
+ if(type==='mercado')facts.push(x.member?x.price:areaMoney(x.price,x.currency),x.member?'':x.condition==='usado'?'Usado':'Novo',x.location,x.category,x.sold?'Vendido':'');
  if(type==='eventos')facts.push((areaDate(x.start)||'')+(x.end&&x.end!==x.start?' até '+areaDate(x.end):''),x.location);
  if(type==='filmes')facts.push(x.genre,x.release,x.duration?x.duration+' min':'',x.country);
  if(type==='empregos')facts.push(x.type,x.location,(x.minimum||x.maximum)?areaMoney(Number(x.minimum),x.currency)+' a '+areaMoney(Number(x.maximum),x.currency)+(x.salaryPer?' por '+x.salaryPer:''):'',x.open?'Vaga aberta':'Vaga encerrada');
- const ul=make('ul',undefined,'area-facts');for(const t of facts.filter(Boolean)){ul.append(make('li',t));}head.append(ul);box.append(head);
+ const ul=make('ul',undefined,'area-facts');for(const t of facts.filter(Boolean)){ul.append(make('li',t));}head.append(ul);if(x.member)head.append(make('p',d.rating.count?marketStars(d.rating):'Ainda sem avaliações','market-rating'));box.append(head);
  if(type==='coletas'){const pct=x.goal?Math.min(100,Math.round(x.raised/x.goal*100)):0;const bar=make('div',undefined,'area-progress');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');bar.setAttribute('aria-valuenow',String(pct));const fill=make('span');fill.style.width=pct+'%';bar.append(fill);box.append(bar,make('p',areaMoney(x.raised,'BRL')+' arrecadados de '+areaMoney(x.goal,'BRL')+' ('+pct+'%)','area-sub'));}
  if(type==='filmes'&&(x.stars||x.producer))box.append(make('p',[x.producer?'Produção: '+x.producer:'',x.stars?'Elenco: '+x.stars:''].filter(Boolean).join(' · '),'area-sub'));
- const text=x.content||x.description||'';if(text){const body=make('div',undefined,'area-body');for(const para of text.split(/\n{2,}/)){const pEl=make('p');pEl.append(linkified(para));body.append(pEl);}box.append(body);}
+ const text=x.content||x.description||'';if(text){const body=noI18n(make('div',undefined,'area-body'));for(const para of text.split(/\n{2,}/)){const pEl=make('p');pEl.append(linkified(para));body.append(pEl);}box.append(body);}
  if(type==='paginas'){const links=make('div',undefined,'area-links');for(const [k,label] of [['website','Site'],['instagram','Instagram'],['youtube','YouTube']])if(x[k]){const l=make('a',label,'preview-secondary');l.href=x[k];l.target='_blank';l.rel='noopener noreferrer nofollow';links.append(l);}if(links.children.length)box.append(links);}
  const actions=make('div',undefined,'area-actions');
  const chat=(label)=>{if(a&&!d.own){const b=button(label,()=>openPrivateChat(a.key),actions);b.className='opy-primary';}};
- if(type==='mercado'&&!x.sold)chat('Falar com quem vende');
+ if(type==='mercado'&&!x.sold&&a&&!d.own){const b=button(x.member?'Tenho interesse':'Falar com quem vende',()=>marketInterest(a.key,x.title),actions);b.className='opy-primary';}
+ if(x.member&&d.own){const l=make('a','Editar anúncio','preview-secondary');l.href=areaLink(type,{anunciar:x.id,id:''});actions.append(l);}
+ if(x.member&&d.canRemove)button(d.own?'Remover anúncio':'Remover anúncio (moderação)',async()=>{if(!confirm(d.own?'Remover este anúncio? As fotos e as avaliações também saem.':'Remover o anúncio de '+(a?.name||'outra pessoa')+'? A remoção fica no registro da gestão.'))return;await api({action:'market_delete',id:x.id});location.href=location.pathname;},actions);
  if(type==='empregos'&&x.open)chat('Candidatar-se pelo chat');
  if(type==='coletas'){chat('Falar com quem organiza');actions.append(make('p','Contribuições pela 2.0 ainda não estão disponíveis; nenhum pagamento é feito por esta tela.','area-note'));}
  if(type==='eventos'){const url=areaICS(x);if(url){const l=make('a','Adicionar à agenda','preview-secondary');l.href=url;l.download='evento-etnias-'+x.id+'.ics';actions.append(l);}}
  if(actions.children.length)box.append(actions);
+ if(x.member)box.append(marketReviews(x,d,box));
  box.append(areaAuthor(a,type==='mercado'?'Vendido por':type==='paginas'?'Responsável:':type==='empregos'?'Vaga de':type==='coletas'?'Organizado por':'Por'));
  return box;
+}
+// Mercado dos membros: estrelas, interesse pelo chat (mensagem sugerida e editável, nada é enviado sozinho),
+// avaliações (uma por conta, editável) e o formulário de anúncio. Sem carrinho nem pagamento.
+const marketStars=r=>'★ '+r.avg.toLocaleString('pt-BR')+' · '+plural(r.count,'avaliação','avaliações');
+function marketInterest(key,title){try{sessionStorage.setItem('opy_chat_draft',JSON.stringify({key,text:'Olá! Tenho interesse no seu anúncio "'+title+'" no Mercado do Etnias. Ainda está disponível?'}));}catch{}openPrivateChat(key);}
+function marketReviews(x,d,box){
+ const sec=make('section',undefined,'market-reviews');sec.setAttribute('aria-labelledby','market-reviews-title');const h=make('h2','Avaliações');h.id='market-reviews-title';sec.append(h);
+ if(!d.reviews.length)sec.append(make('p',d.own?'Seu anúncio ainda não recebeu avaliações.':'Ninguém avaliou ainda. Já negociou com esta pessoa? Conte como foi.','area-sub'));
+ const ul=make('ul',undefined,'market-review-list');
+ for(const r of d.reviews){const li=make('li');const who=make('a',undefined,'area-author-link');who.href='/perfil/?u='+encodeURIComponent(r.key);who.append(avatarNode(r.name,r.avatar,28),make('span',r.own?'Você':r.name));const st=make('span','★'.repeat(r.stars)+'☆'.repeat(5-r.stars),'market-review-stars');st.setAttribute('role','img');st.setAttribute('aria-label',r.stars+' de 5 estrelas');li.append(who,st);if(r.text)li.append(noI18n(make('p',r.text)));li.append(make('small',date(r.at),'area-sub'));ul.append(li);}
+ if(d.reviews.length)sec.append(ul);
+ if(d.own)return sec;
+ const f=make('form',undefined,'set-verify market-review-form');const fs=make('fieldset',undefined,'market-stars');fs.append(make('legend',d.myReview?'Sua avaliação':'Avaliar'));const row=make('div',undefined,'market-stars-row');
+ for(let n=5;n>=1;n--){const i=make('input',undefined,'opy-sr-only');i.type='radio';i.name='stars';i.value=String(n);i.id='market-star-'+n;i.required=true;if(d.myReview?.stars===n)i.checked=true;const l=make('label','★');l.htmlFor=i.id;l.title=plural(n,'estrela','estrelas');l.append(make('span',plural(n,'estrela','estrelas'),'opy-sr-only'));row.append(i,l);}
+ fs.append(row);const lt=make('label','Comentário (opcional)');const ta=make('textarea');ta.maxLength=300;ta.rows=2;ta.value=d.myReview?.text||'';lt.append(ta);
+ const send=make('button',d.myReview?'Atualizar avaliação':'Enviar avaliação','opy-primary');send.type='submit';f.append(fs,lt,send);
+ f.onsubmit=async e=>{e.preventDefault();send.disabled=true;try{const r=await api({action:'market_review',id:x.id,stars:Number(f.elements.stars.value),text:ta.value});toast('Avaliação salva');box.replaceWith(areaDetail('mercado',AREA_META.mercado,r));}catch(err){showError(err.message);}finally{send.disabled=false;}};
+ sec.append(f);return sec;
+}
+function marketForm(d,editing){
+ const x=editing?d.item:null;const back=make('a','← Mercado','area-back');back.href=location.pathname;
+ if(editing&&!d.own)return emptyState('Somente quem anunciou pode editar','Este anúncio é de outra pessoa.',[['Voltar ao Mercado',location.pathname]]);
+ const f=make('form',undefined,'area-detail set-verify market-form');f.append(back,make('h2',editing?'Editar anúncio':'Anunciar no Mercado'));
+ const field=(label,value,max,rows,required=true)=>{const l=make('label',label);const i=make(rows?'textarea':'input');i.value=value||'';i.maxLength=max;i.required=required;if(rows)i.rows=rows;l.append(i);f.append(l);return i;};
+ const title=field('Título',x?.title,100),description=field('Descrição',x?.description,2000,5),price=field('Preço',x?.price,40);price.placeholder='Ex.: R$ 80 ou A combinar';
+ const lc=make('label','Categoria');const cat=make('select');cat.required=true;cat.append(new Option('Escolha uma categoria',''),...d.categoriesFixed.map(c=>new Option(c,c,false,c===x?.category)));lc.append(cat);f.append(lc);
+ const place=field('Cidade/UF (opcional)',x?.location,80,0,false);place.placeholder='Ex.: Manaus/AM';
+ const kept=(x?.photoIds||[]).map((id,k)=>({id,url:x.images[k]})),added=[];
+ const fotos=make('div',undefined,'market-photos');const pick=make('input');pick.type='file';pick.multiple=true;pick.accept='image/png,image/jpeg,image/webp,image/gif';const lp=make('label','Fotos (até 4)');lp.append(pick);
+ const paint=()=>{fotos.replaceChildren(...[...kept.map(p=>[p.url,()=>kept.splice(kept.indexOf(p),1)]),...added.map(p=>[p.data,()=>added.splice(added.indexOf(p),1)])].map(([src,drop],k)=>{const fig=make('figure');const img=make('img');img.src=src;img.alt='Foto '+(k+1);const rm=make('button','✕','market-photo-remove');rm.type='button';rm.setAttribute('aria-label','Tirar a foto '+(k+1));rm.onclick=()=>{drop();paint();pick.focus();};fig.append(img,rm);return fig;}));lp.hidden=kept.length+added.length>=4;};
+ pick.onchange=async()=>{const files=[...pick.files];pick.value='';try{if(kept.length+added.length+files.length>4)throw Error('Escolha até 4 fotos por anúncio.');for(const file of files){const p=await readSlot(file,900*1024);if(!/^data:image\/(png|jpeg|gif|webp);/.test(p.data))throw Error('As fotos precisam ser PNG, JPG, GIF ou WebP.');added.push(p);}}catch(e){showError(e.message);}paint();};
+ paint();f.append(lp,fotos,make('p','Sem pagamento pelo site: quem tiver interesse fala com você pelo chat.','area-note'));
+ const save=make('button',editing?'Salvar alterações':'Publicar anúncio','opy-primary');save.type='submit';const st=make('p','','area-note');st.setAttribute('role','status');f.append(save,st);
+ f.onsubmit=async e=>{e.preventDefault();save.disabled=true;st.textContent='Salvando…';try{const r=await api({action:'market_save',...(editing?{id:x.id,keepPhotos:kept.map(p=>p.id)}:{}),title:title.value,description:description.value,price:price.value,category:cat.value,location:place.value,photos:added.map(p=>({name:p.name,data:p.data}))});location.href=location.pathname+'?id='+encodeURIComponent(r.item.id);}catch(err){st.textContent=err.message;showError(err.message);save.disabled=false;}};
+ return f;
 }
 function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$('#area-app');if(areaApp)renderArea(areaApp);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});

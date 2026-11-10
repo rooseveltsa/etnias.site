@@ -10,6 +10,8 @@ async function person(browser, username, mobile) {
   const r = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'register', name: username, username, password: 'Test-only-2026', googleKey: username + '@example.com', phone: '11912345678' } });
   if (r.status() === 409) await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'login', username, password: 'Test-only-2026' } });
   else assert.equal(r.status(), 200, 'cadastro de ' + username);
+  // A conta da equipe é fixa (OPY_ADMIN_USERNAMES) e pode ter outro idioma salvo de uma execução anterior.
+  await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'set_locale', locale: 'pt-BR' } });
   const page = await ctx.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
   return { page, errors };
 }

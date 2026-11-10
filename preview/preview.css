@@ -1593,3 +1593,25 @@ body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:va
 .saber-cover-preview{width:min(320px,100%);aspect-ratio:16/10;object-fit:cover;border-radius:10px}
 .set-verify select{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--color-border-strong);border-radius:10px;background:var(--color-surface);color:var(--color-text-primary)}
 .set-verify input[type=file]{min-height:auto;padding:6px 0;border:0}
+
+/* Mercado dos membros: anunciar, estrelas, avaliações e fotos do anúncio */
+.area-new{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;text-decoration:none}
+.area-card-rating,.market-rating{color:var(--color-text-secondary);font-size:12px;font-weight:700}
+.market-rating{margin:2px 0 0;font-size:14px}
+.market-reviews{margin-top:18px;padding-top:12px;border-top:1px solid var(--color-border-subtle)}
+.market-reviews h2{margin:0 0 8px;font-size:18px}
+.market-review-list{display:flex;flex-direction:column;gap:10px;margin:0 0 12px;padding:0;list-style:none}
+.market-review-list li{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--color-border-subtle);border-radius:12px}
+.market-review-list p{margin:0;overflow-wrap:anywhere}
+.market-review-stars{color:#d49a00;letter-spacing:2px}
+.market-stars{margin:0;padding:0;border:0}
+.market-stars legend{padding:0;font-weight:600;font-size:14px}
+.market-stars-row{display:inline-flex;flex-direction:row-reverse}
+.market-stars-row label{display:grid;place-items:center;min-width:44px;min-height:44px;font-size:28px;line-height:1;color:var(--color-border-strong);cursor:pointer}
+.market-stars-row input:checked~label,.market-stars-row label:hover,.market-stars-row label:hover~label{color:#d49a00}
+.market-stars-row input:focus-visible+label{outline:3px solid var(--color-river-teal,#176b87);outline-offset:2px;border-radius:8px}
+.market-form h2{margin:0;font-size:22px}
+.market-photos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.market-photos:empty{display:none}
+.market-photos figure{position:relative;margin:0;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--color-surface-muted)}
+.market-photos img{width:100%;height:100%;object-fit:cover}
+.market-photo-remove{position:absolute;top:4px;right:4px;width:44px;height:44px;border:0;border-radius:50%;background:rgba(16,28,32,.75);color:#fff;font-size:16px}
