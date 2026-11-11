@@ -48,7 +48,7 @@ const sources = [
     title: 'Saberes nesta prévia',
     revised,
     terms: ['saberes', 'curso', 'trilha', 'area do aluno', 'ondemand'],
-    answer: 'Saberes está na prévia como trilha para a equipe avaliar a navegação. Não é um curso em funcionamento, não faz matrícula oficial e não emite certificado. Trate como proposta em avaliação.'
+    answer: 'Saberes chega em breve: a equipe do Etnias está preparando trilhas de conhecimento com aulas, publicadas com autorização das comunidades de origem. Por enquanto ainda não há matrícula nem certificado.'
   },
   {
     id: 'guardiao',

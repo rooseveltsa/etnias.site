@@ -50,14 +50,19 @@ async function api(cookie, body) {
       assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('opy-house')), true, 'foco volta à casa');
     });
 
-    await step('3. Itens do OPY: as 11 áreas navegam para páginas reais; Músicas mostra Em breve', async () => {
+    await step('3. Itens do OPY: as áreas navegam para páginas reais; Músicas e Saberes mostram Em breve', async () => {
       await page.locator('.opy-house').click(); await page.locator('#opy-menu[open]').waitFor();
       await page.locator('#opy-menu button[data-opy-info="Músicas"]').click();
       await page.locator('#opy-info[open]').waitFor();
       assert.ok((await page.locator('#opy-info').textContent()).includes('Em breve'), 'Músicas segue Em breve por decisão do projeto');
+      await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('#opy-info[open]'));
+      if (!(await page.locator('#opy-menu[open]').count())) { await page.locator('.opy-house').click(); await page.locator('#opy-menu[open]').waitFor(); }
+      await page.locator('#opy-menu button[data-opy-info="Saberes"]').click();
+      await page.locator('#opy-info[open]').waitFor();
+      assert.ok((await page.locator('#opy-info').textContent()).includes('Em breve'), 'Saberes é Em breve até a entrega (decisão do projeto, 10/11/2026)');
       await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('dialog[open]'));
-      for (const [label, path] of [['Saberes', 'saberes'], ['Conexão', 'search'], ['Comunidades', 'grupos'], ['Sobre', 'sobre'], ['Blogs', 'blogs'], ['Mercado', 'mercado'], ['Eventos', 'eventos'], ['Páginas', 'paginas'], ['Filmes', 'filmes'], ['Empregos', 'empregos'], ['Coleta', 'coletas']]) {
+      for (const [label, path] of [['Conexão', 'search'], ['Comunidades', 'grupos'], ['Sobre', 'sobre'], ['Blogs', 'blogs'], ['Mercado', 'mercado'], ['Eventos', 'eventos'], ['Páginas', 'paginas'], ['Filmes', 'filmes'], ['Empregos', 'empregos'], ['Coleta', 'coletas']]) {
         await page.locator('.opy-house').click(); await page.locator('#opy-menu[open]').waitFor();
         await Promise.all([page.waitForURL(u => String(u).includes(path), { timeout: 10000 }), page.locator('#opy-menu a', { hasText: label }).first().click()]);
       }
