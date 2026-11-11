@@ -124,8 +124,18 @@ try {
   assert.ok(session);
   assert.equal(await verifySession(token, process.env.OPY_SESSION_SECRET, session.expiresAt), null);
   assert.equal(await verifySession(token + '0', process.env.OPY_SESSION_SECRET), null);
-  const expired = await createSession(first.data.me.id, process.env.OPY_SESSION_SECRET, Date.now() - 8 * 86400000);
+  const expired = await createSession(first.data.me.id, process.env.OPY_SESSION_SECRET, Date.now() - 31 * 86400000);
   assert.equal((await api(null, 'opy_visitor=' + expired.token)).status, 401);
+  // Sessão deslizante: uma sessão de 2 dias atrás ganha novo token de 30 dias, e o token antigo continua valendo.
+  const older = await createSession(first.data.me.id, process.env.OPY_SESSION_SECRET, Date.now() - 2 * 86400000);
+  state.accounts.find(a => a.id === first.data.me.id).sessions.push(older.session);
+  const slid = await api(null, 'opy_visitor=' + older.token);
+  assert.equal(slid.status, 200);
+  const renewed = await verifySession(slid.cookie.slice(12), process.env.OPY_SESSION_SECRET);
+  assert.equal(renewed.id, older.session.id);
+  assert.ok(renewed.expiresAt > Date.now() + 29 * 86400000);
+  assert.equal((await api(null, 'opy_visitor=' + older.token)).status, 200, 'token anterior à renovação segue válido');
+  assert.equal((await api(null, slid.cookie)).cookie, '', 'renova no máximo uma vez por dia');
   assert.equal((await middleware(new Request(base + '/iara/', { headers: { cookie: 'opy_visitor=' + expired.token } }))).status, 307);
   assert.equal(await middleware(new Request(base + '/iara/', { headers: { cookie: first.cookie } })), undefined);
   const request = { action: 'iara_request', text: 'Preciso de um card para divulgar o curso de letramento' };

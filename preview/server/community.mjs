@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { readState, transact, saveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
 import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
-import { createSession, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword } from './session.mjs';
+import { createSession, renewSession, SESSION_DAYS, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword } from './session.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
@@ -40,8 +40,20 @@ function sessionSecret() {
 }
 // Vercel e a VPS (NODE_ENV=production no Dockerfile) servem por HTTPS; o teste local em http fica sem Secure.
 const secureCookie = () => process.env.VERCEL || process.env.NODE_ENV === 'production' ? '; Secure' : '';
+// Quem usa o Etnias não precisa entrar de novo: a sessão ganha mais 30 dias a cada dia de uso. O token antigo segue
+// válido até a própria data (o servidor confere a sessão pelo id), então pedidos simultâneos não derrubam ninguém.
+async function slideSession(res, session, secret) {
+  const renewed = await renewSession(session, secret);
+  if (!renewed) return;
+  let kept = false;
+  await transact(state => {
+    const item = (state.accounts || []).find(a => a.id === session.accountId)?.sessions?.find(s => s.id === session.id && s.expiresAt > Date.now());
+    if (item) { item.expiresAt = Math.max(item.expiresAt, renewed.session.expiresAt); kept = true; }
+  });
+  if (kept) res.setHeader('Set-Cookie', cookieHeader(renewed.token));
+}
 function cookieHeader(token) {
-  return `opy_visitor=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secureCookie()}`;
+  return `opy_visitor=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secureCookie()}`;
 }
 function accountsOf(state) {
   if (!Array.isArray(state.accounts)) state.accounts = [];
@@ -397,6 +409,7 @@ export default async function handler(req, res) {
       return res.end();
     }
     const session = await verifySession(sessionCookie(req), secret);
+    await slideSession(res, session, secret);
     if (req.method === 'GET' || (req.method === 'HEAD' && pathname.startsWith('/live/recordings/'))) {
       const state = (await readState()).data;
       const account = sessionAccount(state, session);

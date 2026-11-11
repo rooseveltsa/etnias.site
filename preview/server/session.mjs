@@ -1,6 +1,9 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 
-const duration = 7 * 24 * 60 * 60 * 1000;
+// Sessão deslizante: vale 30 dias a partir do último uso (renovada no máximo uma vez por dia, ver renewSession).
+export const SESSION_DAYS = 30;
+const day = 24 * 60 * 60 * 1000;
+const duration = SESSION_DAYS * day;
 
 export function hashPassword(password, salt = randomBytes(16)) {
   const hash = scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
@@ -25,6 +28,14 @@ export async function createSession(accountId, secret, now = Date.now()) {
   return { session, token: `${payload}.${await sign(payload, secret)}` };
 }
 
+// Novo token para a mesma sessão (mesmo id) quando o atual já tem mais de um dia; null se ainda não precisa.
+export async function renewSession(session, secret, now = Date.now()) {
+  if (!session || session.expiresAt > now + duration - day) return null;
+  const expiresAt = now + duration;
+  const payload = `${session.accountId}.${expiresAt}.${session.id}`;
+  return { session: { ...session, expiresAt }, token: `${payload}.${await sign(payload, secret)}` };
+}
+
 export async function verifySession(token, secret, now = Date.now()) {
   if (!secret || secret.length < 32 || typeof token !== 'string') return null;
   const parts = token.split('.');
@@ -44,7 +55,7 @@ export function sessionCookie(req) {
 
 export function sessionAccount(state, session) {
   if (!session || session.expiresAt <= Date.now()) return null;
-  return (state.accounts || []).find(account => account.id === session.accountId && account.sessions?.some(item => item.id === session.id && item.expiresAt === session.expiresAt));
+  return (state.accounts || []).find(account => account.id === session.accountId && account.sessions?.some(item => item.id === session.id && item.expiresAt > Date.now()));
 }
 
 export function addSession(account, session) {
