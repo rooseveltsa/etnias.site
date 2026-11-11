@@ -14,7 +14,8 @@ export const communityActions = [
   'community_remove_member',
   'community_update',
   'community_moderate_post',
-  'community_report'
+  'community_report',
+  'community_chat'
 ];
 
 export const communityCategories = [
@@ -216,6 +217,7 @@ export function projectCommunities(state, me) {
       membersCount: c.members.length,
       postsCount,
       joined,
+      chatKey: joined ? chatKeyOf(state, c) : '',
       pending,
       invited,
       role,
@@ -230,18 +232,35 @@ export function projectCommunities(state, me) {
   });
 }
 
+// Conversa da comunidade: um grupo do chat cujos participantes são sempre os membros da comunidade
+// (entrar, sair, aprovar ou remover na comunidade vale para a conversa). Administração e moderação viram admins do grupo.
+function chatKeyOf(state, c) { const g = (state.chatGroups || []).find(item => item.communityId === c.id); return g ? `group:${g.id}` : ''; }
+export function syncCommunityChat(state, c) {
+  const g = (state.chatGroups || []).find(item => item.communityId === c.id);
+  if (!g) return null;
+  const now = Date.now();
+  g.joinedAt ||= {};
+  g.joinedAfter ||= {};
+  for (const k of c.members) if (!g.members.includes(k)) { g.joinedAfter[k] = state.dms?.at(-1)?.id || null; g.joinedAt[k] = now; }
+  g.name = c.name;
+  g.members = [...c.members];
+  g.admins = [...new Set([...(c.admins || []), ...(c.moderators || [])])].filter(k => c.members.includes(k));
+  g.invited = [];
+  return g;
+}
+
 export function communityAction(state, me, body) {
   const mine = keyOf(me);
   const list = ensureCommunities(state);
 
   if (body.action === 'community_create') {
-    if (list.length >= 60) fail(409, 'Limite de comunidades desta prévia atingido.');
+    if (list.length >= 2000) fail(409, 'A rede atingiu o limite de comunidades. Fale com a equipe Etnias.');
     const name = text(body.name, 60);
     if (name.length < 3) fail(400, 'O nome da comunidade precisa ter pelo menos 3 caracteres.');
     const category = communityCategories.includes(body.category) ? body.category : communityCategories[0];
     const visibility = body.visibility === 'private' ? 'private' : 'public';
-    const description = text(body.description, 400);
-    const rules = text(body.rules || 'Respeite os participantes e compartilhe apenas conteúdos autorizados.', 600, false);
+    const description = text(body.description, 600);
+    const rules = text(body.rules || 'Respeite os participantes e compartilhe apenas conteúdos autorizados.', 1000, false);
     const governanceNote = text(body.governanceNote || (visibility === 'private'
       ? 'Comunidade privada: solicitações de entrada passam pela administração.'
       : 'Comunidade aberta: qualquer pessoa autenticada pode participar e publicar.'), 300, false);
@@ -276,6 +295,14 @@ export function communityAction(state, me, body) {
   c.moderators ||= [];
   c.pendingRequests ||= [];
   c.invited ||= [];
+
+  if (body.action === 'community_chat') {
+    if (!c.members.includes(mine)) fail(403, 'Entre na comunidade para participar da conversa.');
+    state.chatGroups ||= [];
+    if (!state.chatGroups.some(g => g.communityId === c.id)) state.chatGroups.push({ id: randomUUID(), communityId: c.id, name: c.name, description: '', members: [], admins: [], invited: [], joinedAt: {} });
+    syncCommunityChat(state, c);
+    return {};
+  }
 
   if (body.action === 'community_join') {
     if (c.members.includes(mine)) {
@@ -399,8 +426,8 @@ export function communityAction(state, me, body) {
     if (c.name.length < 3) fail(400, 'O nome precisa ter pelo menos 3 caracteres.');
     if (body.category && communityCategories.includes(body.category)) c.category = body.category;
     if (body.visibility && ['public', 'private'].includes(body.visibility)) c.visibility = body.visibility;
-    c.description = text(body.description, 400);
-    c.rules = text(body.rules || '', 600, false);
+    c.description = text(body.description, 600);
+    c.rules = text(body.rules || '', 1000, false);
     c.governanceNote = text(body.governanceNote || '', 300, false);
     if (body.coverTone && ['terracotta', 'forest', 'slate', 'ochre'].includes(body.coverTone)) c.coverTone = body.coverTone;
     const questions = questionsOf(body.entryQuestions);

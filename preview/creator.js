@@ -114,7 +114,7 @@ function showGallery(files) {
 }
 el('creator-file').addEventListener('change', e => {
   const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
-  if (files.some(f => !/^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm))$/.test(f.type))) { showError('Escolha uma foto ou um vídeo.'); return; }
+  if (files.some(f => !/^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm|quicktime))$/.test(f.type))) { showError('Escolha uma foto ou um vídeo.'); return; }
   dlg.dataset.textMode = '';
   if (files.length === 1) return showReview(files[0]);
   if (mode !== 'post') { showError('O story leva uma foto ou um vídeo por vez.'); return; }

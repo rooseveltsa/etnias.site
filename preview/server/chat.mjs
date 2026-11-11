@@ -117,7 +117,7 @@ export function chatSnapshot(state, me, params = new URLSearchParams()) {
       .map(([k]) => { try { return person(state, k).name; } catch { return ''; } })
       .filter(Boolean);
     const sharedMedia = fullList.filter(m => !m.deleted && m.media).slice(-12).reverse().map(m => ({ id: m.media.id, url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name, at: m.createdAt }));
-    selected = { key, name:t.name, username:otherAcc?.username || '', avatar:otherAcc ? avatarOf(otherAcc) : '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
+    selected = { key, name:t.name, username:otherAcc?.username || '', avatar:otherAcc ? avatarOf(otherAcc) : '', bio:otherAcc?.bio || '', affiliation:otherAcc?.affiliation || '', group:!!t.group, blocked:!t.group?.communityId && t.members.some(k=>k!==mine && blocked(state,mine,k)), admin:!!t.group?.admins.includes(mine),
       description:t.group?.description || '', typing, sharedMedia,
       relation: t.group ? 'accepted' : relationOf(state, mine, key), blockedByMe: !t.group && !!state.chatBlocks?.[mine]?.includes(key), members:t.group ? t.members.map(k => { const a=person(state,k);return {key:k,name:a.name,username:a.username||'',admin:t.group.admins.includes(k)}; }) : [] };
     list = fullList;
@@ -146,7 +146,7 @@ export function chatAction(state, me, body, upload) {
   state.dms ||= [];
   if(body.action==='chat_typing') {
     const t=thread(state,me,key);
-    if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada.');
+    if(!t.group?.communityId && t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada.');
     if(!t.group && relationOf(state,mine,key)!=='accepted')return {};
     const bucket=typingBucketKey(mine,key);
     state.chatTyping ||= {}; state.chatTyping[bucket] ||= {};
@@ -157,7 +157,7 @@ export function chatAction(state, me, body, upload) {
   if(body.action==='dm') {
     const t=thread(state,me,body.toKey);
     if(String(body.toKey).startsWith('id:') && !canMessage(state,me.id,body.toKey))fail(403,'Esta pessoa só recebe mensagens de amizades.');
-    if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada. Não é possível enviar mensagens.');
+    if(!t.group?.communityId && t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada. Não é possível enviar mensagens.');
     const copy=text(body.text || '',2000,false);
     if(!copy && !upload)fail(400,'Escreva uma mensagem ou escolha um anexo.');
     if(body.clientId!==undefined && !uuid.test(body.clientId))fail(400,'Identificador de envio inválido.');
@@ -199,7 +199,7 @@ export function chatAction(state, me, body, upload) {
     }
     if(m.deleted)fail(409,'Esta mensagem foi apagada.');
     const t=thread(state,me,messageKey(me,m));
-    if(t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada.');
+    if(!t.group?.communityId && t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada.');
     if(body.action==='chat_edit'){if(m.fromKey!==mine)fail(403,'Só quem enviou pode editar.');m.text=text(body.text,2000);m.editedAt=Date.now();}
     else {if(!reactions.includes(body.reaction) && body.reaction!=='')fail(400,'Escolha uma reação disponível.');m.reactions ||= {};m.reactions[mine]=body.reaction;}
     return {};
@@ -239,6 +239,7 @@ export function chatAction(state, me, body, upload) {
     g.invited=g.invited.filter(k=>k!==mine);return {};
   }
   thread(state,me,key);
+  if(g.communityId)fail(409,'Esta conversa segue a comunidade: entre, saia ou gerencie pela página da comunidade.');
   if(body.action==='chat_group_leave') {
     if(g.admins.includes(mine) && g.admins.length===1 && g.members.length>1)fail(409,'Defina outra pessoa administradora antes de sair.');
     g.members=g.members.filter(k=>k!==mine);g.admins=g.admins.filter(k=>k!==mine);g.invited=g.members.length ? g.invited : [];return {};

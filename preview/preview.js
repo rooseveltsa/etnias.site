@@ -239,14 +239,41 @@ function openLightbox(urls,index,author){
 }
 // Links no texto: só http(s), abrem em outra aba sem passar a origem; o restante continua texto puro (nada vira HTML).
 const URL_RE=/\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/gi;
-function linkified(text){
+// #tag vira busca; @usuario vira link de perfil só quando o servidor confirmou a menção (mentions = {usuario:'id:…'}).
+const TAG_RE=/(^|[^\p{L}\p{N}_@#&/])([@#])([\p{L}\p{N}_][\p{L}\p{N}_.]{1,49})/gu;
+function tagged(text,mentions){
+ const frag=document.createDocumentFragment();let last=0;
+ for(const m of text.matchAll(TAG_RE)){
+  const word=m[3].replace(/\.+$/,''),at=m.index+m[1].length;let a=null;
+  if(m[2]==='#'){a=make('a','#'+word,'post-inline-link post-hashtag');a.href='/search/?query='+encodeURIComponent('#'+word);}
+  else{const key=mentions&&mentions[word.toLowerCase()];if(key){a=make('a','@'+word,'post-inline-link post-mention');a.href='/perfil/?u='+encodeURIComponent(key);}}
+  if(!a)continue;
+  frag.append(text.slice(last,at),a);last=at+1+word.length;
+ }
+ frag.append(text.slice(last));return frag;
+}
+// "@" no texto sugere pessoas da rede; escolher completa o @usuario (setas, Enter/Tab, Esc).
+(()=>{let box=null,field=null,items=[],sel=0,timer=0,seq=0;
+ const close=()=>{box?.remove();box=null;items=[];};
+ const word=f=>{const m=/(?:^|\s)@([\p{L}\p{N}_.]{1,24})$/u.exec(f.value.slice(0,f.selectionStart||0));return m?m[1]:null;};
+ const pick=p=>{const pos=field.selectionStart;const before=field.value.slice(0,pos).replace(/@[\p{L}\p{N}_.]*$/u,'@'+p.username+' ');field.value=before+field.value.slice(pos);field.setSelectionRange(before.length,before.length);field.dispatchEvent(new Event('input',{bubbles:true}));close();field.focus();};
+ const paint=()=>{if(!items.length)return close();if(!box){box=make('ul',undefined,'opy-mention-list');box.setAttribute('role','listbox');box.setAttribute('aria-label','Pessoas para mencionar');document.body.append(box);}
+  const r=field.getBoundingClientRect(),w=Math.min(320,Math.max(220,r.width));box.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';box.style.width=w+'px';
+  const below=r.bottom+4+items.length*48<innerHeight;box.style.top=below?(r.bottom+4)+'px':'';box.style.bottom=below?'':(innerHeight-r.top+4)+'px';
+  box.replaceChildren(...items.map((p,i)=>{const li=make('li',undefined,'opy-mention-item');li.setAttribute('role','option');li.setAttribute('aria-selected',String(i===sel));li.append(avatarNode(p.name,p.avatar,28),make('span',p.name),make('small','@'+p.username));li.onmousedown=e=>{e.preventDefault();pick(p);};return li;}));};
+ document.addEventListener('input',e=>{const f=e.target;if(!f.matches?.('[data-mentions]'))return;const q=word(f);if(q==null){if(field===f)close();return;}field=f;clearTimeout(timer);const my=++seq;timer=setTimeout(()=>apiGet({view:'search',q}).then(d=>{if(my!==seq||field!==f)return;items=(d.people||[]).filter(p=>p.username).slice(0,6);sel=0;paint();}).catch(()=>{}),180);});
+ document.addEventListener('keydown',e=>{if(!box||e.target!==field)return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sel=(sel+(e.key==='ArrowDown'?1:items.length-1))%items.length;paint();}else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();e.stopPropagation();pick(items[sel]);}else if(e.key==='Escape'){e.stopPropagation();close();}},true);
+ document.addEventListener('focusout',e=>{if(e.target===field)setTimeout(close,150);});
+ addEventListener('scroll',()=>{if(box)paint();},{passive:true});
+})();
+function linkified(text,mentions){
  const frag=document.createDocumentFragment();let last=0;
  for(const m of text.matchAll(URL_RE)){
   let ok=false;try{ok=['http:','https:'].includes(new URL(m[0]).protocol);}catch{}
   if(!ok)continue;
-  frag.append(text.slice(last,m.index));const a=make('a',m[0].length>60?m[0].slice(0,57)+'…':m[0],'post-inline-link');a.href=m[0];a.target='_blank';a.rel='noopener noreferrer nofollow';frag.append(a);last=m.index+m[0].length;
+  frag.append(tagged(text.slice(last,m.index),mentions));const a=make('a',m[0].length>60?m[0].slice(0,57)+'…':m[0],'post-inline-link');a.href=m[0];a.target='_blank';a.rel='noopener noreferrer nofollow';frag.append(a);last=m.index+m[0].length;
  }
- frag.append(text.slice(last));return frag;
+ frag.append(tagged(text.slice(last),mentions));return frag;
 }
 // YouTube: o primeiro link vira cartão com a miniatura; o player (youtube-nocookie) só carrega quando a pessoa toca.
 function youtubeId(text){
@@ -271,7 +298,7 @@ function youtubeCard(id,author){
 }
 function appendPostBody(item, parent){
  if(item.feeling)parent.append(make('small','Sentindo-se '+item.feeling,'post-feeling'));
- if(item.text&&item.text.trim()){const copy=make('p',undefined,'post-copy');copy.append(linkified(item.text));parent.append(copy);
+ if(item.text&&item.text.trim()){const copy=make('p',undefined,'post-copy');copy.append(linkified(item.text,item.mentions));parent.append(copy);
   // Texto longo fica recolhido com "Ver mais", como nos apps; o texto completo continua no DOM para leitores de tela.
   if(item.text.length>420||item.text.split('\n').length>8){copy.classList.add('is-clamped');const more=make('button','Ver mais','post-more-text');more.type='button';more.setAttribute('aria-expanded','false');more.onclick=()=>{const open=copy.classList.toggle('is-clamped');more.textContent=open?'Ver mais':'Ver menos';more.setAttribute('aria-expanded',String(!open));};parent.append(more);}}
  const safeImage=u=>u&&(u.startsWith('/assets/archive/')||u.startsWith('/legado/')||u.startsWith('/api/media?id='));
@@ -326,7 +353,7 @@ function renderPost(post, communityContext=null){
  const total=reacted.reduce((sum,[id])=>sum+post.reactions[id],0);
  const sharesCount=post.shares||0;
  const form=make('form',undefined,'preview-comment-form');form.hidden=!openCommentForms.has(post.id);form.id='comment-'+post.id;
- const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário…';input.setAttribute('aria-label','Seu comentário');
+ const input=make('input');input.required=true;input.maxLength=500;input.placeholder='Escreva um comentário…';input.setAttribute('aria-label','Seu comentário');input.dataset.mentions='';input.autocomplete='off';
  const charCount=make('small','0/500','comment-char-count');charCount.hidden=true;
  input.addEventListener('input',()=>{charCount.textContent=input.value.length+'/500';charCount.hidden=input.value.length<400;});
  // Campo no padrão das redes: pílula larga com o texto; emoji e enviar (seta) ficam dentro dela; enviar só acende com texto.
@@ -423,7 +450,7 @@ function renderPost(post, communityContext=null){
   const body=make('div',undefined,'preview-comment-body');
   const bubble=make('div',undefined,'comment-bubble');
   const cAuthor=make('button',comment.author,'author-name-btn');cAuthor.type='button';cAuthor.onclick=()=>openProfile(cKey,comment.author,'');
-  bubble.append(cAuthor,make('p',comment.text));
+  const cText=make('p');cText.append(linkified(comment.text,comment.mentions));bubble.append(cAuthor,cText);
   if(comment.likes){const n=make('span','❤ '+comment.likes,'comment-likes');n.setAttribute('aria-label',comment.likes+(comment.likes===1?' curtida':' curtidas'));bubble.append(n);}
   const bar=make('div',undefined,'comment-actions');
   const like=button(comment.liked?'Curtido':'Curtir',()=>change({action:'comment_like',postId:post.id,commentId:comment.id}),bar);like.className='comment-act'+(comment.liked?' is-on':'');like.setAttribute('aria-pressed',String(!!comment.liked));
@@ -939,6 +966,8 @@ function renderCommunities(){
   joinBtn.className=current.joined||isPending?'preview-secondary':'opy-primary';
   joinBtn.setAttribute('aria-pressed',String(current.joined));
   if(current.id==='avaliacao-casa-opy')joinBtn.dataset.communityJoin='';
+  // Conversa em grupo da comunidade (no chat): criada no primeiro clique, participantes = membros.
+  if(current.joined)button('Conversa do grupo',async()=>{let key=current.chatKey;if(!key){await change({action:'community_chat',communityId:current.id});key=(communitiesList().find(c=>c.id===current.id)||{}).chatKey;}if(key)location.href='/chat/?p='+encodeURIComponent(key);},actionBar).className='opy-primary';
   if(current.joined&&(!isPrivate||current.canModerate)){
    button('Convidar pessoa',()=>{
     openCommunityDialog('Convidar para '+current.name,'Enviar convite',body=>{
@@ -1692,7 +1721,7 @@ $('#profile-edit-form')?.addEventListener('submit',async e=>{
  finally{submit.disabled=false;}
 });
 const publisher=$('#opy-compose');
-function typedDataUrl(file, data){const ext=(file.name.split('.').pop()||'').toLowerCase();const mime={pdf:'application/pdf',txt:'text/plain',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',doc:'application/msword',mp4:'video/mp4',webm:'video/webm',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp'};let next=data.replace(/^data:(video\/webm);codecs=[^;]+;/,'data:$1;');if(/^data:(?:application\/octet-stream)?;base64,/.test(next)&&mime[ext])next=next.replace(/^data:[^,]*,/,'data:'+mime[ext]+';base64,');return next;}
+function typedDataUrl(file, data){const ext=(file.name.split('.').pop()||'').toLowerCase();const mime={pdf:'application/pdf',txt:'text/plain',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',doc:'application/msword',mp4:'video/mp4',mov:'video/mp4',webm:'video/webm',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp'};let next=data.replace(/^data:(video\/webm);codecs=[^;]+;/,'data:$1;');next=next.replace(/^data:video\/quicktime;/,'data:video/mp4;');if(/^data:(?:application\/octet-stream)?;base64,/.test(next)&&mime[ext])next=next.replace(/^data:[^,]*,/,'data:'+mime[ext]+';base64,');return next;}
 function paintSlot(id, item, clearLabel, clear){
  const el=$('#'+id);if(!el)return;
  if(!item){el.replaceChildren();el.hidden=true;return;}
@@ -1717,7 +1746,8 @@ async function shrinkPhoto(file,limit=1.5*1024*1024){
  }
  return file;
 }
-async function readSlot(file,limit){if(!file)return null;file=await shrinkPhoto(file,limit);if(file.size>2*1024*1024)throw Error('Escolha um arquivo de até 2 MB.');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file);});return {name:file.name,data:typedDataUrl(file,data),bytes:file.size};}
+const MAX_VIDEO_MB=40;
+async function readSlot(file,limit){if(!file)return null;file=await shrinkPhoto(file,limit);const video=/^video\//.test(file.type)||/\.(mp4|mov|webm)$/i.test(file.name);if(video&&file.size>MAX_VIDEO_MB*1024*1024)throw Error('Escolha um vídeo de até '+MAX_VIDEO_MB+' MB.');if(!video&&file.size>2*1024*1024)throw Error('Escolha um arquivo de até 2 MB.');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file);});return {name:file.name,data:typedDataUrl(file,data),bytes:file.size};}
 // Carrossel no padrão do Instagram: até 10 fotos, reduzidas no aparelho (carrossel mais leve: acima de 900 KB vira JPEG de até 1600 px).
 const MAX_PHOTOS=10,MAX_PHOTOS_BYTES=13*1024*1024;
 function paintPhotos(){
@@ -1740,7 +1770,7 @@ function selectedFormat(){return all('[data-compose-tool]').find(item=>item.getA
 if(publisher){
  $('#compose-story-open')?.addEventListener('click',()=>{if(window.OpyCreator){window.OpyCreator.open('story');return;}openStorySheet();$('#story-form')?.scrollIntoView({behavior:'smooth',block:'nearest'});});
  if($('#publisher-photo'))$('#publisher-photo').onchange=async()=>{const input=$('#publisher-photo');const files=[...input.files];input.value='';if(!files.length)return;busy=true;try{if(photoAttachments.length+files.length>MAX_PHOTOS)throw Error('Escolha até '+MAX_PHOTOS+' fotos por publicação.');for(const f of files){const next=await readSlot(f,photoAttachments.length+files.length>1?900*1024:undefined);if(!/^data:image\/(png|jpeg|gif|webp);/.test(next.data))throw Error('A imagem precisa ser PNG, JPG, GIF ou WebP.');if(photoAttachments.reduce((t,p)=>t+p.bytes,0)+next.bytes>MAX_PHOTOS_BYTES)throw Error('As fotos passaram de 13 MB juntas. Tire alguma ou escolha fotos menores.');photoAttachments.push(next);}}catch(e){showError(e.message);}finally{busy=false;paintPhotos();}};
- $('#publisher-video').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-video').files[0]);if(!next)return;if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4 ou WebM.');const replaced=!!videoAttachment;videoAttachment=next;paintSlot('video-slot',next,'Remover vídeo',()=>{videoAttachment=null;$('#publisher-video').value='';$('#video-status').textContent='';$('#video-status').hidden=true;});const videoStatus=$('#video-status');videoStatus.hidden=false;videoStatus.textContent=replaced?'O vídeo anterior foi trocado. A publicação leva um único vídeo.':'Vídeo pronto. A publicação leva um único vídeo.';}catch(e){showError(e.message);$('#publisher-video').value='';}finally{busy=false;}};
+ $('#publisher-video').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-video').files[0]);if(!next)return;if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4, MOV ou WebM.');const replaced=!!videoAttachment;videoAttachment=next;paintSlot('video-slot',next,'Remover vídeo',()=>{videoAttachment=null;$('#publisher-video').value='';$('#video-status').textContent='';$('#video-status').hidden=true;});const videoStatus=$('#video-status');videoStatus.hidden=false;videoStatus.textContent=replaced?'O vídeo anterior foi trocado. A publicação leva um único vídeo.':'Vídeo pronto. A publicação leva um único vídeo.';}catch(e){showError(e.message);$('#publisher-video').value='';}finally{busy=false;}};
  $('#publisher-document').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-document').files[0]);if(!next)return;if(!/\.(pdf|txt|docx|doc)$/i.test(next.name))throw Error('O arquivo precisa ser PDF, TXT, DOC ou DOCX.');const replaced=!!fileAttachment;fileAttachment=next;paintSlot('file-slot',next,'Remover arquivo',()=>{fileAttachment=null;$('#publisher-document').value='';$('#file-status').textContent='';$('#file-status').hidden=true;});const fileStatus=$('#file-status');fileStatus.hidden=false;fileStatus.textContent=replaced?'O arquivo anterior foi trocado. A publicação leva um único arquivo.':'Arquivo pronto. A publicação leva um único arquivo.';}catch(e){showError(e.message);$('#file-status').textContent=e.message;$('#publisher-document').value='';}finally{busy=false;}};
  selectFormat('text');all('[data-compose-tool]').forEach(b=>b.onclick=()=>selectFormat(b.getAttribute('aria-selected')==='true'&&b.dataset.composeTool!=='text'?'text':b.dataset.composeTool));
  // Compositor fechado mostra só a linha de entrada; abre ao focar ou escolher um formato e fecha vazio ao sair.

@@ -1777,3 +1777,12 @@ body:not(.opy-welcome) .install-bar .install-apk.preview-secondary{display:none}
 .landing-footer{padding:24px 24px calc(24px + env(safe-area-inset-bottom));text-align:center;color:var(--color-text-secondary);font-size:14px}
 .landing-footer p{margin:0}
 @media(max-width:800px){.landing{padding:8px 20px}.landing-block{padding:24px 0}.landing p{font-size:16px}}
+
+/* Menções (@) e hashtags (#) */
+.post-mention,.post-hashtag{font-weight:600;text-decoration:none}
+.post-mention:hover,.post-hashtag:hover{text-decoration:underline}
+.opy-mention-list{position:fixed;z-index:1000;margin:0;padding:4px;list-style:none;background:var(--color-surface);border:1px solid var(--color-border-subtle,#e2d6c8);border-radius:12px;box-shadow:var(--shadow-elevated,0 8px 24px rgba(0,0,0,.15));max-height:300px;overflow:auto}
+.opy-mention-item{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 8px;border-radius:8px;cursor:pointer;color:var(--color-text-primary)}
+.opy-mention-item span{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opy-mention-item small{color:var(--color-text-secondary);white-space:nowrap}
+.opy-mention-item[aria-selected=true],.opy-mention-item:hover{background:var(--color-surface-muted)}

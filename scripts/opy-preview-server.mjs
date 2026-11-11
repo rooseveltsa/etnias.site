@@ -3,7 +3,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
-import handler from '../preview/server/community.mjs';
+import handler, { MAX_BODY_CHARS } from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 import { sendFile } from '../preview/server/files.mjs';
@@ -104,7 +104,7 @@ http.createServer(async (req, res) => {
   if (path === '/api/community' || path === '/api/media' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
     if (req.method === 'GET' && path === '/api/community') conditionalRead(req, res);
     if (req.method === 'POST') {
-      let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 20*1024*1024) { res.writeHead(413); return res.end(); } }
+      let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > MAX_BODY_CHARS) { res.writeHead(413); return res.end(); } }
       try { req.body = JSON.parse(raw); } catch { res.writeHead(400); return res.end(); }
     }
     return handler(req, res);

@@ -20,7 +20,7 @@ import { areaView } from './areas.mjs';
 import { saberesActions, saberesAction, saberesView, saberMedia } from './saberes.mjs';
 import { marketActions, marketAction, marketMedia, MAX_MARKET_PHOTOS } from './mercado.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
-import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction } from './communities.mjs';
+import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction, syncCommunityChat } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
 const feelings = ['feliz', 'agradecido', 'pensativo', 'animado'];
@@ -142,11 +142,24 @@ function reactorNames(p, me, ctx) {
   for (const id of ids) { if (names.length >= 3) break; if (id === me.id) continue; const name = ctx.accountsById.get(id)?.name; if (name) names.push(name); }
   return names;
 }
+// @usuario no texto marca a pessoa: guarda o id (o usuário pode mudar depois). Só contas que existem, até 10 por texto.
+const MENTION_RE = /(^|[^\w@.])@([a-z0-9][a-z0-9._]{2,23})/gi;
+function mentionsIn(state, value, authorId) {
+  const names = new Set([...String(value || '').matchAll(MENTION_RE)].map(m => m[2].toLowerCase().replace(/\.+$/, '')));
+  if (!names.size) return [];
+  return (state.accounts || []).filter(a => a.username && names.has(a.username) && a.id !== authorId).slice(0, 10).map(a => a.id);
+}
+// Para o app transformar @usuario em link de perfil: { usuario: 'id:…' } só das menções gravadas.
+function mentionKeys(ids, ctx) {
+  const out = {};
+  for (const id of ids || []) { const u = ctx.accountsById.get(id)?.username; if (u) out[u] = `id:${id}`; }
+  return out;
+}
 function projectPost(p, me, state, ctx) {
   const aKey = authorKeyOf(p);
   const author = ctx.accountsById.get(p.authorId);
   return {
-    id: p.id, text: p.text, author: p.author, authorKey: aKey, following: ctx.followed.has(aKey), friendStatus: friendStatusOf(state, ctx.myKey, aKey),
+    id: p.id, text: p.text, mentions: mentionKeys(p.mentions, ctx), author: p.author, authorKey: aKey, following: ctx.followed.has(aKey), friendStatus: friendStatusOf(state, ctx.myKey, aKey),
     origin: p.origin || 'preview', createdAt: p.createdAt, image: p.image || '', images: p.photos?.length > 1 ? p.photos.map(m => `/api/media?id=${m.id}`) : Array.isArray(p.images) && p.images.length > 1 ? p.images : [],
     avatar: archiveAvatar(p) || personAvatar(author), verified: !!author?.verified, attachmentMissing: !!p.attachmentMissing,
     media: mapMedia(p.media), file: mapMedia(p.file), link: p.link || null, location: p.location || '', live: projectLive(p),
@@ -156,7 +169,7 @@ function projectPost(p, me, state, ctx) {
     repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file), images: p.repostOf.photos?.length > 1 ? p.repostOf.photos.map(m => `/api/media?id=${m.id}`) : p.repostOf.images || [], photos: undefined } : null,
     reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
     reactedBy: reactorNames(p, me, ctx),
-    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, createdAt: c.createdAt, editedAt: c.editedAt || 0,
+    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, mentions: mentionKeys(c.mentions, ctx), createdAt: c.createdAt, editedAt: c.editedAt || 0,
       parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(ctx.myKey), own: c.authorKey === ctx.myKey })),
     editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
     poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
@@ -267,6 +280,12 @@ function notificationItems(state, me, ctx) {
   for (const p of state.posts) if (p.live && !p.live.endedAt && p.authorId !== me.id && ctx.followed.has(authorKeyOf(p))) items.push({ id: `live:${p.id}`, kind: 'live', text: `${p.author} está ao vivo agora.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.startedAt });
   for (const p of state.posts) if (p.live && !p.live.endedAt && p.live.invites?.[me.id]?.status === 'pending') items.push({ id: `live-invite:${p.id}`, kind: 'live_invite', text: `${p.author} convidou você para participar da live.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.invites[me.id].at, actionable: true });
   for (const p of state.posts) {
+    const mentioned = p.mentions?.includes(me.id);
+    const mentionComment = (p.comments || []).filter(c => c.mentions?.includes(me.id)).at(-1);
+    if ((mentioned || mentionComment) && visible(p, me, state)) {
+      if (mentioned) items.push({ id: `mention:${p.id}`, kind: 'mention', text: `${p.author} mencionou você: "${excerpt(p)}"`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.createdAt });
+      if (mentionComment) items.push({ id: `mention-comment:${p.id}`, kind: 'mention', text: `${nameOf(mentionComment.authorKey)} mencionou você em um comentário: "${mentionComment.text.slice(0, 80)}"`, avatar: avatarOfKey(ctx, mentionComment.authorKey), href: `/#post-${p.id}`, createdAt: mentionComment.createdAt });
+    }
     if (p.authorId !== me.id && !(p.comments || []).some(c => c.authorKey === ctx.myKey)) continue;
     if (!visible(p, me, state)) continue;
     const href = `/#post-${p.id}`;
@@ -351,13 +370,16 @@ function pdfAt(bytes) {
   while (index < Math.min(bytes.length, bom + 8) && [0x20, 0x09, 0x0a, 0x0d].includes(bytes[index])) index += 1;
   return bytes.subarray(index, index + 5).toString() === '%PDF-';
 }
+// Vídeo de celular passa fácil de 20 MB; o resto (fotos já reduzidas no aparelho, áudio, PDF) fica em 2 MB.
+export const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
+export const MAX_BODY_CHARS = Math.ceil(MAX_VIDEO_BYTES * 4 / 3) + 1024 * 1024;
 function mediaInput(value) {
   if (!value) return null;
-  if (typeof value.data !== 'string' || value.data.length > 3 * 1024 * 1024) fail(400, 'Formato de arquivo não suportado.');
+  if (typeof value.data !== 'string' || value.data.length > Math.ceil(MAX_VIDEO_BYTES * 4 / 3) + 200) fail(413, `Escolha um vídeo de até ${MAX_VIDEO_BYTES / 1048576} MB.`);
   const match = value.data.match(/^data:([^;,]+)?(?:;[^;,]*)*;base64,([a-zA-Z0-9+/=\r\n]+)$/);
   if (!match) fail(400, 'Formato de arquivo não suportado.');
   const bytes = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
-  if (!bytes.length || bytes.length > 2 * 1024 * 1024) fail(413, 'Escolha um arquivo de até 2 MB para a homologação.');
+  if (!bytes.length || bytes.length > MAX_VIDEO_BYTES) fail(413, `Escolha um vídeo de até ${MAX_VIDEO_BYTES / 1048576} MB.`);
   const name = text(value.name || 'Anexo', 120).replace(/[\r\n"<>]/g, '');
   const ext = (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : '').toLowerCase();
   let type = (match[1] || '').toLowerCase();
@@ -374,10 +396,11 @@ function mediaInput(value) {
     else if ((ext === 'jpg' || ext === 'jpeg') && hex.startsWith('ffd8ff')) type = 'image/jpeg';
     else if (ext === 'gif' && bytes.subarray(0, 3).toString() === 'GIF') type = 'image/gif';
     else if (ext === 'webp' && bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP') type = 'image/webp';
-    else if ((ext === 'mp4' || ext === 'm4a') && bytes.subarray(4, 8).toString() === 'ftyp') type = ext === 'm4a' ? 'audio/mp4' : 'video/mp4';
+    else if ((ext === 'mp4' || ext === 'm4a' || ext === 'mov') && bytes.subarray(4, 8).toString() === 'ftyp') type = ext === 'm4a' ? 'audio/mp4' : 'video/mp4';
     else if (ext === 'webm' && hex.startsWith('1a45dfa3')) type = 'video/webm';
     else if (ext === 'mp3' && (bytes.subarray(0, 3).toString() === 'ID3' || bytes[0] === 255 && (bytes[1] & 224) === 224)) type = 'audio/mpeg';
   }
+  if (type === 'video/quicktime') type = 'video/mp4'; // vídeo do iPhone (.mov): mesmo contêiner ISO, toca como MP4.
   const docx = type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   const valid = type === 'image/png' ? hex.startsWith('89504e470d0a1a0a')
     : type === 'image/jpeg' ? hex.startsWith('ffd8ff')
@@ -392,6 +415,7 @@ function mediaInput(value) {
     : type.endsWith('/mp4') ? bytes.subarray(4, 8).toString() === 'ftyp'
     : type === 'audio/mpeg' ? bytes.subarray(0, 3).toString() === 'ID3' || bytes[0] === 255 && (bytes[1] & 224) === 224 : false;
   if (!valid) fail(400, 'O conteúdo do arquivo não corresponde ao formato informado. Use foto, vídeo, áudio, PDF, TXT, DOC ou DOCX.');
+  if (!type.startsWith('video/') && bytes.length > 2 * 1024 * 1024) fail(413, 'Escolha um arquivo de até 2 MB.');
   return { id: randomUUID(), bytes, type, kind: type.startsWith('image/') ? 'image' : type.startsWith('video/') ? 'video' : type.startsWith('audio/') ? 'audio' : 'file', name };
 }
 export { mediaInput, googleKeyOf, phoneOf };
@@ -493,7 +517,7 @@ export default async function handler(req, res) {
     try { const parsed = new URL(origin); sameOrigin = ['https:', 'http:'].includes(parsed.protocol) && parsed.host === req.headers.host; } catch (_) {}
     if (!sameOrigin) fail(403, 'Recarregue a página antes de enviar sua alteração.');
     const body = req.body;
-    if (!body || typeof body !== 'object' || JSON.stringify(body).length > 20 * 1024 * 1024) fail(413, 'Conteúdo muito grande. Escolha um arquivo menor.');
+    if (!body || typeof body !== 'object' || JSON.stringify(body).length > MAX_BODY_CHARS) fail(413, 'Conteúdo muito grande. Escolha um arquivo menor.');
     if (body.action === 'logout') {
       if (session) await transact(state => {
         const account = sessionAccount(state, session);
@@ -617,7 +641,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], saberResult = null, marketResult = null, callResult = null, adminResult = null, pushNotice = null, liveResult = null, accountResult = null, boostResult = null;
+    let removedIds = [], saberResult = null, marketResult = null, callResult = null, adminResult = null, pushNotice = null, mentionNotice = null, liveResult = null, accountResult = null, boostResult = null;
     const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
@@ -662,6 +686,8 @@ export default async function handler(req, res) {
       if (communityActions.includes(body.action)) {
         const result = communityAction(state, me, body);
         if (result.removedIds) removedIds.push(...result.removedIds);
+        const changed = (state.communities || []).find(c => c.id === body.communityId);
+        if (changed) syncCommunityChat(state, changed);
         return;
       }
       const post = state.posts.find(p => p.id === body.postId);
@@ -740,7 +766,10 @@ export default async function handler(req, res) {
           if (typeof body.communityId === 'string' && body.communityId.trim()) {
             targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
           }
-          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) }); break;
+          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) });
+          { const created = state.posts[0]; const ids = mentionsIn(state, created.text, me.id).filter(id => visible(created, { id }, state));
+            if (ids.length) { created.mentions = ids; mentionNotice = { to: ids, payload: { title: `${me.name} mencionou você`, body: created.text.slice(0, 120), href: `/#post-${created.id}`, tag: `mention-${created.id}` } }; } }
+          break;
         }
         case 'repost': {
           if (post.audience === 'private' || post.audience === 'friends' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
@@ -784,6 +813,10 @@ export default async function handler(req, res) {
             post.comments.push(comment);
             const to = [post.authorId, idOf(post.comments.find(c => c.id === parentId)?.authorKey)].filter(id => id && id !== me.id);
             if (to.length) pushNotice = { to, payload: { title: `${me.name} comentou`, body: comment.text.slice(0, 120), href: `/#post-${post.id}`, tag: `post-${post.id}` } };
+            const tagged = mentionsIn(state, comment.text, me.id).filter(id => visible(post, { id }, state));
+            if (tagged.length) comment.mentions = tagged;
+            const onlyTagged = tagged.filter(id => !to.includes(id));
+            if (onlyTagged.length) mentionNotice = { to: onlyTagged, payload: { title: `${me.name} mencionou você`, body: comment.text.slice(0, 120), href: `/#post-${post.id}`, tag: `post-${post.id}` } };
           }
           break;
         case 'comment_like': {
@@ -802,6 +835,7 @@ export default async function handler(req, res) {
           const next = text(String(body.text ?? ''), 5000, false);
           if (!next && !post.media && !post.file && !post.repostOf) fail(400, 'A publicação não pode ficar vazia.');
           post.text = next; post.editedAt = Date.now();
+          { const ids = mentionsIn(state, next, me.id).filter(id => visible(post, { id }, state)); if (ids.length) post.mentions = ids; else delete post.mentions; }
           break;
         }
         case 'vote':
@@ -929,7 +963,7 @@ export default async function handler(req, res) {
     fileUpload = null;
     photoUploads = [];
     // Entrega em segundo plano: a resposta não espera os serviços de push.
-    if (pushNotice) sendPush({ readState, transact }, pushNotice.to, pushNotice.payload).catch(error => console.error('push:', error.message));
+    for (const notice of [pushNotice, mentionNotice]) if (notice) sendPush({ readState, transact }, notice.to, notice.payload).catch(error => console.error('push:', error.message));
     // Gravação da live encerrada entra na publicação assim que o MediaMTX fecha o arquivo (ao parar, e nas escritas seguintes).
     if (body.action === 'live_stop') await attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
     else attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
