@@ -266,6 +266,8 @@ function tagged(text,mentions){
  document.addEventListener('focusout',e=>{if(e.target===field)setTimeout(close,150);});
  addEventListener('scroll',()=>{if(box)paint();},{passive:true});
 })();
+// Bandeja de reações aberta (toque longo) fecha ao tocar fora dela.
+document.addEventListener('pointerdown',e=>{for(const w of document.querySelectorAll('.post-react.is-open'))if(!w.contains(e.target))w.classList.remove('is-open');},true);
 function linkified(text,mentions){
  const frag=document.createDocumentFragment();let last=0;
  for(const m of text.matchAll(URL_RE)){
@@ -401,10 +403,10 @@ function renderPost(post, communityContext=null){
  const like=postAction(chosen?chosen[0]:'like',chosen?chosen[2]:'Curtir',()=>{if(like.dataset.held==='1'){like.dataset.held='';return;}return optimistic(post,reactPatch(post,post.reaction?'':'like'),{action:'react',postId:post.id,reaction:post.reaction?'':'like'});});
  like.classList.add('post-react-main');if(chosen)like.classList.add('is-'+chosen[0]);
  like.setAttribute('aria-pressed',String(!!post.reaction));like.setAttribute('aria-haspopup','true');
- let hold;like.addEventListener('pointerdown',()=>{like.dataset.held='';hold=setTimeout(()=>{like.dataset.held='1';reactWrap.classList.add('is-open');},450);});
+ let hold;like.addEventListener('pointerdown',()=>{like.dataset.held='';hold=setTimeout(()=>{like.dataset.held='1';reactWrap.classList.add('is-open');navigator.vibrate?.(10);},450);});
  const endHold=()=>clearTimeout(hold);like.addEventListener('pointerup',endHold);like.addEventListener('pointercancel',endHold);like.addEventListener('contextmenu',event=>event.preventDefault());
  const tray=make('div',undefined,'post-react-tray');tray.setAttribute('role','group');tray.setAttribute('aria-label','Reações');
- for(const [id,icon,label] of [['like','like','Curti'],['heart','heart','Amei'],['laugh','laugh','Haha'],['wow','wow','Surpresa'],['sad','sad','Triste']]){const choice=postAction(icon,'',()=>optimistic(post,reactPatch(post,post.reaction===id?'':id),{action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));tray.append(choice);}
+ for(const [id,icon,label] of [['like','like','Curti'],['heart','heart','Amei'],['laugh','laugh','Haha'],['wow','wow','Surpresa'],['sad','sad','Triste']]){const choice=postAction(icon,'',()=>optimistic(post,reactPatch(post,post.reaction===id?'':id),{action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));choice.addEventListener('click',()=>reactWrap.classList.remove('is-open'));tray.append(choice);}
  reactWrap.append(like,tray);
  const commentBtn=postAction('comment','Comentar',()=>{form.hidden=!form.hidden;if(form.hidden)openCommentForms.delete(post.id);else openCommentForms.add(post.id);commentBtn.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)input.focus();});
  commentBtn.setAttribute('aria-expanded',String(!form.hidden));commentBtn.setAttribute('aria-controls',form.id);
