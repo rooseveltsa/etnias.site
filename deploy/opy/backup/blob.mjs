@@ -2,12 +2,14 @@
 // Uso: node blob.mjs upload <arquivo> <caminho> | list <prefixo> | prune <prefixo> <dias> | download <caminho> <saida> | restore <pasta> <prefixo> | remove <prefixo>
 import { put, list, del, get } from '@vercel/blob';
 import { readFile, writeFile, readdir } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import { join } from 'node:path';
 const [cmd, a, b] = process.argv.slice(2);
 const opts = { access: 'private' };
 async function all(prefix) { const out = []; let cursor; do { const page = await list({ prefix, cursor, limit: 1000 }); out.push(...page.blobs); cursor = page.cursor; } while (cursor); return out; }
 if (cmd === 'upload') {
-  await put(b, await readFile(a), { ...opts, addRandomSuffix: false, allowOverwrite: true, contentType: 'application/octet-stream' });
+  // Arquivos grandes (centenas de MB) precisam de envio em partes (multipart) e leitura em fluxo; o put simples falhava com BlobUnknownError.
+  await put(b, createReadStream(a), { ...opts, addRandomSuffix: false, allowOverwrite: true, contentType: 'application/octet-stream', multipart: true });
   console.log('enviado', b);
 } else if (cmd === 'list') {
   for (const x of await all(a)) console.log(x.pathname, x.size, x.uploadedAt.toISOString());

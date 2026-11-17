@@ -1,0 +1,4 @@
+# Vigia da Casa Opy (a cada 10 minutos)
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/10 * * * * root /srv/casa-opy/deploy/opy/monitor/opy-monitor.sh >> /var/log/casa-opy-monitor.log 2>&1
