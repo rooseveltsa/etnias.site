@@ -2036,3 +2036,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable
 .opy-search input:focus-visible{outline:none}
 /* Compositor fechado: sem botão Publicar (não há o que publicar) para o convite "No que você está pensando?" caber inteiro */
 #opy-compose:not(.has-content):not(:focus-within) .compose-publish-top{display:none}
+
+/* Consentimento no cadastro: caixa grande o bastante para tocar e texto alinhado */
+.welcome-consent{display:flex;gap:.6rem;align-items:flex-start;font-size:.95rem;line-height:1.4;margin:.4rem 0 .8rem}
+.welcome-consent input{width:1.35rem;height:1.35rem;min-height:0;flex:none;margin-top:.1rem}
+.welcome-consent a{text-decoration:underline}
+#forgot-password,#recover-back{margin-top:.5rem}

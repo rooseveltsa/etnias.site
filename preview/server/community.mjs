@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import bcrypt from 'bcryptjs';
 import { createHash } from 'node:crypto';
 import { readState, transact, saveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
@@ -1199,9 +1201,11 @@ export async function purgeDueAccounts(now = Date.now()) {
   }
   const due = (data.accounts || []).filter(a => dueForPurge(a, now)).map(a => a.id);
   if (!due.length) return { purged: 0 };
-  let media = [];
-  await transact(state => { for (const id of due) media.push(...purgeAccount(state, id).mediaIds); });
+  let media = [], recordings = [];
+  await transact(state => { for (const id of due) { const r = purgeAccount(state, id); media.push(...r.mediaIds); recordings.push(...r.recordingPostIds); } });
   for (const id of media) await deleteMedia(id).catch(() => {});
+  // Gravações de live ficam em /recordings/<id da publicação>/ (volume do MediaMTX).
+  if (process.env.OPY_LIVE_RECORDINGS_DIR) for (const id of recordings) await rm(join(process.env.OPY_LIVE_RECORDINGS_DIR, id), { recursive: true, force: true }).catch(() => {});
   console.error(`LGPD: ${due.length} conta(s) excluída(s) definitivamente, ${media.length} arquivo(s) de mídia removido(s)`);
   return { purged: due.length };
 }

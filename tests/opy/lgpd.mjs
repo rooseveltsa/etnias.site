@@ -86,3 +86,16 @@ test('servidor: a rotina apaga de verdade a conta com carência vencida e preser
     assert.match(s.logs(), /LGPD: 1 conta/);
   } finally { await s.stop(); }
 });
+
+test('páginas legais são públicas, marcadas como rascunho, e a tela offline existe', async () => {
+  const s = await startServer();
+  try {
+    for (const [path, titulo] of [['/privacidade/', 'Política de Privacidade'], ['/termos/', 'Termos de Uso'], ['/offline/', 'sem internet']]) {
+      const r = await fetch(s.base + path, { redirect: 'manual' }); assert.equal(r.status, 200, path);
+      const html = await r.text(); assert.ok(html.includes(titulo), path);
+      if (path !== '/offline/') assert.match(html, /RASCUNHO — revisão jurídica necessária/);
+    }
+    const entrar = await (await fetch(s.base + '/entrar/')).text();
+    assert.match(entrar, /name="acceptTerms"/); assert.match(entrar, /\/privacidade\//); assert.doesNotMatch(entrar, /Chave Google/);
+  } finally { await s.stop(); }
+});

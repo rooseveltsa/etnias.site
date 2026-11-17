@@ -72,15 +72,15 @@ export const dueForPurge = (account, now = Date.now()) => !!account.deletionRequ
 // reposts de terceiros mantêm só um aviso de "conta excluída". O registro de moderação é mantido sem nome (prestação de contas).
 export function purgeAccount(state, accountId) {
   const account = (state.accounts || []).find(a => a.id === accountId);
-  if (!account) return { mediaIds: [] };
+  if (!account) return { mediaIds: [], recordingPostIds: [] };
   const me = key(accountId);
   const media = new Set([account.avatarId, account.coverId].filter(Boolean));
   const name = account.name;
 
-  const gone = new Set();
+  const gone = new Set(), recordings = [];
   state.posts = (state.posts || []).filter(p => {
     if (p.authorId !== accountId) return true;
-    gone.add(p.id); ownMediaIds(p).forEach(m => media.add(m)); return false;
+    gone.add(p.id); if (p.live) recordings.push(p.id); ownMediaIds(p).forEach(m => media.add(m)); return false;
   });
   for (const p of state.posts) {
     if (p.repostOf && (gone.has(p.repostOf.id) || p.repostOf.authorKey === me)) p.repostOf = { id: p.repostOf.id, author: 'Conta excluída', authorKey: '', createdAt: p.repostOf.createdAt, text: '', removed: true };
@@ -130,5 +130,5 @@ export function purgeAccount(state, accountId) {
   for (const b of state.boosts || []) if (b.userId === accountId) b.userId = '';
   for (const e of state.adminLog || []) { if (e.by === accountId) { e.by = ''; e.byName = 'Conta excluída'; } if (e.target === name) e.target = 'Conta excluída'; }
   state.accounts = state.accounts.filter(a => a.id !== accountId);
-  return { mediaIds: [...media].filter(id => UUID.test(id)) };
+  return { mediaIds: [...media].filter(id => UUID.test(id)), recordingPostIds: recordings.filter(id => UUID.test(id)) };
 }

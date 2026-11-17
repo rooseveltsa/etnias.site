@@ -25,6 +25,12 @@ foreach ($paths as $route => $path) {
     if (!is_dir($folder)) mkdir($folder, 0755, true);
     file_put_contents($folder . '/index.html', $html);
 }
+// Páginas legais e de apoio (privacidade, termos, tela offline): rascunhos com aviso de revisão jurídica.
+foreach (array('privacidade'=>'privacidade','termos'=>'termos','offline'=>'offline') as $legal => $folderName) {
+    ob_start(); require $root . '/preview/legal.php'; $html = ob_get_clean();
+    $folder = $destination . '/' . $folderName; if (!is_dir($folder)) mkdir($folder, 0755, true);
+    file_put_contents($folder . '/index.html', $html);
+}
 foreach (array('opy.css','opy.js','etnias-logo.png','apple-touch-icon.png','icon-192.png','icon-512.png') as $file) {
     $folder = $destination . '/assets/opy'; if (!is_dir($folder)) mkdir($folder, 0755, true);
     copy($root . '/public_html/assets/opy/' . $file, $folder . '/' . $file);
@@ -70,3 +76,17 @@ if (!is_file($root . '/preview/og-etnias.png')) throw new RuntimeException('Miss
 copy($root . '/preview/og-etnias.png', $destination . '/assets/og-etnias.png');
 $avatars=$destination.'/assets/avatars'; if (!is_dir($avatars)) mkdir($avatars,0755,true); foreach(glob($root.'/preview/avatars/*') as $file) copy($file,$avatars.'/'.basename($file));
 $archive=$destination.'/assets/archive'; if (!is_dir($archive)) mkdir($archive,0755,true); foreach(glob($root.'/preview/archive/*') as $file) copy($file,$archive.'/'.basename($file));
+
+// Versão por conteúdo: ?v=<hash> nos arquivos JS/CSS das páginas. Muda sozinho quando o arquivo muda (cache de um ano sem risco de servir velho).
+$hashOf = function ($url) use ($root, $destination) {
+    $rel = ltrim($url, '/'); // assets/preview.js ou assets/opy/opy.css
+    $file = $destination . '/' . $rel;
+    return is_file($file) ? substr(md5_file($file), 0, 10) : null;
+};
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($destination, FilesystemIterator::SKIP_DOTS));
+foreach ($it as $f) {
+    if (substr($f->getFilename(), -5) !== '.html') continue;
+    $html = file_get_contents($f->getPathname());
+    $new = preg_replace_callback('#(/assets/[A-Za-z0-9._/-]+\.(?:js|css))\?v=[0-9.]+#', function ($m) use ($hashOf) { $h = $hashOf($m[1]); return $h ? $m[1] . '?v=' . $h : $m[0]; }, $html);
+    if ($new !== $html) file_put_contents($f->getPathname(), $new);
+}
