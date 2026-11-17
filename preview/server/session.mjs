@@ -1,20 +1,39 @@
-import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { scryptSync, scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
 
 // Sessão deslizante: vale 30 dias a partir do último uso (renovada no máximo uma vez por dia, ver renewSession).
 export const SESSION_DAYS = 30;
 const day = 24 * 60 * 60 * 1000;
 const duration = SESSION_DAYS * day;
 
+// Custo do scrypt: contas novas usam N=2^16 (64 MB, recomendação OWASP com r=8, p=2 ou N=2^17); hashes antigos (N=2^14) continuam
+// valendo e são refeitos no primeiro login. O campo n guarda o custo usado.
+export const PASSWORD_N = 65536;
+const OLD_N = 16384;
+const MAXMEM = 256 * 1024 * 1024;
+const opts = n => ({ N: n, r: 8, p: 1, maxmem: MAXMEM });
 export function hashPassword(password, salt = randomBytes(16)) {
-  const hash = scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-  return { salt: salt.toString('hex'), hash: hash.toString('hex') };
+  const hash = scryptSync(password, salt, 32, opts(PASSWORD_N));
+  return { salt: salt.toString('hex'), hash: hash.toString('hex'), n: PASSWORD_N };
 }
 export function checkPassword(password, stored) {
   if (!stored?.salt || !stored?.hash) return false;
-  const actual = scryptSync(password, Buffer.from(stored.salt, 'hex'), 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  const actual = scryptSync(password, Buffer.from(stored.salt, 'hex'), 32, opts(stored.n || OLD_N));
   const expected = Buffer.from(stored.hash, 'hex');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
+const scryptAsync = (password, salt, n) => new Promise((resolve, reject) => scrypt(password, salt, 32, opts(n), (error, key) => error ? reject(error) : resolve(key)));
+// Versões assíncronas (login e cadastro): o cálculo roda fora do laço de eventos, sem travar o servidor.
+export async function hashPasswordAsync(password, salt = randomBytes(16)) {
+  const hash = await scryptAsync(password, salt, PASSWORD_N);
+  return { salt: salt.toString('hex'), hash: hash.toString('hex'), n: PASSWORD_N };
+}
+export async function checkPasswordAsync(password, stored) {
+  if (!stored?.salt || !stored?.hash) return false;
+  const actual = await scryptAsync(password, Buffer.from(stored.salt, 'hex'), stored.n || OLD_N);
+  const expected = Buffer.from(stored.hash, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+export const needsRehash = stored => !!stored?.hash && (stored.n || OLD_N) < PASSWORD_N;
 
 async function sign(payload, secret) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);

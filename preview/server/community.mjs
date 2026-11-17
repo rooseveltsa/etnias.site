@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import { createHash } from 'node:crypto';
 import { readState, transact, saveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
 import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
-import { createSession, renewSession, SESSION_DAYS, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword } from './session.mjs';
+import { createSession, renewSession, SESSION_DAYS, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword, hashPasswordAsync, checkPasswordAsync, needsRehash } from './session.mjs';
+import { tooMany, note, clear, clientIp } from './throttle.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
@@ -35,7 +37,7 @@ const moduleNames = ['saberes', 'guardiao', 'fotografos', 'musica', 'doar'];
 const registerSlots = new Map();
 function registerAllowed(req) {
   const max = Number(process.env.OPY_REGISTER_PER_HOUR ?? 30); if (!(max > 0)) return true;
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket?.remoteAddress || '?';
+  const ip = clientIp(req);
   const now = Date.now(); const hits = (registerSlots.get(ip) || []).filter(t => now - t < 3600e3);
   if (hits.length >= max) { registerSlots.set(ip, hits); return false; }
   hits.push(now); registerSlots.set(ip, hits);
@@ -48,6 +50,7 @@ function text(value, maximum, required = true) {
   return value.trim();
 }
 const dummyPassword = hashPassword('opy-preview-dummy-secret');
+const dummyBcrypt = bcrypt.hashSync('opy-preview-dummy-secret', 10);
 function sessionSecret() {
   const secret = process.env.OPY_SESSION_SECRET;
   if (!secret || secret.length < 32) fail(503, 'A comunidade está em preparação. Tente novamente em instantes.');
@@ -574,6 +577,7 @@ export default async function handler(req, res) {
         // Contas em massa: no máximo N cadastros por hora por endereço (Caddy grava o IP real no fim de X-Forwarded-For).
         if (!registerAllowed(req)) fail(429, 'Muitos cadastros deste endereço. Tente de novo mais tarde.');
         const accountId = randomUUID();
+        const passwordHash = await hashPasswordAsync(password);
         const issued = await createSession(accountId, secret);
         stampSession(issued.session, req.headers['user-agent']);
         const { data, result } = await transact(state => {
@@ -581,7 +585,7 @@ export default async function handler(req, res) {
           if (accounts.length >= (Number(process.env.OPY_MAX_ACCOUNTS) || 20000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
           if (accounts.some(item => item.username === username)) fail(409, 'Esse usuário já existe. Entre ou escolha outro.');
           if (!usernameCheck(state, null, username).ok) fail(409, 'Esse usuário não está disponível. Escolha outro.');
-          const account = { id: accountId, username, name, password: hashPassword(password), googleKey, phone, createdAt: Date.now() };
+          const account = { id: accountId, username, name, password: passwordHash, googleKey, phone, createdAt: Date.now() };
           addSession(account, issued.session);
           accounts.push(account);
           return account;
@@ -591,34 +595,40 @@ export default async function handler(req, res) {
         return res.end(JSON.stringify(snapshot(data, member(result))));
       }
       const identity = loginIdentity(body.username);
+      const ip = clientIp(req);
+      const ipKey = 'lgip:' + ip, pairKey = 'lgpar:' + identity + '|' + ip, idKey = 'lgid:' + identity;
+      const WINDOW = 10 * 60 * 1000;
+      // Limites em memória (não gravam no banco): por endereço, por conta+endereço e, mais folgado, só por conta
+      // (quem trava a conta de outra pessoa a partir do próprio endereço não impede a pessoa de entrar do dela).
+      if (tooMany(ipKey, 30, WINDOW) || tooMany(pairKey, 8, WINDOW) || tooMany(idKey, 80, WINDOW)) fail(429, 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');
       const current = (await readState()).data;
       const accounts = Array.isArray(current.accounts) ? current.accounts : [];
-      const slot = current.authFailures?.[identity];
-      if (slot && slot.count >= 8 && Date.now() - slot.at < 10 * 60 * 1000) fail(429, 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');
       const account = accounts.find(item => item.username === identity || item.googleKey === identity);
-      // Contas do Etnias antigo chegam só com o bcrypt original; na primeira entrada a senha é conferida nele e migrada para o scrypt.
-      const legacyOk = !!account && !account.password && typeof account.legacyPassword === 'string' && await bcrypt.compare(password, account.legacyPassword);
-      if (!account || !(legacyOk || checkPassword(password, account.password || dummyPassword))) {
-        await transact(state => {
-          if (!state.authFailures) state.authFailures = {};
-          const previous = state.authFailures[identity];
-          const fresh = !previous || Date.now() - previous.at > 10 * 60 * 1000;
-          state.authFailures[identity] = { count: fresh ? 1 : previous.count + 1, at: Date.now() };
-        });
+      // Tempo constante: sempre confere scrypt e bcrypt (contra valores falsos quando a conta não existe), para o tempo não revelar quem tem conta.
+      const legacyHash = account && !account.password && typeof account.legacyPassword === 'string' ? account.legacyPassword : dummyBcrypt;
+      const [scryptOk, bcryptOk] = await Promise.all([checkPasswordAsync(password, account?.password || dummyPassword), bcrypt.compare(password, legacyHash)]);
+      const legacyOk = !!account && !account.password && legacyHash !== dummyBcrypt && bcryptOk;
+      if (!account || !(legacyOk || (account.password && scryptOk))) {
+        note(ipKey, WINDOW); note(pairKey, WINDOW); note(idKey, WINDOW);
+        console.error(`AUTH_FALHA ip=${ip} conta=${createHash('sha256').update(identity).digest('hex').slice(0, 8)}`);
         fail(401, 'Usuário ou senha não conferem.');
       }
       if (isSuspended(account)) fail(403, suspensionMessage(account));
       const issued = await createSession(account.id, secret);
       stampSession(issued.session, req.headers['user-agent']);
+      // Hash novo (custo atual) calculado antes da transação: contas do Etnias 1.0 migram do bcrypt; contas com scrypt antigo sobem de custo.
+      const upgraded = legacyOk || needsRehash(account.password) ? await hashPasswordAsync(password) : null;
       const { data } = await transact(state => {
         const stored = accountsOf(state).find(item => item.id === account.id);
         if (!stored) fail(401, 'Entre novamente para continuar.');
-        if (legacyOk) { stored.password = hashPassword(password); delete stored.legacyPassword; }
+        if (legacyOk) { stored.password = upgraded; delete stored.legacyPassword; }
         else if (stored.password?.hash !== account.password?.hash) fail(401, 'Entre novamente para continuar.');
-        if (state.authFailures) delete state.authFailures[identity];
+        else if (upgraded) stored.password = upgraded;
+        delete state.authFailures; // contadores antigos que ficavam gravados no banco
         reactivateOnLogin(stored);
         addSession(stored, issued.session);
       });
+      clear(pairKey);
       res.setHeader('Set-Cookie', cookieHeader(issued.token));
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       return res.end(JSON.stringify(snapshot(data, member(account))));
@@ -1054,6 +1064,7 @@ export default async function handler(req, res) {
     if (fileUpload) await deleteMedia(fileUpload.id).catch(() => {});
     for (const p of photoUploads) if (p) await deleteMedia(p.id).catch(() => {});
     res.statusCode = error.status || 503;
+    if (res.statusCode >= 500) console.error(`ERRO ${res.statusCode} ${req.method} ${String(req.url).split('?')[0]}: ${error.message}`);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     return res.end(JSON.stringify({ error: error.status ? error.message : 'Não foi possível acessar a comunidade agora. Sua edição foi preservada; tente novamente.' }));
   }

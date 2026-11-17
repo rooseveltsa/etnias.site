@@ -9,6 +9,7 @@ import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 import { sendFile } from '../preview/server/files.mjs';
 import shareHandler from '../preview/server/share.mjs';
 const root = resolve('preview/dist/public');
+const MAX_PUBLIC_BODY = 64 * 1024; // corpo máximo de quem ainda não entrou
 // Live (Fase 4): a sinalização WHIP/WHEP do navegador vai por aqui ao MediaMTX (OPY_LIVE_URL), com sessão obrigatória.
 // A mídia em si não passa pelo app (UDP/TCP 8189 direto no MediaMTX). Sem OPY_LIVE_URL o recurso fica desligado.
 const liveUrl = process.env.OPY_LIVE_URL || '';
@@ -91,7 +92,7 @@ const security = {
   'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(self)',
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob: data:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'"
 };
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
  for (const [name, value] of Object.entries(security)) res.setHeader(name, value);
  try {
   // Atrás do Caddy o navegador usa HTTPS; sem isso os redirecionamentos voltariam para http://.
@@ -101,14 +102,20 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, `${proto}://${req.headers.host || '127.0.0.1'}`);
   const pathname = url.pathname;
   const path = pathname.replace(/\/$/, '') || '/';
+  if (path === '/api/health') { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); return res.end('{"ok":true}'); }
   if (pathname.startsWith('/legado/')) return await serveLegacy(req, res, pathname);
   compressText(req, res);
   if (pathname.startsWith('/live/') && !pathname.startsWith('/live/recordings/')) return await proxyLive(req, res, pathname);
   if (path === '/api/community' || path === '/api/media' || path === '/api/link-image' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
     if (req.method === 'GET' && path === '/api/community') conditionalRead(req, res);
     if (req.method === 'POST') {
-      let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > MAX_BODY_CHARS) { res.writeHead(413); return res.end(); } }
-      try { req.body = JSON.parse(raw); } catch { res.writeHead(400); return res.end(); }
+      // Sem sessão válida (login, cadastro, verificação de @) o corpo é pequeno: só quem entrou pode mandar vídeo (até ~54 MB).
+      const signed = await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET);
+      const limit = signed ? MAX_BODY_CHARS : MAX_PUBLIC_BODY;
+      if (Number(req.headers['content-length'] || 0) > limit) { res.writeHead(413, { Connection: 'close' }); return res.end(); }
+      const parts = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > limit) { res.writeHead(413, { Connection: 'close' }); res.end(); return req.destroy(); } parts.push(chunk); }
+      try { req.body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { res.writeHead(400); return res.end(); }
     }
     return handler(req, res);
   }
@@ -129,8 +136,11 @@ http.createServer(async (req, res) => {
   // Páginas HTML são revalidadas a cada visita; o resto fica uma hora.
   const cache = url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : extname(file) === '.html' ? 'no-cache' : 'public, max-age=3600';
   try { res.setHeader('Content-Type', types[extname(file)]); res.setHeader('Cache-Control', cache); res.end(await readFile(file)); } catch { res.writeHead(404); res.end(); }
- } catch { if (!res.headersSent) res.writeHead(400); res.end('Requisição inválida.'); }
-}).on('error', error => {
+ } catch (error) { console.error(`ERRO 400 ${req.method} ${String(req.url).split('?')[0]}: ${error.message}`); if (!res.headersSent) res.writeHead(400); res.end('Requisição inválida.'); }
+});
+server.headersTimeout = 20_000; server.requestTimeout = 10 * 60_000; server.keepAliveTimeout = 10_000;
+server.on('error', error => {
   console.error(error.code === 'EADDRINUSE' ? `A porta ${port} está ocupada. Feche a outra prévia ou use PORT=8102 node scripts/dev-opy.mjs.` : error.message);
   process.exitCode = 1;
-}).listen(port, host, () => console.log(`Etnias ouvindo em http://${host}:${port}`));
+});
+server.listen(port, host, () => console.log(`Etnias ouvindo em http://${host}:${port}`));
