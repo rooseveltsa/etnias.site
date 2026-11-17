@@ -101,7 +101,7 @@ http.createServer(async (req, res) => {
   if (pathname.startsWith('/legado/')) return await serveLegacy(req, res, pathname);
   compressText(req, res);
   if (pathname.startsWith('/live/') && !pathname.startsWith('/live/recordings/')) return await proxyLive(req, res, pathname);
-  if (path === '/api/community' || path === '/api/media' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
+  if (path === '/api/community' || path === '/api/media' || path === '/api/link-image' || path === '/api/live/auth' || pathname.startsWith('/live/recordings/')) {
     if (req.method === 'GET' && path === '/api/community') conditionalRead(req, res);
     if (req.method === 'POST') {
       let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > MAX_BODY_CHARS) { res.writeHead(413); return res.end(); } }

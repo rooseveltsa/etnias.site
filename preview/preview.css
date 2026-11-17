@@ -1809,3 +1809,12 @@ body:not(.opy-welcome) .install-bar .install-apk.preview-secondary{display:none}
 :root[data-theme=dark] #community-error,:root[data-theme=dark] .iara-notice,:root[data-theme=dark] .live-status-badge,:root[data-theme=dark] .community-badge.is-private{background:var(--color-terracotta-tint);color:var(--color-terracotta-text);border-color:var(--color-border-strong)}
 :root[data-theme=dark] .feed-chips.is-stuck{background:rgba(18,13,8,.95);box-shadow:0 4px 16px rgba(0,0,0,.5)}
 :root[data-theme=dark] .pf-cover-btn{background:rgba(35,28,21,.9);color:var(--color-text-primary)}
+
+/* Prévia de link externo */
+.post-link-card{display:grid;margin:6px 0 8px;border:1px solid var(--color-border-subtle);border-radius:12px;overflow:hidden;background:var(--color-surface-subtle);color:inherit;text-decoration:none}
+.post-link-card img{display:block;width:100%;max-height:260px;object-fit:cover;background:var(--color-surface-muted)}
+.post-link-body{display:grid;gap:2px;padding:10px 12px}
+.post-link-body small{color:var(--color-text-secondary);font-size:11px;letter-spacing:.04em}
+.post-link-body strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}
+.post-link-body em{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-style:normal;font-size:13px;color:var(--color-text-secondary)}
+.post-link-card:focus-visible{outline:3px solid var(--color-focus,#b84a27);outline-offset:2px}

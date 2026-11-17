@@ -15,6 +15,7 @@ import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLiv
 import { sendFile, sendBuffer } from './files.mjs';
 import { plainText } from './plain-text.mjs';
 import { mp4Seconds, MAX_VIDEO_SECONDS } from './video-meta.mjs';
+import { linkPreview, linkImage } from './link-preview.mjs';
 import { postMediaIds, orphanMediaIds, findPostMedia } from './post-media.mjs';
 import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
 import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } from './impulsos.mjs';
@@ -497,11 +498,18 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
-      if (['posts', 'search', 'profile', 'notifications'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
+      if (['posts', 'search', 'profile', 'notifications', 'link'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
         const view = path.searchParams.get('view');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        if (view === 'link') return res.end(JSON.stringify({ preview: await linkPreview(me.id, path.searchParams.get('url')) }));
         if (view === 'notifications') return res.end(JSON.stringify({ items: notificationItems(state, me, feedContext(state, me)) }));
         return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? searchView(state, me, path.searchParams) : profileView(state, me, path.searchParams)));
+      }
+      if (path.pathname.replace(/\/$/, '') === '/api/link-image') {
+        let image = null; try { image = await linkImage(path.searchParams.get('u')); } catch { image = null; }
+        if (!image) fail(404, 'Imagem não encontrada.');
+        res.setHeader('Content-Type', image.type); res.setHeader('Cache-Control', 'private, max-age=86400'); res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.end(image.buffer);
       }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');

@@ -315,6 +315,26 @@ function linkified(text,mentions){
  frag.append(tagged(text.slice(last),mentions));return frag;
 }
 // YouTube: o primeiro link vira cartão com a miniatura; o player (youtube-nocookie) só carrega quando a pessoa toca.
+// Prévia de link externo (título, texto e imagem da página), buscada pelo servidor e guardada por endereço neste aparelho.
+const linkPreviews=new Map();
+function firstWebLink(text){for(const m of stripMarkup(text||'').matchAll(URL_RE)){try{if(['http:','https:'].includes(new URL(m[0]).protocol))return m[0];}catch{}}return '';}
+function linkCard(p){
+ const a=make('a',undefined,'post-link-card');a.href=p.url;a.target='_blank';a.rel='noopener noreferrer nofollow';
+ if(p.image&&/^\/api\/link-image\?u=/.test(p.image)){const img=make('img');img.src=p.image;img.alt='';img.loading='lazy';img.decoding='async';img.addEventListener('error',()=>img.remove(),{once:true});a.append(img);}
+ const body=make('span',undefined,'post-link-body');body.append(make('small',(p.site||p.host).toUpperCase()));
+ if(p.title)body.append(make('strong',p.title));if(p.description)body.append(make('em',p.description));
+ a.append(body);return a;
+}
+function appendLinkPreview(text,parent){
+ const url=firstWebLink(text);if(!url)return;
+ // O espaço fica reservado no lugar certo do cartão; a prévia entra nele quando chega (ou na hora, se já estiver guardada).
+ const slot=make('div',undefined,'post-link-slot');parent.append(slot);
+ const known=linkPreviews.has(url)?linkPreviews.get(url):null;
+ if(known&&!known.then){slot.append(linkCard(known));return;}
+ const req=known||apiGet({view:'link',url}).then(d=>d.preview||null).catch(()=>null);
+ if(!known)linkPreviews.set(url,req);
+ req.then(p=>{linkPreviews.set(url,p);if(p)slot.append(linkCard(p));});
+}
 function youtubeId(text){
  for(const m of String(text||'').matchAll(URL_RE)){
   let u;try{u=new URL(m[0]);}catch{continue;}
@@ -343,7 +363,7 @@ function appendPostBody(item, parent){
  const safeImage=u=>u&&(u.startsWith('/assets/archive/')||u.startsWith('/legado/')||u.startsWith('/api/media?id='));
  const urls=item.images&&item.images.length>1?item.images.filter(safeImage):safeImage(item.image)?[item.image]:item.media&&item.media.kind==='image'?[item.media.url]:[];
  if(urls.length)parent.append(mediaBlock(item,urls));
- else if(!item.media&&!item.live){const yt=youtubeId(item.text);if(yt)parent.append(youtubeCard(yt,item.author));}
+ else if(!item.media&&!item.live){const yt=youtubeId(item.text);if(yt)parent.append(youtubeCard(yt,item.author));else if(!item.file&&!item.link)appendLinkPreview(item.text,parent);}
  if(item.link&&item.link.url){const a=make('a',undefined,'post-link');a.href=item.link.url;a.target='_blank';a.rel='noopener noreferrer';let host='';try{host=new URL(item.link.url).hostname.replace(/^www\./,'');}catch{}a.append(make('strong',item.link.title||host||item.link.url),make('small',host));parent.append(a);}
  if(item.live?.active)parent.append(liveBlock(item));
  else if(item.live&&!item.media)parent.append(make('small',item.live.recording==='none'?'A live terminou e a gravação não ficou disponível.':'A live terminou. A gravação está sendo preparada.','post-live-note'));
