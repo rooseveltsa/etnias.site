@@ -6,7 +6,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
   const browser = await chromium.launch({ headless: true, args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'], ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
   try {
     const a = await browser.newContext({ permissions: ['camera', 'microphone'] }), b = await browser.newContext({ permissions: ['camera', 'microphone'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    async function account(ctx, name) { const res = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'register', name, username: name.toLowerCase().replace(/ /g, '') + Date.now().toString(36), password: 'Test-only-2026', googleKey: name.replace(/ /g, '') + '@example.com', phone: '11912345678' } }); assert.equal(res.status(), 200); return (await res.json()).me; }
+    async function account(ctx, name) { const res = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { acceptTerms: true, action: 'register', name, username: name.toLowerCase().replace(/ /g, '') + Date.now().toString(36), password: 'Test-only-2026', googleKey: name.replace(/ /g, '') + '@example.com', phone: '11912345678' } }); assert.equal(res.status(), 200); return (await res.json()).me; }
     const ana = await account(a, 'Ana Chamada'), beto = await account(b, 'Beto Chamada');
     const say = (ctx, to, text) => ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'dm', toKey: 'id:' + to.id, text, clientId: crypto.randomUUID() } });
     const pa = await a.newPage(), pb = await b.newPage();

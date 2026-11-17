@@ -38,7 +38,7 @@ async function call(method, url, body, cookie = '') {
 const json = r => ({ ...r, data: JSON.parse(r.raw) });
 const post = async (body, cookie) => json(await call('POST', '/api/community', body, cookie));
 const get = async (params, cookie) => json(await call('GET', '/api/community?' + new URLSearchParams(params), null, cookie));
-const register = async name => (await post({ action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' })).cookie;
+const register = async name => (await post({ acceptTerms: true, action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' })).cookie;
 // PNG 1×1 válido.
 const png = { name: 'capa.png', data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' };
 

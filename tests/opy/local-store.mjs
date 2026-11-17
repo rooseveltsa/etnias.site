@@ -39,7 +39,7 @@ try {
     await handler({ method: body ? 'POST' : 'GET', url: '/api/community', headers: { cookie, origin: 'http://127.0.0.1:8101', host: '127.0.0.1:8101' }, body }, response);
     return { status: response.statusCode, cookie: headers['set-cookie']?.split(';')[0], data: JSON.parse(response.output) };
   }
-  const registered = await api({ action: 'register', username: 'localteste', name: 'Teste local', password: 'Somente-local-2026', googleKey: 'localteste@example.com', phone: '11912345678' });
+  const registered = await api({ acceptTerms: true, action: 'register', username: 'localteste', name: 'Teste local', password: 'Somente-local-2026', googleKey: 'localteste@example.com', phone: '11912345678' });
   assert.equal(registered.status, 200);
   const created = await api({ action: 'iara_request', text: 'Preciso de um card para o curso' }, registered.cookie);
   assert.equal(created.status, 200);

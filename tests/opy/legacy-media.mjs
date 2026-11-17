@@ -22,7 +22,7 @@ const server = spawn(process.execPath, ['scripts/opy-preview-server.mjs'], { env
 try {
   await new Promise((resolve, reject) => { server.stdout.on('data', chunk => { if (String(chunk).includes('ouvindo')) resolve(); }); server.on('exit', code => reject(new Error('servidor saiu ' + code))); setTimeout(() => reject(new Error('servidor não subiu')), 10000); });
   assert.equal((await fetch(base + '/legado/upload/photos/foto.jpg')).status, 401, 'sem sessão não vê');
-  const reg = await fetch(base + '/api/community', { method: 'POST', headers: { 'Content-Type': 'application/json', origin: base }, body: JSON.stringify({ action: 'register', name: 'Mídia Teste', username: 'midiateste', password: 'Test-only-2026', googleKey: 'midia@example.com', phone: '11912345678' }) });
+  const reg = await fetch(base + '/api/community', { method: 'POST', headers: { 'Content-Type': 'application/json', origin: base }, body: JSON.stringify({ acceptTerms: true, action: 'register', name: 'Mídia Teste', username: 'midiateste', password: 'Test-only-2026', googleKey: 'midia@example.com', phone: '11912345678' }) });
   assert.equal(reg.status, 200);
   const cookie = reg.headers.get('set-cookie').split(';')[0];
   const ok = await fetch(base + '/legado/upload/photos/foto.jpg', { headers: { cookie } });

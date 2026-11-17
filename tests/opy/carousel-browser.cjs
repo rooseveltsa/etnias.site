@@ -8,7 +8,7 @@ if (!/^http:\/\/127\.0\.0\.1:/.test(base)) throw new Error('Rode só no servidor
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
   const ctx = await browser.newContext({ bypassCSP: true, viewport: { width: 1280, height: 900 }, locale: 'pt-BR' });
   const username = 'carrossel' + Date.now().toString(36);
-  const auth = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'register', name: 'Teste Carrossel', username, password: 'Test-only-2026', googleKey: username + '@example.com', phone: '11912345678' } });
+  const auth = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { acceptTerms: true, action: 'register', name: 'Teste Carrossel', username, password: 'Test-only-2026', googleKey: username + '@example.com', phone: '11912345678' } });
   assert.equal(auth.status(), 200, 'cadastro');
   const page = await ctx.newPage();
   const errors = []; page.on('pageerror', e => errors.push(e.message));

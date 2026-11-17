@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { roleOf } from './admin.mjs';
 import { sanitizeSvg } from './svg-safe.mjs';
+import { recordConsent } from './lgpd.mjs';
 
 export const extrasActions = ['suggestion_dismiss', 'username_change', 'location_set', 'location_clear', 'reaction_save', 'reaction_reorder', 'reaction_delete', 'sticker_pack_save', 'sticker_pack_delete', 'sticker_add', 'sticker_delete'];
 export const extrasUploadActions = ['reaction_save', 'sticker_add'];
@@ -116,9 +117,10 @@ export function extrasAction(state, account, body, upload) {
       const city = cleanText(body.city, 80), uf = cleanText(body.uf, 3, false).toUpperCase();
       if (uf && !/^[A-Z]{2,3}$/.test(uf)) fail(400, 'UF inválida.');
       account.location = { city, uf, setAt: now };
+      recordConsent(account, 'location', true, now);
       return {};
     }
-    case 'location_clear': delete account.location; return {};
+    case 'location_clear': delete account.location; recordConsent(account, 'location', false); return {};
   }
   if (!isAdmin(account)) fail(403, 'Só a administração pode fazer isso.');
   state.adminLog ||= [];

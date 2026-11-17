@@ -9,7 +9,7 @@ const base=process.env.OPY_PREVIEW_URL||'http://127.0.0.1:8117',out=process.env.
  const txt=await pa.locator('body').innerText();assert.ok(!/Criar conta/.test(txt),'tela de entrar traduzida');
  // Conta com chefe (admin) em inglês
  const ctx=await b.newContext({viewport:{width:1440,height:900}});
- await ctx.request.post(base+'/api/community',{headers:{origin:base},data:{action:'register',name:'Chefe Teste',username:'chefe',password:'Test-only-2026',googleKey:'chefe@example.com',phone:'11912345678'}});
+ await ctx.request.post(base+'/api/community',{headers:{origin:base},data:{acceptTerms: true, action: 'register',name:'Chefe Teste',username:'chefe',password:'Test-only-2026',googleKey:'chefe@example.com',phone:'11912345678'}});
  const p=await ctx.newPage();p.on('pageerror',e=>errs.push(e.message));await p.goto(base+'/');await p.waitForTimeout(1200);
  await p.locator('.opy-sidebar .opy-locale select').first().selectOption('en');await p.waitForLoadState('load');await p.waitForTimeout(1500);
  await p.screenshot({path:out+'/i18n-feed-en.png'});

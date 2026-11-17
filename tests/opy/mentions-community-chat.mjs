@@ -33,7 +33,7 @@ async function api(body, cookie = '') {
   return { status: response.statusCode, cookie: headers['set-cookie']?.split(';')[0] || '', data: JSON.parse(response.output) };
 }
 const get = async (query, cookie) => { const response = { statusCode: 200, setHeader() {}, end(v) { this.output = v; } }; await handler({ method: 'GET', url: '/api/community?' + query, headers: { cookie, host } }, response); return JSON.parse(response.output); };
-const profile = name => ({ action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' });
+const profile = name => ({ acceptTerms: true, action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' });
 const ana = await api(profile('ana.tupi')), bia = await api(profile('bia_guarani')), caio = await api(profile('caio'));
 
 // @menção: só contas existentes, nunca o próprio autor; vira link (mentions) e notificação.

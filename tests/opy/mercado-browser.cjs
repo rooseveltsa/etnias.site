@@ -7,7 +7,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8191';
 if (!/^http:\/\/127\.0\.0\.1:/.test(base)) throw new Error('Rode só no servidor local.');
 async function person(browser, username) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR' });
-  const r = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { action: 'register', name: username, username, password: 'Test-only-2026', googleKey: username + '@example.com', phone: '11912345678' } });
+  const r = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: { acceptTerms: true, action: 'register', name: username, username, password: 'Test-only-2026', googleKey: username + '@example.com', phone: '11912345678' } });
   assert.equal(r.status(), 200, 'cadastro de ' + username);
   const page = await ctx.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
   return { page, errors };

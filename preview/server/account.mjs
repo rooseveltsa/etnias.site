@@ -2,9 +2,11 @@
 // bloqueio geral (usa a mesma lista do chat, que a moderação já acompanha), sessões por aparelho, seguidores,
 // desativar a conta e pedir a exclusão. Tudo é aplicado no servidor: o cliente só mostra o que recebe.
 import { checkPassword } from './session.mjs';
+import { exportAccountData, recordConsent, DELETION_GRACE_DAYS as GRACE } from './lgpd.mjs';
+import { tooMany, note } from './throttle.mjs';
 
-export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request'];
-export const DELETION_GRACE_DAYS = 30;
+export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update'];
+export const DELETION_GRACE_DAYS = GRACE;
 const DAY = 864e5;
 const keyOf = id => `id:${id}`;
 
@@ -76,10 +78,10 @@ export function accountView(state, account, currentSessionId, now = Date.now()) 
   };
 }
 
-// Ao entrar de novo, a conta desativada volta e um pedido de exclusão em andamento é cancelado (como nas redes conhecidas).
+// Ao entrar de novo, a conta desativada volta. Um pedido de exclusão só é cancelado se a pessoa confirmar (o login recusa antes disso).
 export function reactivateOnLogin(account) {
   const was = !!(account.deactivatedAt || account.deletionRequestedAt);
-  delete account.deactivatedAt; delete account.deletionRequestedAt;
+  delete account.deactivatedAt; delete account.deletionRequestedAt; delete account.deletionDueAt;
   if (was) rulesVersion++;
   return was;
 }
@@ -148,9 +150,22 @@ export function accountAction(state, account, body, currentSessionId, now = Date
       if (!account.password || !checkPassword(String(body.password || ''), account.password)) fail(403, 'A senha não confere.');
       account.deactivatedAt = now;
       rulesVersion++;
-      if (body.action === 'account_delete_request') account.deletionRequestedAt = now;
+      if (body.action === 'account_delete_request') { account.deletionRequestedAt = now; account.deletionDueAt = now + DELETION_GRACE_DAYS * DAY; }
       account.sessions = [];
       return { signOut: true };
+    }
+    // LGPD art. 18 (portabilidade/acesso): baixa os dados da própria conta. Pesado, então no máximo 3 por hora.
+    case 'data_export': {
+      if (tooMany('export:' + account.id, 3, 3600e3)) fail(429, 'Você já pediu seus dados algumas vezes. Tente de novo daqui a uma hora.');
+      note('export:' + account.id, 3600e3);
+      return { exportData: exportAccountData(state, account, now) };
+    }
+    // Consentimentos revogáveis a qualquer momento: dados sensíveis (povo e pertencimento) e cidade no perfil.
+    case 'consent_update': {
+      if (body.sensitive === false) { delete account.belonging; delete account.povo; recordConsent(account, 'sensitive', false); }
+      if (body.location === false) { delete account.location; recordConsent(account, 'location', false); }
+      if (body.sensitive !== false && body.location !== false) fail(400, 'Só é possível retirar um consentimento por aqui.');
+      return {};
     }
   }
   fail(400, 'Ação de conta desconhecida.');

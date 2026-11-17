@@ -18,7 +18,7 @@ const widths = [375, 768, 1440];
   for (const width of widths) {
     // O viewport só vale em newContext (newPage ignora a opção): um contexto por largura, mesma conta.
     const ctx = await browser.newContext({ bypassCSP: true, viewport: { width, height: width < 768 ? 812 : 900 }, isMobile: width < 768, hasTouch: width < 768 });
-    const auth = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: width === widths[0] ? { action: 'register', name: 'Auditoria Visual', username, password: 'Test-only-2026', googleKey: 'audit@example.com', phone: '11912345678' } : { action: 'login', username, password: 'Test-only-2026' } });
+    const auth = await ctx.request.post(base + '/api/community', { headers: { origin: base }, data: width === widths[0] ? { acceptTerms: true, action: 'register', name: 'Auditoria Visual', username, password: 'Test-only-2026', googleKey: 'audit@example.com', phone: '11912345678' } : { action: 'login', username, password: 'Test-only-2026' } });
     if (auth.status() !== 200) throw new Error('acesso falhou ' + auth.status());
     const page = await ctx.newPage();
     const errors = []; page.on('pageerror', e => errors.push(e.message));

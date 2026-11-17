@@ -3,7 +3,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep, basename } from 'node:path';
-import handler, { MAX_BODY_CHARS } from '../preview/server/community.mjs';
+import handler, { MAX_BODY_CHARS, purgeDueAccounts } from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 import { sendFile } from '../preview/server/files.mjs';
@@ -151,3 +151,6 @@ server.on('error', error => {
   process.exitCode = 1;
 });
 server.listen(port, host, () => console.log(`Etnias ouvindo em http://${host}:${port}`));
+// LGPD: contas com pedido de exclusão vencido (30 dias) são apagadas de verdade, de hora em hora.
+const purge = () => purgeDueAccounts().catch(error => console.error(`ERRO 503 limpeza LGPD: ${error.message}`));
+setTimeout(purge, Number(process.env.OPY_PURGE_FIRST_MS) || 120_000).unref(); setInterval(purge, 3600_000).unref();

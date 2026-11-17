@@ -7,7 +7,7 @@ async function registerAccount(base, profile = {}) {
   const response = await fetch(base + '/api/community', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({ action: 'register', name, username, password, googleKey, phone })
+    body: JSON.stringify({ acceptTerms: true, action: 'register', name, username, password, googleKey, phone })
   });
   const data = await response.json().catch(() => ({}));
   const pair = (response.headers.get('set-cookie') || '').split(';')[0];

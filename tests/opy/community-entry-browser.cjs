@@ -6,7 +6,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
  const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
  try{
   const a=await browser.newContext(),b=await browser.newContext();
-  const account=async(ctx,name)=>{const r=await ctx.request.post(base+'/api/community',{headers:{origin:base},data:{action:'register',name,username:name.toLowerCase().replace(/ /g,'')+Date.now().toString(36),password:'Test-only-2026',googleKey:name.replace(/ /g,'')+Date.now()+'@example.com',phone:'11912345678'}});assert.equal(r.status(),200);return (await r.json()).me;};
+  const account=async(ctx,name)=>{const r=await ctx.request.post(base+'/api/community',{headers:{origin:base},data:{acceptTerms: true, action: 'register',name,username:name.toLowerCase().replace(/ /g,'')+Date.now().toString(36),password:'Test-only-2026',googleKey:name.replace(/ /g,'')+Date.now()+'@example.com',phone:'11912345678'}});assert.equal(r.status(),200);return (await r.json()).me;};
   await account(a,'Ana Entrada');await account(b,'Beto Entrada');
   const pa=await a.newPage(),pb=await b.newPage();const errors=[];for(const p of [pa,pb])p.on('pageerror',e=>errors.push(e.message));
   const name='Roda Privada '+Date.now().toString(36);

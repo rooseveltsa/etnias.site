@@ -6,6 +6,7 @@ import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
 import { createSession, renewSession, SESSION_DAYS, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword, hashPasswordAsync, checkPasswordAsync, needsRehash } from './session.mjs';
 import { tooMany, note, clear, clientIp } from './throttle.mjs';
+import { recordConsent, sensitiveChange, purgeAccount, dueForPurge, TERMS_VERSION } from './lgpd.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
@@ -136,7 +137,7 @@ function phoneOf(value) {
 }
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
-  return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', belonging: account.belonging || '', povo: account.povo || '', phone: account.phone || '', googleKey: account.googleKey || '',
+  return { consent: { sensitive: !!account.consent?.sensitive, location: !!account.consent?.location, terms: account.consent?.terms?.version || '' }, id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', belonging: account.belonging || '', povo: account.povo || '', phone: account.phone || '', googleKey: account.googleKey || '',
     avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, location: account.location ? [account.location.city, account.location.uf].filter(Boolean).join(', ') : '', verified: !!account.verified, plan: planBadge(account), role: roleOf(account), mustChangePassword: !!account.mustChangePassword, videoAutoplay: account.videoAutoplay === 'on' ? 'on' : account.videoAutoplay === 'off' ? 'off' : '', pronouns: account.pronouns || '' };
 }
 function authorKeyOf(post) {
@@ -612,6 +613,7 @@ export default async function handler(req, res) {
         const name = personName(body.name);
         const googleKey = googleKeyOf(body.googleKey);
         const phone = phoneOf(body.phone);
+        if (process.env.OPY_REQUIRE_CONSENT !== '0' && body.acceptTerms !== true) fail(400, 'Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.');
         // Contas em massa: no máximo N cadastros por hora por endereço (Caddy grava o IP real no fim de X-Forwarded-For).
         if (!registerAllowed(req)) fail(429, 'Muitos cadastros deste endereço. Tente de novo mais tarde.');
         const accountId = randomUUID();
@@ -624,6 +626,7 @@ export default async function handler(req, res) {
           if (accounts.some(item => item.username === username)) fail(409, 'Esse usuário já existe. Entre ou escolha outro.');
           if (!usernameCheck(state, null, username).ok) fail(409, 'Esse usuário não está disponível. Escolha outro.');
           const account = { id: accountId, username, name, password: passwordHash, googleKey, phone, createdAt: Date.now() };
+          recordConsent(account, 'terms', true, account.createdAt);
           addSession(account, issued.session);
           accounts.push(account);
           return account;
@@ -653,6 +656,10 @@ export default async function handler(req, res) {
       }
       if (account.mustChangePassword && account.tempPasswordExpiresAt && Date.now() > account.tempPasswordExpiresAt) fail(401, 'A senha provisória expirou. Peça outra à administração.');
       if (isSuspended(account)) fail(403, suspensionMessage(account));
+      // Conta com exclusão pedida: entrar NÃO cancela sozinho. A senha já conferiu; a pessoa precisa confirmar que quer cancelar.
+      if (account.deletionRequestedAt && body.cancelDeletion !== true) {
+        throw Object.assign(new Error('Esta conta está marcada para exclusão definitiva. Para cancelar a exclusão e entrar, confirme.'), { status: 409, extra: { deletionPending: true, deletionDueAt: account.deletionDueAt || account.deletionRequestedAt + 30 * 864e5 } });
+      }
       const issued = await createSession(account.id, secret);
       stampSession(issued.session, req.headers['user-agent']);
       // Hash novo (custo atual) calculado antes da transação: contas do Etnias 1.0 migram do bcrypt; contas com scrypt antigo sobem de custo.
@@ -804,6 +811,11 @@ export default async function handler(req, res) {
           // Pertencimento é autodeclarado e opcional; o povo só faz sentido para quem se declara indígena.
           if (body.belonging !== undefined && !['indigena', 'nao_indigena', ''].includes(body.belonging)) fail(400, 'Opção de pertencimento inválida.');
           const nextPovo = text(String(body.povo ?? ''), 80, false);
+          // Povo e pertencimento são dados sensíveis (LGPD art. 11): só com consentimento específico, registrado e revogável.
+          if (sensitiveChange(currentAccount, body.belonging, body.belonging === 'indigena' ? nextPovo : '')) {
+            if (body.consentSensitive !== true && !currentAccount.consent?.sensitive) fail(400, 'Para informar seu povo ou pertencimento, marque o consentimento: são dados sensíveis e só aparecem se você quiser.');
+            recordConsent(currentAccount, 'sensitive', true);
+          }
           currentAccount.name = nextName;
           currentAccount.bio = nextBio;
           currentAccount.affiliation = nextAffiliation;
@@ -1083,6 +1095,7 @@ export default async function handler(req, res) {
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     // Desativar ou pedir exclusão encerra todas as sessões, inclusive esta.
+    if (accountResult?.exportData) { res.setHeader('Cache-Control', 'no-store'); return res.end(JSON.stringify({ export: accountResult.exportData })); }
     if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureCookie()}`); return res.end(JSON.stringify({ signedOut: true })); }
     if (boostResult?.silent) return res.end('{"ok":true}');
     if (planActions.includes(body.action) || boostActions.includes(body.action)) { const acc = data.accounts.find(a => a.id === activeMe.id); return res.end(JSON.stringify({ ...snapshot(data, activeMe), plans: { ...plansView(data, acc), finance: financeView(data, activeMe) } })); }
@@ -1110,6 +1123,18 @@ export default async function handler(req, res) {
     res.statusCode = error.status || 503;
     if (res.statusCode >= 500) console.error(`ERRO ${res.statusCode} ${req.method} ${String(req.url).split('?')[0]}: ${error.message}`);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return res.end(JSON.stringify({ error: error.status ? error.message : 'Não foi possível acessar a comunidade agora. Sua edição foi preservada; tente novamente.' }));
+    return res.end(JSON.stringify({ error: error.status ? error.message : 'Não foi possível acessar a comunidade agora. Sua edição foi preservada; tente novamente.', ...(error.extra || {}) }));
   }
+}
+
+// Eliminação definitiva das contas cujo prazo de carência (30 dias) venceu. Chamada de hora em hora pelo servidor.
+export async function purgeDueAccounts(now = Date.now()) {
+  const { data } = await readState();
+  const due = (data.accounts || []).filter(a => dueForPurge(a, now)).map(a => a.id);
+  if (!due.length) return { purged: 0 };
+  let media = [];
+  await transact(state => { for (const id of due) media.push(...purgeAccount(state, id).mediaIds); });
+  for (const id of media) await deleteMedia(id).catch(() => {});
+  console.error(`LGPD: ${due.length} conta(s) excluída(s) definitivamente, ${media.length} arquivo(s) de mídia removido(s)`);
+  return { purged: due.length };
 }

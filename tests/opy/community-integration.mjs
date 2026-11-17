@@ -54,7 +54,7 @@ async function api(body, cookie = '', origin = base) {
   await handler({ method: body ? 'POST' : 'GET', url: '/api/community', headers: { cookie, origin, host: '127.0.0.1:' + port }, body }, response);
   return { status: response.statusCode, cookie: headers['set-cookie']?.split(';')[0] || '', data: JSON.parse(response.output) };
 }
-const profile = name => ({ action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' });
+const profile = name => ({ acceptTerms: true, action: 'register', username: name, name, password: 'Test-only-2026', googleKey: name + '@example.com', phone: '11912345678' });
 async function getMedia(url, cookie = '') {
   const response = { statusCode: 200, setHeader() {}, end(value) { this.output = value; } };
   await handler({ method: 'GET', url, headers: { cookie } }, response);
@@ -330,7 +330,8 @@ try {
   assert.equal((await api(null, login.cookie)).data.pushPublicKey, '', 'sem chaves, o cliente não oferece avisos');
   // Pertencimento no perfil: autodeclaração opcional; o povo só vale para quem se declara indígena; valores fora da lista são recusados; a rede vê o campo e o resumo de povos.
   assert.equal((await api({ action:'profile_update', name:'Primeiro', belonging:'outro' }, login.cookie)).status, 400);
-  const declared = await api({ action:'profile_update', name:'Primeiro', belonging:'indigena', povo:'Guarani Mbya' }, login.cookie);
+  assert.equal((await api({ action:'profile_update', name:'Primeiro', belonging:'indigena', povo:'Guarani Mbya' }, login.cookie)).status, 400, 'dado sensível sem consentimento é recusado');
+  const declared = await api({ action:'profile_update', name:'Primeiro', belonging:'indigena', povo:'Guarani Mbya', consentSensitive:true }, login.cookie);
   assert.equal(declared.status, 200); assert.equal(declared.data.me.belonging, 'indigena'); assert.equal(declared.data.me.povo, 'Guarani Mbya');
   assert.deepEqual(declared.data.povos, ['Guarani Mbya']);
   assert.equal((await api({ action:'profile_update', name:'Primeiro', belonging:'nao_indigena', povo:'Ignorado' }, login.cookie)).data.me.povo, '', 'povo não fica guardado para quem não é indígena');
@@ -391,8 +392,12 @@ try {
   // Pedir exclusão: desativa na hora, fica registrado para a equipe; entrar de novo cancela o pedido.
   assert.equal((await api({ action:'account_delete_request', password:'Test-only-2026' }, back.cookie)).data.signedOut, true);
   assert.ok(state.accounts.find(a => a.id === anaId).deletionRequestedAt > 0);
-  await api({ action:'login', username:'ana.p2', password:'Test-only-2026' });
-  assert.equal(state.accounts.find(a => a.id === anaId).deletionRequestedAt, undefined, 'entrar de novo cancela o pedido de exclusão');
+  const pending = await api({ action:'login', username:'ana.p2', password:'Test-only-2026' });
+  assert.equal(pending.status, 409); assert.equal(pending.data.deletionPending, true); assert.ok(pending.data.deletionDueAt > Date.now());
+  assert.ok(state.accounts.find(a => a.id === anaId).deletionRequestedAt > 0, 'entrar sem confirmar NÃO cancela a exclusão');
+  assert.equal((await api({ action:'login', username:'ana.p2', password:'errada-errada' })).status, 401);
+  await api({ action:'login', username:'ana.p2', password:'Test-only-2026', cancelDeletion:true });
+  assert.equal(state.accounts.find(a => a.id === anaId).deletionRequestedAt, undefined, 'confirmar o cancelamento ao entrar desfaz o pedido de exclusão');
   // P2 (verificação) + P4 (planos) + P3 (impulsionamento): regras no servidor e negativos de autorização.
   process.env.OPY_ADMIN_USERNAMES = 'adm.p3';
   const adm = await api(profile('adm.p3')), cli = await api(profile('cli.p3')), viu = await api(profile('viu.p3'));

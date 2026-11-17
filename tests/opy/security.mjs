@@ -7,7 +7,7 @@ import { hashPassword, checkPassword, needsRehash, PASSWORD_N } from '../../prev
 import * as throttle from '../../preview/server/throttle.mjs';
 
 const pw = 'Senha-de-teste-2026';
-const reg = n => ({ action: 'register', username: n, name: n, password: pw, googleKey: n + '@example.com', phone: '11912345678' });
+const reg = n => ({ acceptTerms: true, action: 'register', username: n, name: n, password: pw, googleKey: n + '@example.com', phone: '11912345678' });
 
 test('scrypt: custo novo, hash antigo continua valendo e pede refazer', () => {
   const novo = hashPassword(pw);

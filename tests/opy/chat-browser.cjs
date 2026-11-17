@@ -6,7 +6,7 @@ const base = process.env.OPY_PREVIEW_URL || 'http://127.0.0.1:8117';
  const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
  try {
   const a=await browser.newContext(),b=await browser.newContext();
-  async function account(ctx,name){const res=await ctx.request.post(base+'/api/community',{headers:{origin:base},data:{action:'register',name,username:name.toLowerCase().replace(/ /g,'')+Date.now().toString(36),password:'Test-only-2026',googleKey:name.replace(/ /g,'')+'@example.com',phone:'11912345678'}});assert.equal(res.status(),200);return (await res.json()).me;}
+  async function account(ctx,name){const res=await ctx.request.post(base+'/api/community',{headers:{origin:base},data:{acceptTerms: true, action: 'register',name,username:name.toLowerCase().replace(/ /g,'')+Date.now().toString(36),password:'Test-only-2026',googleKey:name.replace(/ /g,'')+'@example.com',phone:'11912345678'}});assert.equal(res.status(),200);return (await res.json()).me;}
   const aa=await account(a,'Ana QA'),bb=await account(b,'Beto QA');
   const pa=await a.newPage(),pb=await b.newPage();
   const errors=[];pa.on('pageerror',e=>errors.push(e.message));pb.on('pageerror',e=>errors.push(e.message));
