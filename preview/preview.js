@@ -671,7 +671,9 @@ let profileSignature='';
 // a acessibilidade (texto maior, menos movimento) é preferência do aparelho, aplicada antes da pintura por theme.js.
 let settingsData=null,settingsLoading=false;
 function prefGet(k,d){try{return localStorage.getItem(k)||d;}catch{return d;}}
-function applyA11y(){const r=document.documentElement;r.dataset.text=prefGet('opy-text','normal');r.dataset.motion=prefGet('opy-motion','auto');}
+// Barra inferior: cada botão tem nome acessível e dica (title) mesmo quando só o ícone aparece (Configurações > Aparência).
+function labelBottomBar(){for(const a of all('.opy-bottom .opy-nav-item')){const label=(a.getAttribute('aria-label')||a.querySelector('span')?.textContent||'').trim();if(!label)continue;if(!a.hasAttribute('aria-label'))a.setAttribute('aria-label',label);a.title=label;}}
+function applyA11y(){const r=document.documentElement;r.dataset.nav=prefGet('opy-nav','labels')==='icons'?'icons':'labels';labelBottomBar();r.dataset.text=prefGet('opy-text','normal');r.dataset.motion=prefGet('opy-motion','auto');}
 let plansData=null;
 async function loadSettings(){settingsLoading=true;try{const [a,p]=await Promise.all([apiGet({view:'account'}),apiGet({view:'plans'})]);settingsData=a;plansData=p;}catch(e){showError(e.message);}finally{settingsLoading=false;renderSettings();}}
 async function accountChange(body,ok){try{const next=await change(body);if(next?.account)settingsData=next.account;if(next?.plans)plansData=next.plans;if(!next?.account&&!next?.plans)await loadSettings();if(ok)toast(ok);renderSettings();}catch(e){showError(e.message);}}
@@ -793,6 +795,7 @@ function renderSettings(){
  const blk=card('Pessoas bloqueadas','Quem está bloqueado não vê seu perfil nem suas publicações, não manda mensagem e não pede amizade. A pessoa não é avisada.');
  blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
  const look=card('Aparência','Preferência deste aparelho.','aparencia');
+ look.append(radioGroup('set-nav','Barra inferior (celular)',[['labels','Ícones com nome'],['icons','Só ícones']],prefGet('opy-nav','labels'),v=>{try{localStorage.setItem('opy-nav',v);}catch{}applyA11y();}));
  look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
  const vids=card('Vídeos (MOMENTOS)','Salvo na sua conta, vale em qualquer aparelho.');
  vids.append(radioGroup('set-autoplay','Vídeos no feed',[['off','Tocar só quando eu tocar (gasta menos dados)'],['on','Tocar automaticamente, sem som']],state.me.videoAutoplay==='on'?'on':'off',v=>{change({action:'video_prefs',autoplay:v}).then(()=>toast('Preferência de vídeos salva.')).catch(e=>showError(e.message));}));
@@ -2048,6 +2051,7 @@ if(!window.__opyPressBound){
   document.addEventListener('pointercancel',release,{passive:true});
 }
 // Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
+labelBottomBar();
 window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,emptyState,youtubeCard,linkified,openLightbox,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,shrinkPhoto,recorderMime,readSlot,
  get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
  get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};

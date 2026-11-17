@@ -8,6 +8,7 @@
     document.documentElement.dataset.theme = theme;
     // Acessibilidade (Configurações): texto maior e menos movimento, também antes da pintura.
     document.documentElement.dataset.text = localStorage.getItem('opy-text') === 'large' ? 'large' : 'normal';
+    document.documentElement.dataset.nav = localStorage.getItem('opy-nav') === 'icons' ? 'icons' : 'labels';
     document.documentElement.dataset.motion = localStorage.getItem('opy-motion') === 'reduce' ? 'reduce' : 'auto';
   } catch (e) { document.documentElement.dataset.theme = 'light'; }
 })();

@@ -1833,3 +1833,10 @@ body:not(.opy-welcome) .install-bar .install-apk.preview-secondary{display:none}
 @media(min-width:1000px){body.opy-preview .leftcol{position:sticky;top:var(--opy-head,64px);align-self:flex-start;max-height:calc(100vh - var(--opy-head,64px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}}
 /* A cor de destaque usada por abas e filtros marcados não estava definida (--opy-green): o texto branco ficava sobre fundo claro e a aba ativa sumia (ex.: "Feed" na comunidade, no PC) */
 body.opy-preview{--opy-green:#b84a27}
+
+/* Barra inferior só com ícones (opção em Configurações > Aparência): o nome continua para leitor de tela e como dica ao segurar/passar o mouse */
+html[data-nav=icons] .opy-bottom .opy-nav-item>span:not(.opy-pending):not(.opy-soon){position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+html[data-nav=icons] .opy-bottom .opy-nav-item{min-height:48px;justify-content:center}
+html[data-nav=icons] .opy-bottom .opy-nav-item:not(.opy-create) svg.opy-icon{width:26px;height:26px;flex-basis:26px}
+html[data-nav=icons] .opy-bottom .opy-create svg.opy-icon{width:48px;height:32px;flex-basis:32px;padding:4px 12px}
+html[data-nav=icons] .opy-bottom .opy-soon{display:none}
