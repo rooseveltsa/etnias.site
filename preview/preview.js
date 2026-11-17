@@ -214,7 +214,17 @@ function autoplayWhenVisible(video){
  video.addEventListener('pause',()=>{if(video.dataset.autoPaused)delete video.dataset.autoPaused;else video.dataset.userPaused='1';});
  video.addEventListener('play',()=>{delete video.dataset.userPaused;all('video.preview-post-video').forEach(o=>{if(o!==video&&!o.paused){o.dataset.autoPaused='1';o.pause();}});});
 }
+// MOMENTOS: no feed o vídeo aparece como capa com botão de tocar e só carrega quando a pessoa toca (economiza dados). Quem escolhe
+// "tocar automaticamente" nas configurações da conta (ou a gravação de uma live) mantém o player direto no cartão.
 function videoBlock(item){
+ if(!item.live&&state.me?.videoAutoplay!=='on'&&window.OpyVideos?.openClip){
+  const box=make('div',undefined,'post-media post-media-video post-media-momentos');box.dataset.count='1';
+  const b=make('button',undefined,'momentos-play');b.type='button';b.setAttribute('aria-label','Assistir ao vídeo de '+item.author+' em tela cheia');
+  if(item.media.poster){const img=make('img');img.src=item.media.poster;img.alt='';img.loading='lazy';img.decoding='async';b.append(img);}
+  b.append(make('span','▶','momentos-icon'));
+  b.onclick=()=>window.OpyVideos.openClip(item,state.posts||[]);
+  box.append(b);return box;
+ }
  const box=make('div',undefined,'post-media post-media-video');box.dataset.count='1';
  const video=document.createElement('video');video.className='preview-post-video';video.src=item.media.url;video.controls=true;video.preload='none';video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label','Vídeo da publicação de '+item.author);
  // Gravação de live (MP4 fragmentado): carrega o começo para mostrar o primeiro quadro em vez da tela preta no iPhone.
@@ -743,6 +753,8 @@ function renderSettings(){
  blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
  const look=card('Aparência','Preferência deste aparelho.','aparencia');
  look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
+ const vids=card('Vídeos (MOMENTOS)','Salvo na sua conta, vale em qualquer aparelho.');
+ vids.append(radioGroup('set-autoplay','Vídeos no feed',[['off','Tocar só quando eu tocar (gasta menos dados)'],['on','Tocar automaticamente, sem som']],state.me.videoAutoplay==='on'?'on':'off',v=>{change({action:'video_prefs',autoplay:v}).then(()=>toast('Preferência de vídeos salva.')).catch(e=>showError(e.message));}));
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
@@ -762,17 +774,17 @@ function renderProfile(){
  const root=$('#profile-page');if(!root||!state)return;
  const key=profileKey();if(!key)return;
  const own=key==='id:'+state.me.id;
- if(profileData.key!==key){profileData.key=key;profileData.person=null;profileData.posts=[];profileData.hasMore=false;profileData.loading=true;profileSignature='';
+ if(profileData.key!==key){profileData.key=key;profileData.person=null;profileData.communities=null;profileData.posts=[];profileData.hasMore=false;profileData.loading=true;profileSignature='';
   const profileReq=profilePrefetch&&profilePrefetch.key===key&&!profilePrefetch.used?(profilePrefetch.used=true,profilePrefetch.req):apiGet({view:'profile',key});
-  profileReq.then(d=>{if(profileData.key!==key)return;profileData.person=d.person;profileData.posts=d.posts;profileData.hasMore=d.hasMore;profileData.loading=false;renderProfile();}).catch(e=>{profileData.loading=false;root.replaceChildren(emptyState(e.status===404?'Pessoa não encontrada':'Não foi possível carregar o perfil',e.status===404?'Este perfil não existe ou não está disponível.':e.message,[['Voltar ao feed','/']]));});
+  profileReq.then(d=>{if(profileData.key!==key)return;profileData.person=d.person;profileData.communities=d.communities||null;profileData.posts=d.posts;profileData.hasMore=d.hasMore;profileData.loading=false;renderProfile();}).catch(e=>{profileData.loading=false;root.replaceChildren(emptyState(e.status===404?'Pessoa não encontrada':'Não foi possível carregar o perfil',e.status===404?'Este perfil não existe ou não está disponível.':e.message,[['Voltar ao feed','/']]));});
   return;
  }
  if(profileData.loading&&!profileData.person)return;
  const base=profileData.person||personByKey(key);
- const person=own?{...base,name:state.me.name,username:state.me.username,bio:state.me.bio,affiliation:state.me.affiliation,belonging:state.me.belonging,povo:state.me.povo,avatar:state.me.avatar,cover:state.me.cover,joinedAt:state.me.joinedAt,own:true}:base;
+ const person=own?{...base,name:state.me.name,username:state.me.username,bio:state.me.bio,affiliation:state.me.affiliation,pronouns:state.me.pronouns,belonging:state.me.belonging,povo:state.me.povo,avatar:state.me.avatar,cover:state.me.cover,joinedAt:state.me.joinedAt,own:true}:base;
  const posts=profileData.posts;
  const photoItems=posts.flatMap(p=>[p.media?.kind==='image'?p.media.url:'',p.image||''].filter(Boolean).map(url=>({url,postId:p.id,own:p.own,author:p.author})));const photos=photoItems.map(i=>i.url);
- const comms=(state.communities||[]).filter(c=>own?c.joined:(c.members||[]).some(m=>m.key===key));
+ const comms=own?(state.communities||[]).filter(c=>c.joined):(profileData.communities||(state.communities||[]).filter(c=>(c.members||[]).some(m=>m.key===key)));
  const ea=$('#profile-edit-avatar');if(ea)ea.replaceChildren(avatarNode(state.me.name,state.me.avatar,72));
  const ec=$('#profile-edit-cover');if(ec){ec.replaceChildren();if(state.me.cover){const im=make('img');im.src=state.me.cover;im.alt='';ec.append(im);}}
  const signature=JSON.stringify([person,posts.map(p=>[p.id,p.reaction,p.reactions,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,expandedComments.has(p.id),replyTargets.has(p.id),openCommentForms.has(p.id)]),comms.map(c=>c.id),profileTab,profileData.hasMore]);
@@ -799,7 +811,7 @@ function renderProfile(){
  const info=button('',()=>{profileTab='about';renderProfile();$('.pf-tabs')?.scrollIntoView({block:'nearest'});},actions);info.className='pf-info';info.setAttribute('aria-label','Ver informações do perfil');info.title='Sobre';
  id.append(actions);
  // Linha do modelo: "● online | @usuario" (online só aparece para amizades ou quem se segue mutuamente).
- const handle=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.affiliation].filter(Boolean).join(' · ');
+ const handle=[person.username?'@'+person.username:(key.startsWith('name:')?'Pessoa do acervo Etnias':''),person.pronouns,person.affiliation].filter(Boolean).join(' · ');
  const meta=make('p',undefined,'pf-meta');
  if(person.online){meta.append(make('span','online','pf-online'));if(handle)meta.append(make('span','|','pf-sep'));av.classList.add('is-online');}
  if(handle)meta.append(make('span',handle,'pf-handle'));
@@ -817,6 +829,7 @@ function renderProfile(){
  const intro=make('section',undefined,'pf-card');intro.append(make('h2','Apresentação'));
  if(person.bio)intro.append(make('p',person.bio,'pf-bio'));else intro.append(make('p',own?'Conte quem você é e como participa da rede. Toque em Editar perfil.':'Ainda sem apresentação.','pf-empty'));
  const facts=make('ul',undefined,'pf-facts');
+ if(person.pronouns)facts.append(make('li','Pronomes: '+person.pronouns));
  if(person.affiliation)facts.append(make('li',person.affiliation));
  if(person.joinedAt)facts.append(make('li','Na rede desde '+new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(person.joinedAt))));
  facts.append(make('li',comms.length+(comms.length===1?' comunidade':' comunidades')));
@@ -831,7 +844,7 @@ function renderProfile(){
  }else if(profileTab==='about'){
   const c=make('section',undefined,'pf-card');c.append(make('h2','Sobre'));const dl=make('dl',undefined,'pf-about');
   const row=(t,v)=>{if(v)dl.append(make('dt',t),make('dd',v));};
-  row('Nome',person.name);row('Usuário',person.username?'@'+person.username:'');row('Pertencimento',person.belonging==='indigena'?'Indígena'+(person.povo?' · '+person.povo:''):person.belonging==='nao_indigena'?'Não indígena':'');row('Povo, território ou organização',person.affiliation);row('Apresentação',person.bio);
+  row('Nome',person.name);row('Usuário',person.username?'@'+person.username:'');row('Pertencimento',person.belonging==='indigena'?'Indígena'+(person.povo?' · '+person.povo:''):person.belonging==='nao_indigena'?'Não indígena':'');row('Pronomes',person.pronouns);row('Povo, território ou organização',person.affiliation);row('Apresentação',person.bio);
   row('Na rede desde',person.joinedAt?new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(new Date(person.joinedAt)):'');
   row('Amizades',person.friendsCount?String(person.friendsCount):'');
   c.append(dl);if(blockPerson){const bl=button('Bloquear',blockPerson,c);bl.className='preview-secondary pf-block';}main.append(c);
@@ -1397,6 +1410,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   if($('#profile-edit-name'))$('#profile-edit-name').value=state.me.name||'';
   if($('#profile-edit-povo')){const b=state.me.belonging||'';all('#profile-edit-form input[name=belonging]').forEach(r=>{r.checked=r.value===b;r.onchange=()=>{$('#profile-edit-povo-label').hidden=r.value!=='indigena';if(r.value==='indigena')$('#profile-edit-povo').focus();};});$('#profile-edit-povo').value=state.me.povo||'';$('#profile-edit-povo-label').hidden=b!=='indigena';const dl=$('#povos-list');if(dl&&dl.children.length!==(state.povos||[]).length)dl.replaceChildren(...(state.povos||[]).map(n=>new Option(n)));}
   if($('#profile-edit-affiliation'))$('#profile-edit-affiliation').value=state.me.affiliation||'';
+  if($('#profile-edit-pronouns'))$('#profile-edit-pronouns').value=state.me.pronouns||'';
   if($('#profile-edit-bio'))$('#profile-edit-bio').value=state.me.bio||'';
  }
  const cList=communitiesList();
@@ -1460,7 +1474,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
   const welcome=!key&&!saved?welcomeCard():null;
-  const postSig=p=>JSON.stringify([p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
+  const postSig=p=>JSON.stringify([p.media?.kind==='video'||p.repostOf?.media?.kind==='video'?state.me?.videoAutoplay:'',p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
   // O patrocinado fica o mesmo enquanto a pessoa lê: o rodízio do servidor só vale na próxima abertura do feed (sem redesenhar a lista).
   if(!key&&!saved&&fs.sponsored===undefined&&state.sponsored!==undefined)fs.sponsored=state.sponsored||null;
   const sponsoredPost=!key&&!saved?(fs.sponsored||null):null;
@@ -1728,7 +1742,7 @@ $('#profile-edit-form')?.addEventListener('submit',async e=>{
  submit.disabled=true;if(status)status.textContent='Salvando perfil…';
  try{
   const belonging=$('#profile-edit-form input[name=belonging]:checked')?.value||'';
-  await change({action:'profile_update',name:$('#profile-edit-name').value,affiliation:$('#profile-edit-affiliation').value,bio:$('#profile-edit-bio').value,belonging,povo:belonging==='indigena'?$('#profile-edit-povo').value:''});
+  await change({action:'profile_update',name:$('#profile-edit-name').value,affiliation:$('#profile-edit-affiliation').value,pronouns:$('#profile-edit-pronouns')?.value||'',bio:$('#profile-edit-bio').value,belonging,povo:belonging==='indigena'?$('#profile-edit-povo').value:''});
   if(status)status.textContent='Perfil atualizado com sucesso.';
  }catch(err){if(status)status.textContent=err.message;else showError(err.message);}
  finally{submit.disabled=false;}
@@ -1760,6 +1774,20 @@ async function shrinkPhoto(file,limit=1.5*1024*1024){
  return file;
 }
 const MAX_VIDEO_MB=40;
+const MAX_VIDEO_SECONDS=240;
+// Duração e capa (um quadro perto do começo) lidas no aparelho antes de enviar. Se o navegador não decodifica o arquivo, segue sem capa
+// e a duração fica por conta da checagem do servidor.
+function inspectVideo(file){return new Promise(resolve=>{
+ const url=URL.createObjectURL(file);const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='metadata';
+ let done=false,duration=0;
+ const finish=poster=>{if(done)return;done=true;clearTimeout(timer);URL.revokeObjectURL(url);v.removeAttribute('src');v.load();resolve({duration,poster:poster||''});};
+ const timer=setTimeout(()=>finish(''),8000);
+ v.onerror=()=>finish('');
+ v.onloadedmetadata=()=>{duration=isFinite(v.duration)?v.duration:0;try{v.currentTime=Math.min(1,(duration||2)/2);}catch{finish('');}};
+ v.onseeked=()=>{try{const w=v.videoWidth,h=v.videoHeight;if(!w||!h)return finish('');const k=Math.min(1,540/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(v,0,0,c.width,c.height);finish(c.toDataURL('image/jpeg',0.72));}catch{finish('');}};
+ v.src=url;
+});}
+const clipClock=sec=>Math.floor(sec/60)+' min '+String(Math.round(sec%60)).padStart(2,'0')+' s';
 async function readSlot(file,limit){if(!file)return null;file=await shrinkPhoto(file,limit);const video=/^video\//.test(file.type)||/\.(mp4|mov|webm)$/i.test(file.name);if(video&&file.size>MAX_VIDEO_MB*1024*1024)throw Error('Escolha um vídeo de até '+MAX_VIDEO_MB+' MB.');if(!video&&file.size>2*1024*1024)throw Error('Escolha um arquivo de até 2 MB.');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler o arquivo.'));reader.readAsDataURL(file);});return {name:file.name,data:typedDataUrl(file,data),bytes:file.size};}
 // Carrossel no padrão do Instagram: até 10 fotos, reduzidas no aparelho (carrossel mais leve: acima de 900 KB vira JPEG de até 1600 px).
 const MAX_PHOTOS=10,MAX_PHOTOS_BYTES=13*1024*1024;
@@ -1783,7 +1811,9 @@ function selectedFormat(){return all('[data-compose-tool]').find(item=>item.getA
 if(publisher){
  $('#compose-story-open')?.addEventListener('click',()=>{if(window.OpyCreator){window.OpyCreator.open('story');return;}openStorySheet();$('#story-form')?.scrollIntoView({behavior:'smooth',block:'nearest'});});
  if($('#publisher-photo'))$('#publisher-photo').onchange=async()=>{const input=$('#publisher-photo');const files=[...input.files];input.value='';if(!files.length)return;busy=true;try{if(photoAttachments.length+files.length>MAX_PHOTOS)throw Error('Escolha até '+MAX_PHOTOS+' fotos por publicação.');for(const f of files){const next=await readSlot(f,photoAttachments.length+files.length>1?900*1024:undefined);if(!/^data:image\/(png|jpeg|gif|webp);/.test(next.data))throw Error('A imagem precisa ser PNG, JPG, GIF ou WebP.');if(photoAttachments.reduce((t,p)=>t+p.bytes,0)+next.bytes>MAX_PHOTOS_BYTES)throw Error('As fotos passaram de 13 MB juntas. Tire alguma ou escolha fotos menores.');photoAttachments.push(next);}}catch(e){showError(e.message);}finally{busy=false;paintPhotos();}};
- $('#publisher-video').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-video').files[0]);if(!next)return;if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4, MOV ou WebM.');const replaced=!!videoAttachment;videoAttachment=next;paintSlot('video-slot',next,'Remover vídeo',()=>{videoAttachment=null;$('#publisher-video').value='';$('#video-status').textContent='';$('#video-status').hidden=true;});const videoStatus=$('#video-status');videoStatus.hidden=false;videoStatus.textContent=replaced?'O vídeo anterior foi trocado. A publicação leva um único vídeo.':'Vídeo pronto. A publicação leva um único vídeo.';}catch(e){showError(e.message);$('#publisher-video').value='';}finally{busy=false;}};
+ const takeVideo=async input=>{busy=true;try{const file=input.files[0];if(!file)return;const info=await inspectVideo(file);if(info.duration>MAX_VIDEO_SECONDS+0.5)throw Error('Este vídeo tem '+clipClock(info.duration)+'. O MOMENTOS aceita vídeos de até 4 minutos (240 segundos).');const next=await readSlot(file);if(!next)return;if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4, MOV ou WebM.');next.poster=info.poster;const replaced=!!videoAttachment;videoAttachment=next;paintSlot('video-slot',next,'Remover vídeo',()=>{videoAttachment=null;$('#publisher-video').value='';$('#publisher-video-camera').value='';$('#video-status').textContent='';$('#video-status').hidden=true;});const videoStatus=$('#video-status');videoStatus.hidden=false;videoStatus.textContent=replaced?'O vídeo anterior foi trocado. A publicação leva um único vídeo.':'Vídeo pronto'+(info.duration?' ('+clipClock(info.duration)+')':'')+'. A publicação leva um único vídeo.';}catch(e){showError(e.message);}finally{input.value='';busy=false;}};
+ $('#publisher-video').onchange=()=>takeVideo($('#publisher-video'));
+ $('#publisher-video-camera').onchange=()=>takeVideo($('#publisher-video-camera'));
  $('#publisher-document').onchange=async()=>{busy=true;try{const next=await readSlot($('#publisher-document').files[0]);if(!next)return;if(!/\.(pdf|txt|docx|doc)$/i.test(next.name))throw Error('O arquivo precisa ser PDF, TXT, DOC ou DOCX.');const replaced=!!fileAttachment;fileAttachment=next;paintSlot('file-slot',next,'Remover arquivo',()=>{fileAttachment=null;$('#publisher-document').value='';$('#file-status').textContent='';$('#file-status').hidden=true;});const fileStatus=$('#file-status');fileStatus.hidden=false;fileStatus.textContent=replaced?'O arquivo anterior foi trocado. A publicação leva um único arquivo.':'Arquivo pronto. A publicação leva um único arquivo.';}catch(e){showError(e.message);$('#file-status').textContent=e.message;$('#publisher-document').value='';}finally{busy=false;}};
  selectFormat('text');all('[data-compose-tool]').forEach(b=>b.onclick=()=>selectFormat(b.getAttribute('aria-selected')==='true'&&b.dataset.composeTool!=='text'?'text':b.dataset.composeTool));
  // Compositor fechado mostra só a linha de entrada; abre ao focar ou escolher um formato e fecha vazio ao sair.
@@ -1799,6 +1829,7 @@ if(publisher){
  $('#choose-photo')?.addEventListener('click',()=>$('#publisher-photo')?.click());
  $('#choose-photo-camera')?.addEventListener('click',()=>$('#compose-camera-open')?.click());
  $('#choose-video').onclick=()=>$('#publisher-video').click();
+ $('#record-video').onclick=()=>$('#publisher-video-camera').click();
  $('#compose-camera-open').onclick=async()=>{$('#compose-camera-status').textContent='';$('#compose-camera').hidden=false;try{await startCamera($('#compose-preview'),false);}catch(error){$('#compose-camera-status').textContent=error.message;stopCamera();}};
  $('#compose-camera-close').onclick=()=>{stopCamera();$('#compose-camera').hidden=true;};
  $('#compose-shutter').onclick=async()=>{try{const file=await snapPhoto($('#compose-preview'));if(photoAttachments.length>=MAX_PHOTOS)throw Error('Escolha até '+MAX_PHOTOS+' fotos por publicação.');photoAttachments.push(await readSlot(file,photoAttachments.length?900*1024:undefined));stopCamera();$('#compose-camera').hidden=true;selectFormat('text');paintPhotos();}catch(error){$('#compose-camera-status').textContent=error.message;}};
@@ -1827,6 +1858,7 @@ if(publisher){
     audience:$('#preview-audience').value,
     communityId,
     // O que foi anexado vai junto, mesmo que a pessoa tenha voltado para outra aba antes de publicar.
+    ...(videoAttachment?.poster?{poster:{name:'capa.jpg',data:videoAttachment.poster}}:{}),
     media:videoAttachment?{name:videoAttachment.name,data:videoAttachment.data}:photoAttachments.length===1?{name:photoAttachments[0].name,data:photoAttachments[0].data}:null,
     ...(!videoAttachment&&photoAttachments.length>1?{photos:photoAttachments.map(p=>({name:p.name,data:p.data}))}:{}),
     file:fileAttachment?{name:fileAttachment.name,data:fileAttachment.data}:null,

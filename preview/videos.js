@@ -16,10 +16,44 @@ function grid(posts) {
   list.forEach((p, i) => {
     const tile = make('button', undefined, 'opy-vtile'); tile.type = 'button';
     tile.setAttribute('aria-label', 'Assistir vídeo de ' + p.author + (p.text ? ': ' + p.text.slice(0, 60) : ''));
-    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.src = clip(p).url + '#t=0.1'; v.setAttribute('aria-hidden', 'true');
-    tile.append(v, make('span', '♥ ' + total(p), 'opy-vtile-meta')); tile.onclick = () => open(list, i); box.append(tile);
+    // Com capa gravada na publicação, a grade mostra só a imagem leve. Sem capa (vídeos antigos), cai no primeiro quadro do vídeo.
+    let thumb;
+    if (clip(p).poster) { thumb = make('img'); thumb.src = clip(p).poster; thumb.alt = ''; thumb.loading = 'lazy'; thumb.decoding = 'async'; }
+    else { thumb = document.createElement('video'); thumb.muted = true; thumb.playsInline = true; thumb.preload = 'metadata'; thumb.src = clip(p).url + '#t=0.1'; thumb.setAttribute('aria-hidden', 'true'); }
+    tile.append(thumb, make('span', '♥ ' + total(p), 'opy-vtile-meta')); tile.onclick = () => askAutoplay().then(() => open(list, i)); box.append(tile);
   });
   return box;
+}
+
+// Primeira vez no MOMENTOS: a pessoa escolhe se os vídeos do feed tocam sozinhos. O padrão é só ao toque; a escolha fica na conta
+// e pode ser mudada em Configurações. Se fechar sem escolher, nada é salvo e a pergunta volta na próxima vez.
+function askAutoplay() {
+  if (S.state?.me?.videoAutoplay) return Promise.resolve();
+  return new Promise(resolve => {
+    const d = make('dialog', undefined, 'community-dialog momentos-ask'); d.setAttribute('aria-labelledby', 'momentos-ask-title');
+    const h = make('h2', 'Reprodução automática de vídeos'); h.id = 'momentos-ask-title';
+    const actions = make('div', undefined, 'community-dialog-actions');
+    let picked = '';
+    const choose = (value, label, cls) => { const b = make('button', label, cls); b.type = 'button'; b.onclick = () => { picked = value; d.close(); }; actions.append(b); return b; };
+    const safe = choose('off', 'Só quando eu tocar', 'opy-primary');
+    choose('on', 'Tocar automaticamente', 'preview-secondary');
+    d.append(h, make('p', 'Quer que os vídeos do feed toquem sozinhos, sem som, quando aparecerem na tela? Isso gasta mais dados da internet. Você pode mudar isso quando quiser em Configurações.'), actions);
+    d.addEventListener('close', async () => {
+      d.remove();
+      if (picked) { try { await change({ action: 'video_prefs', autoplay: picked }); } catch (e) { showError(e.message); } }
+      resolve();
+    });
+    document.body.append(d); d.showModal(); safe.focus({ preventScroll: true });
+  });
+}
+
+// Toque na capa de um vídeo do feed: abre o MOMENTOS (tela cheia, um vídeo por tela) a partir dele, seguido dos próximos do feed.
+async function openClip(p, posts) {
+  await askAutoplay();
+  const list = (posts || []).filter(clip);
+  let i = list.findIndex(x => x.id === p.id);
+  if (i < 0) { list.unshift(p); i = 0; }
+  open(list, i);
 }
 
 function open(list, start) {
@@ -43,8 +77,12 @@ function open(list, start) {
   const io = new IntersectionObserver(entries => {
     for (const e of entries) {
       const v = e.target.querySelector('video');
-      if (e.isIntersecting && e.intersectionRatio > 0.6) { v.muted = muted; v.play().catch(() => { muted = true; paintSound(); v.play().catch(() => {}); }); }
-      else v.pause();
+      if (e.isIntersecting && e.intersectionRatio > 0.6) { if (!v.getAttribute('src')) v.src = v.dataset.src; v.muted = muted; v.play().catch(() => { muted = true; paintSound(); v.play().catch(() => {}); }); }
+      else {
+        v.pause();
+        // Saiu da tela: solta o arquivo para não manter vários vídeos carregados ao mesmo tempo (ao voltar, o cache e o Range evitam baixar de novo).
+        if (!e.isIntersecting && v.getAttribute('src')) { v.removeAttribute('src'); v.load(); }
+      }
     }
   }, { root: track, threshold: [0, 0.6, 1] });
   track.querySelectorAll('.vp-slide').forEach(s => io.observe(s));
@@ -55,7 +93,7 @@ function open(list, start) {
 
 function slide(p, dlg) {
   const s = make('section', undefined, 'vp-slide'); s.setAttribute('aria-label', 'Vídeo de ' + p.author);
-  const v = document.createElement('video'); v.src = clip(p).url; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'metadata'; v.muted = muted;
+  const v = document.createElement('video'); v.dataset.src = clip(p).url; if (clip(p).poster) v.poster = clip(p).poster; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'none'; v.muted = muted;
   v.addEventListener('loadedmetadata', () => { s.dataset.orient = v.videoWidth > v.videoHeight ? 'landscape' : 'portrait'; });
   v.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
   const info = make('div', undefined, 'vp-info');
@@ -113,5 +151,5 @@ function comments(p, s, counter) {
   paintList(); sheet.append(head, list, form); s.append(sheet); input.focus({ preventScroll: true });
 }
 
-window.OpyVideos = { grid, open };
+window.OpyVideos = { grid, open, openClip };
 }());

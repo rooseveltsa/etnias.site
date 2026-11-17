@@ -3,7 +3,7 @@
 // desativar a conta e pedir a exclusão. Tudo é aplicado no servidor: o cliente só mostra o que recebe.
 import { checkPassword } from './session.mjs';
 
-export const accountActions = ['privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request'];
+export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request'];
 export const DELETION_GRACE_DAYS = 30;
 const DAY = 864e5;
 const keyOf = id => `id:${id}`;
@@ -87,6 +87,12 @@ export function reactivateOnLogin(account) {
 export function accountAction(state, account, body, currentSessionId, now = Date.now()) {
   const key = keyOf(account.id);
   switch (body.action) {
+    // MOMENTOS: a pessoa escolhe se os vídeos do feed tocam sozinhos. O padrão é não tocar (economiza dados) e a escolha fica na conta.
+    case 'video_prefs': {
+      if (!['on', 'off'].includes(body.autoplay)) fail(400, 'Escolha se os vídeos tocam sozinhos ou só ao toque.');
+      account.videoAutoplay = body.autoplay;
+      return {};
+    }
     case 'privacy_update': {
       const profile = body.profile ?? account.privacy?.profile ?? 'public';
       const messages = body.messages ?? account.privacy?.messages ?? 'everyone';

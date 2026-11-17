@@ -14,6 +14,7 @@ import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
 import { sendFile, sendBuffer } from './files.mjs';
 import { plainText } from './plain-text.mjs';
+import { mp4Seconds, MAX_VIDEO_SECONDS } from './video-meta.mjs';
 import { postMediaIds, orphanMediaIds, findPostMedia } from './post-media.mjs';
 import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
 import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } from './impulsos.mjs';
@@ -95,7 +96,7 @@ function phoneOf(value) {
 const profileUrl = id => id ? `/api/media?id=${id}` : '';
 function member(account) {
   return { id: account.id, name: account.name, username: account.username, bio: account.bio || '', affiliation: account.affiliation || '', belonging: account.belonging || '', povo: account.povo || '', phone: account.phone || '', googleKey: account.googleKey || '',
-    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, plan: planBadge(account), role: roleOf(account), mustChangePassword: !!account.mustChangePassword };
+    avatar: account.avatarUrl || profileUrl(account.avatarId), cover: account.coverUrl || profileUrl(account.coverId), joinedAt: account.createdAt || 0, verified: !!account.verified, plan: planBadge(account), role: roleOf(account), mustChangePassword: !!account.mustChangePassword, videoAutoplay: account.videoAutoplay === 'on' ? 'on' : account.videoAutoplay === 'off' ? 'off' : '', pronouns: account.pronouns || '' };
 }
 function authorKeyOf(post) {
   return post.authorId ? `id:${post.authorId}` : `name:${post.author}`;
@@ -117,7 +118,7 @@ function friendStatusOf(state, myKey, targetKey) {
 }
 const PAGE_SIZE = 30;
 const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '', ...(m.parts ? { parts: m.parts } : {}) } : null;
+const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '', ...(m.parts ? { parts: m.parts } : {}), ...(m.posterId ? { poster: `/api/media?id=${m.posterId}` } : {}) } : null;
 const personAvatar = acc => acc?.avatarUrl || profileUrl(acc?.avatarId);
 // Povos já declarados na rede, para sugerir na edição do perfil (sem lista fechada: a pessoa escreve como se nomeia).
 function povosOf(state) { const count = new Map(); for (const a of state.accounts || []) if (a.belonging === 'indigena' && a.povo) count.set(a.povo, (count.get(a.povo) || 0) + 1); return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 80).map(([name]) => name); }
@@ -239,7 +240,7 @@ function personFor(state, me, ctx, key, counts) {
     if (access === 'none') return null;
     // Perfil só para amizades: quem não é amizade vê o cartão (nome, foto, apresentação) e o botão de pedir amizade.
     if (access === 'limited') return { ...base, postsCount: 0, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: '', belonging: '', povo: '', avatar: personAvatar(acc), cover: '', joinedAt: 0, verified: !!acc.verified, own: false, locked: true };
-    return { ...base, online: onlineFor(state, ctx, acc, me), name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
+    return { ...base, online: onlineFor(state, ctx, acc, me), name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', pronouns: acc.pronouns || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
   }
   // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
@@ -320,7 +321,14 @@ function profileView(state, me, params) {
   const person = /^(id:[a-f0-9-]{36}|name:.{1,80})$/.test(key) ? personFor(state, me, ctx, key, socialCounts(state, me)) : null;
   if (!person) fail(404, 'Pessoa não encontrada.');
   const page = postsPage(state, me, new URLSearchParams({ author: key, before: params.get('before') || '', beforeId: params.get('beforeId') || '' }), ctx);
-  return { person, posts: page.posts, hasMore: page.hasMore };
+  // Comunidades em que a pessoa participa (nome, categoria e nº de membros). Só aparecem as públicas e as que quem vê também integra
+  // ou modera; perfil de pessoa bloqueada ou restrito a amizades já não chega até aqui.
+  const myKey = `id:${me.id}`;
+  const communities = !person.locked && key.startsWith('id:')
+    ? ensureCommunities(state).filter(c => c.members.includes(key) && (c.visibility === 'public' || c.members.includes(myKey) || (c.admins || []).includes(myKey) || (c.moderators || []).includes(myKey)))
+      .map(c => ({ id: c.id, name: c.name, category: c.category, visibility: c.visibility, membersCount: c.members.length })).sort((x, y) => y.membersCount - x.membersCount)
+    : [];
+  return { person, posts: page.posts, hasMore: page.hasMore, communities };
 }
 function snapshot(state, me) {
   const myKey = `id:${me.id}`;
@@ -423,7 +431,7 @@ export { mediaInput, googleKeyOf, phoneOf };
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  let upload, fileUpload, photoUploads = [];
+  let upload, fileUpload, posterUpload = null, photoUploads = [];
   try {
     const secret = sessionSecret();
     const pathname = new URL(req.url, 'http://local').pathname;
@@ -604,6 +612,13 @@ export default async function handler(req, res) {
       photoUploads = (body.photos || []).map(mediaInput);
       if (photoUploads.some(p => p?.kind !== 'image')) fail(400, 'No carrossel, todas precisam ser fotos PNG, JPG, GIF ou WebP.');
       upload = photoUploads[0] || mediaInput(body.media);
+      // MOMENTOS: vídeo de até 4 minutos. Em MP4 a duração vem do próprio arquivo; a capa (primeiro quadro) é opcional.
+      if (upload?.kind === 'video' && mp4Seconds(upload.bytes) > MAX_VIDEO_SECONDS + 1) fail(400, 'O vídeo passa de 4 minutos. Escolha um vídeo de até 4 minutos (240 segundos).');
+      if (upload?.kind === 'video' && body.poster) {
+        try { posterUpload = mediaInput(body.poster); } catch { posterUpload = null; }
+        if (posterUpload && (posterUpload.kind !== 'image' || posterUpload.bytes.length > 400 * 1024)) posterUpload = null;
+        if (posterUpload) await saveMedia(posterUpload.id, posterUpload.bytes, posterUpload.type);
+      }
       for (const p of photoUploads.slice(1)) await saveMedia(p.id, p.bytes, p.type);
       fileUpload = mediaInput(body.file);
       if (fileUpload && fileUpload.kind !== 'file') fail(400, 'O arquivo precisa ser PDF, TXT, DOC ou DOCX.');
@@ -666,7 +681,7 @@ export default async function handler(req, res) {
       if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
-      if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); return; }
+      if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); activeMe = member(currentAccount); return; }
       if (planActions.includes(body.action)) { planAction(state, currentAccount, body); return; }
       if (boostActions.includes(body.action)) { boostResult = boostAction(state, me, currentAccount, body); return; }
       if (saberesActions.includes(body.action)) { saberResult = saberesAction(state, me, body, upload); removedIds.push(...saberResult.removedIds); return; }
@@ -697,12 +712,15 @@ export default async function handler(req, res) {
           const nextName = personName(body.name);
           const nextBio = text(String(body.bio ?? ''), 280, false);
           const nextAffiliation = text(String(body.affiliation ?? ''), 80, false);
+          // Pronomes (ela/dela, ele/dele, elu/delu…): campo livre e opcional, mostrado no perfil.
+          const nextPronouns = body.pronouns === undefined ? currentAccount.pronouns || '' : text(plainText(String(body.pronouns)).replace(/\s+/g, ' '), 30, false);
           // Pertencimento é autodeclarado e opcional; o povo só faz sentido para quem se declara indígena.
           if (body.belonging !== undefined && !['indigena', 'nao_indigena', ''].includes(body.belonging)) fail(400, 'Opção de pertencimento inválida.');
           const nextPovo = text(String(body.povo ?? ''), 80, false);
           currentAccount.name = nextName;
           currentAccount.bio = nextBio;
           currentAccount.affiliation = nextAffiliation;
+          currentAccount.pronouns = nextPronouns;
           if (body.belonging !== undefined) { currentAccount.belonging = body.belonging; currentAccount.povo = body.belonging === 'indigena' ? nextPovo : ''; }
           for (const p of state.posts || []) {
             if (p.authorId === me.id) p.author = nextName;
@@ -766,7 +784,7 @@ export default async function handler(req, res) {
           if (typeof body.communityId === 'string' && body.communityId.trim()) {
             targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
           }
-          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) });
+          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name, ...(posterUpload ? { posterId: posterUpload.id } : {}) } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) });
           { const created = state.posts[0]; const ids = mentionsIn(state, created.text, me.id).filter(id => visible(created, { id }, state));
             if (ids.length) { created.mentions = ids; mentionNotice = { to: ids, payload: { title: `${me.name} mencionou você`, body: created.text.slice(0, 120), href: `/#post-${created.id}`, tag: `mention-${created.id}` } }; } }
           break;
