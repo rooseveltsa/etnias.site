@@ -65,7 +65,9 @@ export async function extrasPrepareUpload(body, account, { mediaInput, saveMedia
 export function usernameCheck(state, account, raw) {
   const username = String(raw || '').trim().replace(/^@+/, '').toLowerCase();
   if (!/^[a-z0-9][a-z0-9._]{2,23}$/.test(username) || /[._]{2}/.test(username) || /[._]$/.test(username)) return { ok: false, reason: 'Use de 3 a 24 caracteres: letras, números, ponto ou _ (sem repetir símbolos nem terminar com eles).' };
-  if (RESERVED.has(username)) return { ok: false, reason: 'Este @ é reservado.' };
+  // Os @ da administração (OPY_ADMIN_USERNAMES) podem existir mesmo sendo reservados: é como a conta de gestão nasce.
+  const staff = String(process.env.OPY_ADMIN_USERNAMES || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  if (RESERVED.has(username) && !staff.includes(username)) return { ok: false, reason: 'Este @ é reservado.' };
   if (account && username === account.username) return { ok: false, reason: 'Este já é o seu @.' };
   if ((state.accounts || []).some(a => a.username === username && a.id !== account?.id)) return { ok: false, reason: 'Este @ já está em uso.' };
   const held = (state.usernameHistory || []).find(h => h.username === username && h.accountId !== account?.id && h.changedAt + USERNAME_HOLD_DAYS * DAY > Date.now());
