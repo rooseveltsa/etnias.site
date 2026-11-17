@@ -217,7 +217,7 @@ export async function reverseGeocode(accountId, latRaw, lonRaw) {
   const url = `${base}?format=jsonv2&zoom=10&addressdetails=1&accept-language=pt-BR&lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`;
   let json;
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': process.env.OPY_GEOCODER_UA || 'EtniasSite/1.0 (rede social; contato@etnias.site)', Accept: 'application/json' }, signal: AbortSignal.timeout(5000), redirect: 'error' });
+    const r = await fetch(url, { headers: { 'User-Agent': process.env.OPY_GEOCODER_UA || 'EtniasSite/1.0 (+https://etnias.site)', Accept: 'application/json' }, signal: AbortSignal.timeout(5000), redirect: 'error' });
     if (!r.ok) throw new Error('status ' + r.status);
     json = await r.json();
   } catch { fail(502, 'Não foi possível descobrir sua cidade agora. Digite o local manualmente.'); }
