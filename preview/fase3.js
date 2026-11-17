@@ -122,6 +122,7 @@ function addSavedLink(){
  if(!cfg||document.querySelector('.opy-account-menu a[href="/salvos/"]'))return;
  const a=document.createElement('a');a.href='/salvos/';a.setAttribute('role','menuitem');a.textContent='Salvos';
  cfg.insertAdjacentElement('beforebegin',a);
+ if(!document.querySelector('.opy-account-menu a[href="/paginas/"]')){const pg=document.createElement('a');pg.href='/paginas/';pg.setAttribute('role','menuitem');pg.textContent='Páginas';a.insertAdjacentElement('beforebegin',pg);}
 }
 
 // Gravar segurando o botão (até 4 minutos), dentro do próprio Etnias. O arquivo entra no mesmo fluxo de "anexar vídeo".

@@ -917,6 +917,7 @@ function renderProfile(){
  if(person.joinedAt)facts.append(make('li','Na rede desde '+new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(person.joinedAt))));
  facts.append(make('li',comms.length+(comms.length===1?' comunidade':' comunidades')));
  intro.append(facts);side.append(intro);
+ const pagesCard=window.OpyPages?.profileCard?.(key,own);if(pagesCard)side.append(pagesCard);
  if(photos.length){const pc=make('section',undefined,'pf-card');const h=make('div',undefined,'pf-card-head');h.append(make('h2','Fotos'));const more=button('Ver todas',()=>{profileTab='photos';renderProfile();},h);more.className='pf-link';pc.append(h,photoGrid(photoItems.slice(0,9)));side.append(pc);}
  const main=make('div',undefined,'pf-main');
  if(profileTab==='posts'){

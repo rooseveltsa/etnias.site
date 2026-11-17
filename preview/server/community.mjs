@@ -22,6 +22,7 @@ import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } fr
 import { areaView } from './areas.mjs';
 import { saberesActions, saberesAction, saberesView, saberMedia } from './saberes.mjs';
 import { marketActions, marketAction, marketMedia, MAX_MARKET_PHOTOS } from './mercado.mjs';
+import { pageActions, pageUploadActions, pageAction, pagesPrepareUpload, pagesList, pageView, pageMedia } from './pages.mjs';
 import { extrasActions, extrasUploadActions, extrasAction, extrasPrepareUpload, extrasMedia, reactionConfig, reactionIds, reactionSet, reactionAllowed, usernameCheck, usernameCheckAllowed, usernameInfo, reverseGeocode, stickerCatalog, stickerById } from './extras.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction, syncCommunityChat } from './communities.mjs';
@@ -501,11 +502,13 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
-      if (['posts', 'search', 'profile', 'notifications', 'link', 'username_check', 'geo', 'stickers', 'extras'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
+      if (['posts', 'search', 'profile', 'notifications', 'link', 'username_check', 'geo', 'stickers', 'extras', 'pages', 'page'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
         const view = path.searchParams.get('view');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         if (view === 'username_check') { if (!usernameCheckAllowed(me.id)) fail(429, 'Muitas verificações. Aguarde um minuto.'); const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ ...usernameCheck(state, acc, path.searchParams.get('u')), ...usernameInfo(acc, state) })); }
         if (view === 'geo') return res.end(JSON.stringify(await reverseGeocode(me.id, path.searchParams.get('lat'), path.searchParams.get('lon'))));
+        if (view === 'pages') return res.end(JSON.stringify(pagesList(state, me, path.searchParams)));
+        if (view === 'page') return res.end(JSON.stringify(pageView(state, me, String(path.searchParams.get('id') || ''))));
         if (view === 'stickers') return res.end(JSON.stringify(stickerCatalog(state, path.searchParams.get('all') === '1' && roleOf((state.accounts || []).find(a => a.id === me.id)) === 'admin')));
         if (view === 'extras') { const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ usernameInfo: usernameInfo(acc, state), location: acc.location || null, reactions: roleOf(acc) === 'admin' ? reactionConfig(state) : undefined })); }
         if (view === 'link') return res.end(JSON.stringify({ preview: await linkPreview(me.id, path.searchParams.get('url')) }));
@@ -524,7 +527,7 @@ export default async function handler(req, res) {
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
         // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
         const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
-        const named = (extrasMedia(state, id)) || profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id) || marketMedia(state, me, id));
+        const named = (extrasMedia(state, id)) || pageMedia(state, id) || profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id) || marketMedia(state, me, id));
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
@@ -612,7 +615,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver o Etnias.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !pageActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(plainText(body.text || ''), 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -643,6 +646,7 @@ export default async function handler(req, res) {
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
       if (fileUpload) await saveMedia(fileUpload.id, fileUpload.bytes, fileUpload.type);
     }
+    if (pageUploadActions.includes(body.action)) upload = await pagesPrepareUpload(body, signedIn, { mediaInput, saveMedia });
     if (extrasUploadActions.includes(body.action)) upload = await extrasPrepareUpload(body, signedIn, { mediaInput, saveMedia });
     if (body.action === 'dm') {
       upload = mediaInput(body.media);
@@ -699,6 +703,7 @@ export default async function handler(req, res) {
       if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
+      if (pageActions.includes(body.action)) { const r = pageAction(state, currentAccount, body, upload); if (r.removedIds) removedIds.push(...r.removedIds); return; }
       if (extrasActions.includes(body.action)) { const r = extrasAction(state, currentAccount, body, upload); if (r.removedIds) removedIds.push(...r.removedIds); activeMe = member(currentAccount); return; }
       if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); activeMe = member(currentAccount); return; }
       if (planActions.includes(body.action)) { planAction(state, currentAccount, body); return; }
