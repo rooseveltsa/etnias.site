@@ -123,6 +123,59 @@ function addSavedLink(){
  const a=document.createElement('a');a.href='/salvos/';a.setAttribute('role','menuitem');a.textContent='Salvos';
  cfg.insertAdjacentElement('beforebegin',a);
 }
-function init(){tuneComposer();tuneChips();addFab();addGeoButton();addSavedLink();}
+
+// Gravar segurando o botão (até 4 minutos), dentro do próprio Etnias. O arquivo entra no mesmo fluxo de "anexar vídeo".
+const REC_MAX_S=240,REC_MAX_BYTES=38*1024*1024;
+function openRecorder(){
+ if(document.getElementById('opy-recorder'))return;
+ const dlg=document.createElement('dialog');dlg.id='opy-recorder';dlg.className='opy-recorder';dlg.setAttribute('aria-label','Gravar vídeo');
+ const video=document.createElement('video');video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.autoplay=true;
+ const clock=document.createElement('p');clock.className='opy-rec-clock';clock.setAttribute('role','timer');clock.textContent='0:00 / 4:00';
+ const hint=document.createElement('p');hint.className='opy-rec-hint';hint.setAttribute('role','status');hint.textContent='Abrindo a câmera…';
+ const hold=document.createElement('button');hold.type='button';hold.className='opy-rec-btn';hold.disabled=true;hold.setAttribute('aria-label','Segure para gravar. Solte para parar.');
+ const label=document.createElement('span');label.textContent='Segure para gravar';hold.append(label);
+ const cancel=document.createElement('button');cancel.type='button';cancel.className='preview-secondary opy-rec-cancel';cancel.textContent='Cancelar';
+ dlg.append(video,clock,hint,hold,cancel);document.body.append(dlg);dlg.showModal();
+ let stream=null,rec=null,chunks=[],bytes=0,t0=0,timer=0,discard=false;
+ const fmt=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
+ const stopStream=()=>{clearInterval(timer);if(stream)stream.getTracks().forEach(t=>t.stop());};
+ const done=()=>{stopStream();if(dlg.open)dlg.close();dlg.remove();};
+ cancel.onclick=()=>{discard=true;if(rec&&rec.state==='recording')rec.stop();else done();};
+ dlg.addEventListener('cancel',e=>{e.preventDefault();cancel.click();});
+ const begin=()=>{
+  if(rec||!stream)return;
+  const type=['video/mp4;codecs=avc1','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>window.MediaRecorder.isTypeSupported(t))||'';
+  try{rec=new MediaRecorder(stream,{...(type?{mimeType:type}:{}),videoBitsPerSecond:900000,audioBitsPerSecond:64000});}catch{hint.textContent='Este aparelho não consegue gravar aqui. Use "Gravar com a câmera".';return;}
+  chunks=[];bytes=0;t0=Date.now();
+  rec.ondataavailable=e=>{if(e.data.size){chunks.push(e.data);bytes+=e.data.size;if(bytes>REC_MAX_BYTES&&rec.state==='recording')rec.stop();}};
+  rec.onstop=()=>{
+   const secs=(Date.now()-t0)/1000;rec=null;
+   if(discard){done();return;}
+   if(secs<1){chunks=[];hold.classList.remove('is-rec');label.textContent='Segure para gravar';hint.textContent='Segure por mais tempo para gravar.';clock.textContent='0:00 / 4:00';return;}
+   const mime=(chunks[0]?.type||type||'video/webm').split(';')[0];const ext=mime==='video/mp4'?'mp4':'webm';
+   const file=new File(chunks,'gravacao-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.'+ext,{type:mime});
+   done();
+   const input=document.getElementById('publisher-video');const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+  };
+  rec.start(1000);hold.classList.add('is-rec');label.textContent='Gravando… solte para parar';hint.textContent='Solte o botão para terminar.';
+  timer=setInterval(()=>{const s=(Date.now()-t0)/1000;clock.textContent=fmt(s)+' / 4:00';if(s>=REC_MAX_S&&rec&&rec.state==='recording'){hint.textContent='Chegou ao limite de 4 minutos.';rec.stop();}},250);
+ };
+ const end=()=>{if(rec&&rec.state==='recording')rec.stop();};
+ hold.addEventListener('pointerdown',e=>{e.preventDefault();hold.setPointerCapture?.(e.pointerId);begin();});
+ hold.addEventListener('pointerup',end);hold.addEventListener('pointercancel',end);hold.addEventListener('contextmenu',e=>e.preventDefault());
+ // Teclado: Espaço/Enter começa e, ao soltar, termina (mesma lógica do toque).
+ hold.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();begin();}});
+ hold.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();end();}});
+ navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:720},height:{ideal:1280}},audio:true}).then(st=>{stream=st;video.srcObject=st;hold.disabled=false;hold.focus();hint.textContent='Segure o botão para gravar (até 4 minutos).';})
+  .catch(err=>{hint.textContent=err&&err.name==='NotAllowedError'?'Permita a câmera e o microfone no navegador para gravar. Ou use "Gravar com a câmera".':'Não foi possível abrir a câmera neste aparelho.';});
+}
+function addRecorder(){
+ const native=document.getElementById('record-video');
+ if(!native||document.getElementById('record-hold'))return;
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder||!window.isSecureContext)return;
+ const b=document.createElement('button');b.type='button';b.id='record-hold';b.className='preview-secondary';b.textContent='Gravar segurando';b.onclick=openRecorder;
+ native.insertAdjacentElement('beforebegin',b);native.textContent='Câmera do aparelho';
+}
+function init(){tuneComposer();tuneChips();addFab();addGeoButton();addSavedLink();addRecorder();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

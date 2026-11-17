@@ -20,7 +20,7 @@ function grid(posts) {
     let thumb;
     if (clip(p).poster) { thumb = make('img'); thumb.src = clip(p).poster; thumb.alt = ''; thumb.loading = 'lazy'; thumb.decoding = 'async'; }
     else { thumb = document.createElement('video'); thumb.muted = true; thumb.playsInline = true; thumb.preload = 'metadata'; thumb.src = clip(p).url + '#t=0.1'; thumb.setAttribute('aria-hidden', 'true'); }
-    tile.append(thumb, make('span', '♥ ' + total(p), 'opy-vtile-meta')); tile.onclick = () => askAutoplay().then(() => open(list, i)); box.append(tile);
+    tile.append(thumb, make('span', '♥ ' + total(p), 'opy-vtile-meta')); tile.onclick = () => open(list, i); box.append(tile);
   });
   return box;
 }
@@ -49,7 +49,7 @@ function askAutoplay() {
 
 // Toque na capa de um vídeo do feed: abre o MOMENTOS (tela cheia, um vídeo por tela) a partir dele, seguido dos próximos do feed.
 async function openClip(p, posts) {
-  await askAutoplay();
+  // Sem pergunta antes de assistir: um toque abre o vídeo. O padrão é tocar só ao toque; dá para mudar em Configurações > Vídeos.
   const list = (posts || []).filter(clip);
   let i = list.findIndex(x => x.id === p.id);
   if (i < 0) { list.unshift(p); i = 0; }
@@ -73,17 +73,20 @@ function open(list, start) {
   list.forEach(p => track.append(slide(p, dlg)));
   if (!dlg.open) { dlg.showModal(); document.documentElement.classList.add('sv-lock'); }
   paintSound();
-  // Toca só o vídeo que está na tela.
+  // Carrega só o vídeo da tela e, em segundo plano, o próximo (preload). Os demais ficam sem arquivo, para não gastar dados.
+  const slides = [...track.querySelectorAll('.vp-slide')]; let current = -1;
+  const load = (i, preload) => { const v = slides[i]?.querySelector('video'); if (!v) return; if (!v.getAttribute('src')) v.src = v.dataset.src; v.preload = preload; };
+  const unload = i => { const v = slides[i]?.querySelector('video'); if (v && v.getAttribute('src')) { v.pause(); v.removeAttribute('src'); v.load(); } };
+  const activate = i => {
+    if (i === current) return; current = i;
+    slides.forEach((_, j) => { if (j !== i && j !== i + 1) unload(j); });
+    load(i, 'auto'); load(i + 1, 'auto');
+    slides.forEach((sl, j) => { const v = sl.querySelector('video'); if (j !== i) v.pause(); });
+    const v = slides[i].querySelector('video'); v.muted = muted;
+    v.play().catch(() => { muted = true; paintSound(); v.play().catch(() => {}); });
+  };
   const io = new IntersectionObserver(entries => {
-    for (const e of entries) {
-      const v = e.target.querySelector('video');
-      if (e.isIntersecting && e.intersectionRatio > 0.6) { if (!v.getAttribute('src')) v.src = v.dataset.src; v.muted = muted; v.play().catch(() => { muted = true; paintSound(); v.play().catch(() => {}); }); }
-      else {
-        v.pause();
-        // Saiu da tela: solta o arquivo para não manter vários vídeos carregados ao mesmo tempo (ao voltar, o cache e o Range evitam baixar de novo).
-        if (!e.isIntersecting && v.getAttribute('src')) { v.removeAttribute('src'); v.load(); }
-      }
-    }
+    for (const e of entries) if (e.isIntersecting && e.intersectionRatio > 0.6) activate(slides.indexOf(e.target));
   }, { root: track, threshold: [0, 0.6, 1] });
   track.querySelectorAll('.vp-slide').forEach(s => io.observe(s));
   dlg.addEventListener('close', () => io.disconnect(), { once: true });
@@ -109,8 +112,9 @@ function slide(p, dlg) {
   });
   const [, comN] = act('💬', 'Comentar', () => comments(p, s, comN));
   act('↗', 'Compartilhar', () => {
-    const url = location.origin + '/#post-' + p.id;
-    if (navigator.share) navigator.share({ title: 'Vídeo de ' + p.author + ' · Etnias', url }).catch(() => {});
+    // Link público com prévia (título, texto e capa do vídeo) no WhatsApp; vídeo de perfil restrito cai na identidade padrão.
+    const url = p.audience === 'public' ? location.origin + '/p/' + encodeURIComponent(p.id) + '/' : location.origin + '/#post-' + p.id;
+    if (navigator.share) navigator.share({ title: 'Vídeo de ' + p.author + ' · Etnias', text: (p.text || '').slice(0, 120), url }).catch(() => {});
     else navigator.clipboard?.writeText(url).then(() => toast('Link do vídeo copiado.')).catch(() => {});
   });
   const [save] = act('🔖', 'Salvar', async () => {

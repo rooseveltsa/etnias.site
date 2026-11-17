@@ -1974,3 +1974,13 @@ a.opy-notif:hover{background:var(--color-surface-muted,#f2e9dc)}
 .compose-geo{margin-top:8px;min-height:44px}.compose-geo-note{margin:4px 0 0;font-size:13px;color:var(--color-text-secondary)}
 #video-status.is-error{color:#a3261b;font-weight:600}
 .preview-avatar-image,.preview-avatar>img:not(.opy-picture){object-fit:cover;aspect-ratio:1/1}
+/* gravador segurando o botão */
+.opy-recorder{border:0;padding:0;width:min(100vw,480px);height:min(100dvh,860px);max-width:100vw;max-height:100dvh;background:#000;color:#fff;border-radius:0}
+.opy-recorder::backdrop{background:rgba(0,0,0,.85)}
+.opy-recorder[open]{display:grid;grid-template-rows:1fr auto auto auto auto;justify-items:center;gap:8px;padding:0 0 max(16px,env(safe-area-inset-bottom))}
+.opy-recorder video{width:100%;height:100%;min-height:0;object-fit:cover;background:#111;transform:scaleX(-1)}
+.opy-rec-clock{margin:0;font:700 20px/1 var(--font-body,system-ui);font-variant-numeric:tabular-nums}
+.opy-rec-hint{margin:0;padding:0 16px;text-align:center;font-size:14px;color:#ddd;min-height:20px}
+.opy-rec-btn{width:min(86vw,320px);min-height:64px;border:0;border-radius:999px;background:#b84a27;color:#fff;font:700 17px/1 inherit;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
+.opy-rec-btn:disabled{opacity:.5}.opy-rec-btn.is-rec{background:#c0152b;box-shadow:0 0 0 6px rgba(192,21,43,.35)}
+.opy-rec-cancel{min-height:44px}
