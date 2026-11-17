@@ -16,5 +16,6 @@ try { await writeFile(secretPath, randomBytes(32).toString('hex'), { flag: 'wx',
 catch (error) { if (error.code !== 'EEXIST') throw error; }
 process.env.OPY_SESSION_SECRET = (await readFile(secretPath, 'utf8')).trim();
 process.env.OPY_LOCAL_DATA_DIR = directory;
+process.env.OPY_REGISTER_PER_HOUR ??= '0'; // teste local: sem limite de cadastros por hora
 console.log(`Teste local: dados em preview/local-data/${port}. Crie uma conta de teste na tela de entrada.`);
 await import('./opy-preview-server.mjs');

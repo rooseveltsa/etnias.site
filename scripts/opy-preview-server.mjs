@@ -96,6 +96,8 @@ http.createServer(async (req, res) => {
  try {
   // Atrás do Caddy o navegador usa HTTPS; sem isso os redirecionamentos voltariam para http://.
   const proto = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  // HSTS só quando o navegador chegou por HTTPS (atrás do Caddy): em http://localhost de desenvolvimento não faz sentido.
+  if (proto === 'https') res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   const url = new URL(req.url, `${proto}://${req.headers.host || '127.0.0.1'}`);
   const pathname = url.pathname;
   const path = pathname.replace(/\/$/, '') || '/';

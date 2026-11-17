@@ -32,6 +32,16 @@ const feelings = ['feliz', 'agradecido', 'pensativo', 'animado'];
 const saberTracks = ['saberes-comunicacao', 'saberes-territorio', 'saberes-economia'];
 const musicTracks = ['canto-alvorada', 'floresta-viva', 'memoria-dos-rios'];
 const moduleNames = ['saberes', 'guardiao', 'fotografos', 'musica', 'doar'];
+const registerSlots = new Map();
+function registerAllowed(req) {
+  const max = Number(process.env.OPY_REGISTER_PER_HOUR ?? 30); if (!(max > 0)) return true;
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket?.remoteAddress || '?';
+  const now = Date.now(); const hits = (registerSlots.get(ip) || []).filter(t => now - t < 3600e3);
+  if (hits.length >= max) { registerSlots.set(ip, hits); return false; }
+  hits.push(now); registerSlots.set(ip, hits);
+  if (registerSlots.size > 5000) for (const [k, v] of registerSlots) if (!v.some(t => now - t < 3600e3)) registerSlots.delete(k);
+  return true;
+}
 function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
 function text(value, maximum, required = true) {
   if (typeof value !== 'string' || value.length > maximum || required && !value.trim()) fail(400, 'Confira o texto e o limite de caracteres.');
@@ -561,6 +571,8 @@ export default async function handler(req, res) {
         const name = personName(body.name);
         const googleKey = googleKeyOf(body.googleKey);
         const phone = phoneOf(body.phone);
+        // Contas em massa: no máximo N cadastros por hora por endereço (Caddy grava o IP real no fim de X-Forwarded-For).
+        if (!registerAllowed(req)) fail(429, 'Muitos cadastros deste endereço. Tente de novo mais tarde.');
         const accountId = randomUUID();
         const issued = await createSession(accountId, secret);
         stampSession(issued.session, req.headers['user-agent']);
