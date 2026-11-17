@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { orphanMediaIds } from './post-media.mjs';
 
 export const communityActions = [
@@ -15,7 +15,10 @@ export const communityActions = [
   'community_update',
   'community_moderate_post',
   'community_report',
-  'community_chat'
+  'community_chat',
+  'community_link_create',
+  'community_link_revoke',
+  'community_join_link'
 ];
 
 export const communityCategories = [
@@ -23,8 +26,18 @@ export const communityCategories = [
   'Saberes & Educação',
   'Território & Guardiões',
   'Cultura & Audiovisual',
-  'Economia & Articulação'
+  'Economia & Articulação',
+  'Saúde & Bem-viver',
+  'Música & Artes',
+  'Línguas & Tradução',
+  'Mulheres & Juventude',
+  'Esporte & Lazer',
+  'Notícias & Eventos',
+  'Artesanato & Empreendedorismo'
 ];
+// Quem pode publicar no feed da comunidade: 'open' (qualquer participante) ou 'staff' (só administração e moderação).
+const postingModes = ['open', 'staff'];
+const LINK_DAYS = [1, 7, 30];
 
 const keyOf = me => `id:${me.id}`;
 // Perguntas de entrada: até 3, definidas pela administração; respostas só valem enquanto o pedido está pendente.
@@ -144,6 +157,9 @@ function syncLegacyInterest(state, community, memberKey, joined) {
   }
 }
 
+// Convite por link: o token é aleatório, tem validade (1, 7 ou 30 dias) e a administração ou moderação pode revogar.
+const activeLinks = c => (c.inviteLinks || []).filter(l => !l.revoked && (!l.expiresAt || l.expiresAt > Date.now()));
+
 export function canViewCommunityContent(state, me, communityId) {
   if (!communityId) return true;
   const list = ensureCommunities(state);
@@ -161,6 +177,7 @@ export function canPostInCommunity(state, me, communityId) {
   if (!c.members.includes(mine)) {
     fail(403, 'Participe desta comunidade antes de publicar nela.');
   }
+  if (c.postingMode === 'staff' && !isStaff(c, mine)) fail(403, 'Nesta comunidade só a administração e a moderação podem publicar. Você pode comentar e reagir.');
   return c;
 }
 
@@ -227,6 +244,9 @@ export function projectCommunities(state, me) {
       admins: c.admins.map(k => accountSummary(byKey, k, c)),
       moderators: (c.moderators || []).map(k => accountSummary(byKey, k, c)),
       entryQuestions: c.entryQuestions || [],
+      postingMode: c.postingMode === 'staff' ? 'staff' : 'open',
+      canPost: joined && (c.postingMode !== 'staff' || staff),
+      inviteLinks: staff ? activeLinks(c).map(l => ({ token: l.token, createdAt: l.createdAt, expiresAt: l.expiresAt, uses: l.uses || 0 })) : [],
       pendingRequests: staff ? (c.pendingRequests || []).map(k => ({ ...accountSummary(byKey, k, c), answers: c.requestAnswers?.[k]?.answers || [] })) : []
     };
   });
@@ -278,6 +298,7 @@ export function communityAction(state, me, body) {
       rules,
       governanceNote,
       entryQuestions: visibility === 'private' ? (questionsOf(body.entryQuestions) || []) : [],
+      postingMode: postingModes.includes(body.postingMode) ? body.postingMode : 'open',
       createdAt: Date.now(),
       members: [mine],
       admins: [mine],
@@ -286,6 +307,24 @@ export function communityAction(state, me, body) {
       invited: []
     });
     return { createdId: id };
+  }
+
+  if (body.action === 'community_join_link') {
+    const token = typeof body.token === 'string' ? body.token : '';
+    const target = token.length >= 20 && token.length <= 64 ? list.find(item => (item.inviteLinks || []).some(l => l.token === token)) : null;
+    const link = target && activeLinks(target).find(l => l.token === token);
+    if (!link) fail(404, 'Este convite não vale mais. Peça um novo link a quem convidou.');
+    target.members ||= []; target.admins ||= []; target.moderators ||= []; target.pendingRequests ||= []; target.invited ||= [];
+    if (!target.members.includes(mine)) {
+      target.members.push(mine);
+      target.invited = target.invited.filter(k => k !== mine);
+      target.pendingRequests = target.pendingRequests.filter(k => k !== mine);
+      link.uses = (link.uses || 0) + 1;
+      target.history ||= [];
+      target.history.push({ at: Date.now(), type: 'join_link', who: mine });
+      syncLegacyInterest(state, target, mine, true);
+    }
+    return { joinedId: target.id };
   }
 
   const c = list.find(item => item.id === body.communityId);
@@ -301,6 +340,25 @@ export function communityAction(state, me, body) {
     state.chatGroups ||= [];
     if (!state.chatGroups.some(g => g.communityId === c.id)) state.chatGroups.push({ id: randomUUID(), communityId: c.id, name: c.name, description: '', members: [], admins: [], invited: [], joinedAt: {} });
     syncCommunityChat(state, c);
+    return {};
+  }
+
+  if (body.action === 'community_link_create') {
+    if (!isStaff(c, mine)) fail(403, 'Só a administração ou a moderação cria links de convite.');
+    const days = LINK_DAYS.includes(Number(body.days)) ? Number(body.days) : 7;
+    c.inviteLinks = activeLinks(c);
+    if (c.inviteLinks.length >= 10) fail(409, 'Já existem 10 links ativos. Revogue algum antes de criar outro.');
+    c.inviteLinks.push({ token: randomBytes(24).toString('base64url'), createdBy: mine, createdAt: Date.now(), expiresAt: Date.now() + days * 864e5, uses: 0 });
+    c.history ||= []; c.history.push({ at: Date.now(), type: 'link_created', who: mine });
+    return {};
+  }
+
+  if (body.action === 'community_link_revoke') {
+    if (!isStaff(c, mine)) fail(403, 'Só a administração ou a moderação revoga links de convite.');
+    const link = (c.inviteLinks || []).find(l => l.token === body.token);
+    if (!link) fail(404, 'Link não encontrado.');
+    link.revoked = true;
+    c.history ||= []; c.history.push({ at: Date.now(), type: 'link_revoked', who: mine });
     return {};
   }
 
@@ -426,6 +484,7 @@ export function communityAction(state, me, body) {
     if (c.name.length < 3) fail(400, 'O nome precisa ter pelo menos 3 caracteres.');
     if (body.category && communityCategories.includes(body.category)) c.category = body.category;
     if (body.visibility && ['public', 'private'].includes(body.visibility)) c.visibility = body.visibility;
+    if (postingModes.includes(body.postingMode)) c.postingMode = body.postingMode;
     c.description = text(body.description, 600);
     c.rules = text(body.rules || '', 1000, false);
     c.governanceNote = text(body.governanceNote || '', 300, false);

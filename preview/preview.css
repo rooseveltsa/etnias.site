@@ -1840,3 +1840,13 @@ html[data-nav=icons] .opy-bottom .opy-nav-item{min-height:48px;justify-content:c
 html[data-nav=icons] .opy-bottom .opy-nav-item:not(.opy-create) svg.opy-icon{width:26px;height:26px;flex-basis:26px}
 html[data-nav=icons] .opy-bottom .opy-create svg.opy-icon{width:48px;height:32px;flex-basis:32px;padding:4px 12px}
 html[data-nav=icons] .opy-bottom .opy-soon{display:none}
+
+/* Convites por link e regras de publicação (configurações da comunidade) */
+.community-links{margin-top:20px;padding:16px;border:1px solid var(--color-border-subtle);border-radius:12px;background:var(--color-surface-subtle)}
+.community-links-hint{color:var(--color-text-secondary);font-size:14px;margin:4px 0 10px}
+.community-links-new{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.community-links-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.community-links-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--color-surface)}
+.community-links-list li span{flex:1 1 220px;font-size:14px}
+.community-links-empty{color:var(--color-text-secondary)}
+.community-links-new select{min-height:44px;padding:0 12px;border:1px solid var(--color-border-subtle);border-radius:10px;background:var(--color-surface);font:inherit}

@@ -985,10 +985,18 @@ function openCommunityDetail(id){
  history.replaceState(null,'',url.pathname+url.search);
  renderCommunities();
 }
-const DEFAULT_COMMUNITY_CATEGORIES=['Projeto & Rede','Saberes & Educação','Território & Guardiões','Cultura & Audiovisual','Economia & Articulação'];
+const DEFAULT_COMMUNITY_CATEGORIES=['Projeto & Rede','Saberes & Educação','Território & Guardiões','Cultura & Audiovisual','Economia & Articulação','Saúde & Bem-viver','Música & Artes','Línguas & Tradução','Mulheres & Juventude','Esporte & Lazer','Notícias & Eventos','Artesanato & Empreendedorismo'];
+// Convite por link (/grupos/?c=…&convite=…): quem abre o link logado entra na comunidade uma única vez e o convite sai do endereço.
+const inviteToken=new URLSearchParams(location.search).get('convite')||'';let inviteTried=false;
+function useInviteLink(){
+ if(!inviteToken||inviteTried||!state?.me)return;inviteTried=true;
+ const clean=()=>{const u=new URL(location.href);u.searchParams.delete('convite');history.replaceState(history.state,'',u);};
+ change({action:'community_join_link',token:inviteToken}).then(()=>{clean();toast('Você entrou na comunidade pelo convite.');}).catch(e=>{clean();showError(e.message);});
+}
 function communitiesList(){return Array.isArray(state?.communities)?state.communities:(state?.communities?.list||[]);}
 function renderCommunities(){
  const ws=$('#communities-workspace');if(!ws||!state?.communities)return;
+ useInviteLink();
  const cList=communitiesList();
  if(!communityCategory)communityCategory=ws.dataset.defaultFilter||'all';
  all('[data-community-cat]',ws).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.communityCat===communityCategory)));
@@ -1075,7 +1083,9 @@ function renderCommunities(){
   detail.append(tabs);
   const panel=make('div',undefined,'community-tab-panel');
   if(activeCommunityTab==='feed'){
-   if(current.joined){
+   if(current.joined&&current.canPost===false){
+    const note=make('div',undefined,'community-join-banner');note.append(make('p','Nesta comunidade só a administração e a moderação publicam no feed. Você pode ler, reagir e comentar.'));panel.append(note);
+   }else if(current.joined){
     const cForm=make('form',undefined,'preview-composer community-inline-composer');cForm.id='community-post-form';
     const cLabel=make('label',`Publicar em ${current.name}`,'community-compose-label');cLabel.htmlFor='community-post-text';
     const cText=make('textarea');cText.id='community-post-text';cText.required=true;cText.maxLength=5000;cText.rows=3;
@@ -1192,18 +1202,36 @@ function renderCommunities(){
    const lPriv=make('label','Visibilidade e acesso');const sPriv=make('select');sPriv.name='visibility';
    for(const [val,txt] of [['public','Pública (qualquer conta entra e visualiza)'],['private','Privada (entrada mediante aprovação · feed restrito a membros)']]){const o=make('option',txt);o.value=val;if(val===(current.visibility||current.privacy))o.selected=true;sPriv.append(o);}
    lPriv.append(sPriv);
+   const lPost=make('label','Quem pode publicar no feed');const sPost=make('select');sPost.name='postingMode';
+   for(const [val,txt] of [['open','Abertas: qualquer participante'],['staff','Restritas: só administração e moderação']]){const o=make('option',txt);o.value=val;if(val===(current.postingMode||'open'))o.selected=true;sPost.append(o);}
+   lPost.append(sPost);
    const lDesc=make('label','Descrição');const tDesc=make('textarea');tDesc.name='description';tDesc.required=true;tDesc.maxLength=600;tDesc.rows=3;tDesc.value=current.description;lDesc.append(tDesc);
    const lRules=make('label','Regras de convivência e protocolo cultural');const tRules=make('textarea');tRules.name='rules';tRules.maxLength=1000;tRules.rows=3;tRules.value=current.rules||'';lRules.append(tRules);
    const sBtn=make('button','Salvar configurações','opy-primary');sBtn.type='submit';
    const sStatus=make('p',undefined,'preview-feedback');sStatus.setAttribute('role','status');
    const qBox=entryQuestionFields(sPriv,current.entryQuestions);
-   sForm.append(lName,lCat,lPriv,qBox,lDesc,lRules,sBtn,sStatus);
+   sForm.append(lName,lCat,lPriv,lPost,qBox,lDesc,lRules,sBtn,sStatus);
    sForm.onsubmit=async e=>{
     e.preventDefault();sBtn.disabled=true;
-    try{await change({action:'community_update',communityId:current.id,name:iName.value,category:sCat.value,visibility:sPriv.value,description:tDesc.value,rules:tRules.value,entryQuestions:entryQuestionsOf(sForm)});sStatus.textContent='Configurações atualizadas.';}
+    try{await change({action:'community_update',communityId:current.id,name:iName.value,category:sCat.value,visibility:sPriv.value,postingMode:sPost.value,description:tDesc.value,rules:tRules.value,entryQuestions:entryQuestionsOf(sForm)});sStatus.textContent='Configurações atualizadas.';}
     catch(err){sStatus.textContent=err.message;}finally{sBtn.disabled=false;}
    };
    panel.append(sForm);
+   // Convites por link: com validade, para copiar e compartilhar fora do Etnias, e revogáveis.
+   const links=make('section',undefined,'community-links');links.append(make('h3','Convites por link'),make('p','Quem abrir o link estando conectado entra na comunidade, mesmo sendo privada. Escolha a validade e revogue quando quiser.','community-links-hint'));
+   const lForm=make('div',undefined,'community-links-new');const lDays=make('select');lDays.setAttribute('aria-label','Validade do link');for(const [d,t] of [[1,'1 dia'],[7,'7 dias'],[30,'30 dias']]){const o=make('option',t);o.value=d;if(d===7)o.selected=true;lDays.append(o);}
+   const lMake=make('button','Criar link de convite','opy-primary');lMake.type='button';lMake.onclick=async()=>{lMake.disabled=true;try{await change({action:'community_link_create',communityId:current.id,days:Number(lDays.value)});}catch(err){showError(err.message);}finally{lMake.disabled=false;}};
+   lForm.append(lDays,lMake);links.append(lForm);
+   const lList=make('ul',undefined,'community-links-list');
+   for(const l of current.inviteLinks||[]){
+    const url=location.origin+'/grupos/?c='+encodeURIComponent(current.id)+'&convite='+encodeURIComponent(l.token);
+    const li=make('li');const info=make('span',`Vale até ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(l.expiresAt))} · ${plural(l.uses||0,'entrada','entradas')}`);
+    const copy=make('button','Copiar link','preview-secondary');copy.type='button';copy.onclick=()=>navigator.clipboard?.writeText(url).then(()=>toast('Link copiado.')).catch(()=>prompt('Copie o link:',url));
+    const rev=make('button','Revogar','post-delete');rev.type='button';rev.onclick=async()=>{if(!confirm('Revogar este link? Quem ainda não entrou deixa de poder usá-lo.'))return;try{await change({action:'community_link_revoke',communityId:current.id,token:l.token});toast('Link revogado.');}catch(err){showError(err.message);}};
+    li.append(info,copy,rev);lList.append(li);
+   }
+   if(!lList.children.length)lList.append(make('li','Nenhum link ativo.','community-links-empty'));
+   links.append(lList);panel.append(links);
   }
   detail.append(panel);
   return;
@@ -1790,7 +1818,8 @@ if(commWs){
    lPriv.append(sPriv);
    const lDesc=make('label','Descrição e propósito');const tDesc=make('textarea');tDesc.name='description';tDesc.id='community-create-description';tDesc.required=true;tDesc.minLength=10;tDesc.maxLength=600;tDesc.rows=3;tDesc.placeholder='Explique o objetivo coletivo desta comunidade…';lDesc.append(tDesc);
    const lRules=make('label','Regras de convivência e proteção cultural');const tRules=make('textarea');tRules.name='rules';tRules.id='community-create-rules';tRules.maxLength=1000;tRules.rows=2;tRules.placeholder='Ex.: Respeito mútuo, não expor conhecimentos restritos sem autorização.';lRules.append(tRules);
-   body.append(lName,lCat,lPriv,entryQuestionFields(sPriv),lDesc,lRules);
+   const lPost=make('label','Quem pode publicar no feed');const sPost=make('select');sPost.name='postingMode';sPost.append(new Option('Abertas — qualquer participante publica','open'),new Option('Restritas — só administração e moderação publicam','staff'));lPost.append(sPost);
+   body.append(lName,lCat,lPriv,lPost,entryQuestionFields(sPriv),lDesc,lRules);
   },async form=>{
    const prevIds=new Set((communitiesList()).map(c=>c.id));
    await change({
@@ -1798,6 +1827,7 @@ if(commWs){
     name:form.elements.name.value,
     category:form.elements.category.value,
     visibility:form.elements.visibility.value,
+    postingMode:form.elements.postingMode?.value||'open',
     description:form.elements.description.value,
     rules:form.elements.rules.value,
     entryQuestions:entryQuestionsOf(form)
