@@ -78,6 +78,21 @@ async function change(body){const next=await api(body);feedGen++;const touched=n
   if(following!==undefined){for(const l of [feed.posts,profileData.posts,communityPosts.posts])(l||[]).forEach(p=>{if(p.authorKey===body.authorKey)p.following=following;});
    if(person&&person.following!==following){person.following=following;person.followersCount=Math.max(0,(person.followersCount||0)+(following?1:-1));profileSignature='';}}}
  render();const msg=toastFor(body);if(msg)toast(msg);}
+// Seguir/deixar de seguir muda na tela na hora e o pedido segue em segundo plano; se falhar, volta ao que era. Um toque por pessoa de cada vez.
+const followPending=new Set();
+function isFollowingKey(key){const d=(state?.directory||[]).find(p=>p.key===key);if(d)return !!d.following;for(const l of [feed.posts,profileData.posts,communityPosts.posts]){const p=(l||[]).find(x=>x.authorKey===key);if(p)return !!p.following;}return profileData.key===key&&profileData.person?!!profileData.person.following:false;}
+function paintFollowing(key,following){
+ const d=(state?.directory||[]).find(p=>p.key===key);if(d&&d.following!==following){d.following=following;d.followersCount=Math.max(0,(d.followersCount||0)+(following?1:-1));}
+ for(const l of [feed.posts,profileData.posts,communityPosts.posts])(l||[]).forEach(p=>{if(p.authorKey===key)p.following=following;});
+ const person=profileData.key===key?profileData.person:null;if(person&&person.following!==following){person.following=following;person.followersCount=Math.max(0,(person.followersCount||0)+(following?1:-1));profileSignature='';}
+}
+async function toggleFollow(key){
+ if(!key||followPending.has(key))return;followPending.add(key);
+ const was=isFollowingKey(key);paintFollowing(key,!was);render();
+ try{await change({action:'follow',authorKey:key,following:!was});}
+ catch(e){paintFollowing(key,was);render();showError(e.message);}
+ finally{followPending.delete(key);}
+}
 // Seletor de emojis com busca, categorias e recentes. `onPick` fecha o que o abriu (caixa do comentário, diálogo do chat).
 function picker(root,target,onPick=()=>{root.hidden=true;}){
  root.classList.add('opy-emoji');root.replaceChildren(make('p','Carregando emojis…','opy-emoji-status'));root.hidden=false;
@@ -361,7 +376,7 @@ function renderPost(post, communityContext=null){
  }
  who.append(metaLine);
  head.append(avBtn,who);
- if(!post.own&&post.authorKey){const follow=button(post.following?'Seguindo':'Seguir',()=>change({action:'follow',authorKey:post.authorKey}),head);follow.classList.add('preview-follow');follow.setAttribute('aria-pressed',String(!!post.following));}
+ if(!post.own&&post.authorKey){const follow=button(post.following?'Seguindo':'Seguir',()=>toggleFollow(post.authorKey),head);follow.classList.add('preview-follow');follow.setAttribute('aria-pressed',String(!!post.following));}
  card.append(head);
  appendPostBody(post,card);
  if(post.repostOf){
@@ -536,7 +551,7 @@ function suggestionsRow(){
   const who=make('button',undefined,'opy-suggest-who');who.type='button';who.onclick=()=>openProfile(p.key,p.name,p.avatar);
   who.append(avatarNode(p.name,p.avatar,64),make('strong',p.name),make('small',p.reason||''));
   card.append(who);
-  const f=button('Seguir',()=>change({action:'follow',authorKey:p.key}),card);f.className='opy-primary opy-suggest-follow';
+  const f=button('Seguir',()=>toggleFollow(p.key),card);f.className='opy-primary opy-suggest-follow';
   row.append(card);
  }
  sec.append(head,row);return sec;
@@ -807,7 +822,7 @@ function renderProfile(){
  if(own){const e=button('Editar perfil',openProfileEdit,actions);e.className='pf-pill pf-pill-brown';}
  else{
   const liveOn=(state.lives||[]).find(l=>l.authorKey===key);if(liveOn){const w=button('Assistir ao vivo',()=>openLiveViewer({id:liveOn.postId,author:person.name,avatar:person.avatar,live:{format:liveOn.format}}),actions);w.className='pf-pill pf-pill-live live-profile-btn';}
-  const f=button(person.following?'Seguindo':'Seguir',()=>change({action:'follow',authorKey:key}),actions);f.className='pf-pill pf-pill-green';f.setAttribute('aria-pressed',String(!!person.following));
+  const f=button(person.following?'Seguindo':'Seguir',()=>toggleFollow(key),actions);f.className='pf-pill pf-pill-green';f.setAttribute('aria-pressed',String(!!person.following));
   if(key.startsWith('id:')){
    const m=button('Mensagem',()=>openPrivateChat(key),actions);m.className='pf-pill pf-pill-brown';
    const fr=button(friendLabel(person.friendStatus),()=>change({action:'friend',authorKey:key}),actions);fr.className='pf-pill pf-pill-line';fr.setAttribute('aria-pressed',String(person.friendStatus==='friends'));
@@ -1276,7 +1291,7 @@ function paintRequests(){
  const nodes=[make('p','Pedidos de amizade','opy-pop-title')];
  if(!incoming.length)nodes.push(make('p','Nenhum pedido no momento.','opy-req-empty'));
  for(const p of incoming){const a=make('div',undefined,'opy-req-actions');a.append(act('Aceitar','opy-primary',()=>change({action:'friend',authorKey:p.key})),act('Recusar','preview-secondary',()=>change({action:'friend_decline',authorKey:p.key})));nodes.push(row(p,a));}
- if(suggest.length){nodes.push(make('p','Pessoas para seguir','opy-pop-title'));for(const p of suggest){const a=make('div',undefined,'opy-req-actions');a.append(act('Seguir','opy-primary',()=>change({action:'follow',authorKey:p.key})));nodes.push(row(p,a));}}
+ if(suggest.length){nodes.push(make('p','Pessoas para seguir','opy-pop-title'));for(const p of suggest){const a=make('div',undefined,'opy-req-actions');a.append(act('Seguir','opy-primary',()=>toggleFollow(p.key)));nodes.push(row(p,a));}}
  const all_=make('a','Encontrar mais pessoas','opy-req-more');all_.href='/search/';nodes.push(all_);
  box.replaceChildren(...nodes);
 }

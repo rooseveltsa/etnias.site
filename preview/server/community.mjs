@@ -879,8 +879,11 @@ export default async function handler(req, res) {
           if (key.startsWith('id:') && profileAccess(state, me.id, key.slice(3)) === 'none') fail(403, 'Não é possível seguir esta pessoa.');
           state.follows ||= {};
           const list = Array.isArray(state.follows[me.id]) ? state.follows[me.id] : [];
-          state.follows[me.id] = list.includes(key) ? list.filter(item => item !== key) : [...list, key].slice(-200);
-          if (!list.includes(key) && key.startsWith('id:')) {
+          // O aparelho manda o estado que a pessoa quer (seguir ou deixar de seguir): repetir o pedido, por rede ruim, não desfaz o que ela fez.
+          const want = typeof body.following === 'boolean' ? body.following : !list.includes(key);
+          const was = list.includes(key);
+          state.follows[me.id] = want ? (was ? list : [...list, key].slice(-200)) : list.filter(item => item !== key);
+          if (want && !was && key.startsWith('id:')) {
             state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
             pushNotice = { to: [key.slice(3)], payload: { title: 'Novo seguidor', body: `${me.name} começou a seguir você`, href: `/perfil/?u=id:${me.id}`, tag: `follow-${me.id}` } };
           }
