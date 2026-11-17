@@ -323,9 +323,9 @@ try {
   assert.equal((await api({ action:'login', username:'primeiro', password:'Nova-senha-2026' })).status, 200);
   // Avisos no aparelho: a inscrição é guardada por conta (sem chaves VAPID no ambiente de teste, o envio fica desligado).
   assert.equal((await api({ action:'push_subscribe', subscription:{ endpoint:'http://inseguro.example/x', keys:{ p256dh:'p', auth:'a' } } }, login.cookie)).status, 400);
-  assert.equal((await api({ action:'push_subscribe', subscription:{ endpoint:'https://push.example/dispositivo-1', keys:{ p256dh:'p'.repeat(87), auth:'a'.repeat(22) } } }, login.cookie)).status, 200);
+  assert.equal((await api({ action:'push_subscribe', subscription:{ endpoint:'https://fcm.googleapis.com/fcm/send/dispositivo-1', keys:{ p256dh:'p'.repeat(87), auth:'a'.repeat(22) } } }, login.cookie)).status, 200);
   assert.equal(state.pushSubscriptions[(await api(null, login.cookie)).data.me.id].length, 1);
-  assert.equal((await api({ action:'push_unsubscribe', endpoint:'https://push.example/dispositivo-1' }, login.cookie)).status, 200);
+  assert.equal((await api({ action:'push_unsubscribe', endpoint:'https://fcm.googleapis.com/fcm/send/dispositivo-1' }, login.cookie)).status, 200);
   assert.equal(state.pushSubscriptions[(await api(null, login.cookie)).data.me.id].length, 0);
   assert.equal((await api(null, login.cookie)).data.pushPublicKey, '', 'sem chaves, o cliente não oferece avisos');
   // Pertencimento no perfil: autodeclaração opcional; o povo só vale para quem se declara indígena; valores fora da lista são recusados; a rede vê o campo e o resumo de povos.

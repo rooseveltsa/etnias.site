@@ -57,3 +57,23 @@ test('login refaz o hash antigo com o custo atual', async () => {
     assert.equal((await s.api({ action: 'login', username: 'velha', password: pw })).status, 200);
   } finally { await s.stop(); }
 });
+
+test('senha provisória: expira em 48 h e bloqueia tudo, no servidor, até ser trocada', async () => {
+  const s = await startServer({ env: { OPY_ADMIN_USERNAMES: 'chefe' } });
+  try {
+    const chefe = await s.api(reg('chefe')); const bia = await s.api(reg('bia'));
+    const biaId = (JSON.parse(await s.file())).accounts.find(a => a.username === 'bia').id;
+    const r = await s.api({ action: 'admin_reset_password', userKey: 'id:' + biaId, reason: 'Pediu pelo WhatsApp' }, { cookie: chefe.cookie });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const temp = JSON.stringify(r.data).match(/"temporaryPassword":"([^"]+)"/)[1];
+    const conta = JSON.parse(await s.file()).accounts.find(a => a.username === 'bia');
+    assert.ok(conta.tempPasswordExpiresAt > Date.now() + 47 * 3600e3 && conta.tempPasswordExpiresAt < Date.now() + 49 * 3600e3);
+    const entrada = await s.api({ action: 'login', username: 'bia', password: temp });
+    assert.equal(entrada.status, 200);
+    const publicar = await s.api({ action: 'publish', text: 'oi', audience: 'public' }, { cookie: entrada.cookie });
+    assert.equal(publicar.status, 403, 'qualquer ação é barrada com senha provisória');
+    const troca = await s.api({ action: 'password_change', current: temp, next: 'Nova-senha-2026!' }, { cookie: entrada.cookie });
+    assert.equal(troca.status, 200, JSON.stringify(troca.data));
+    assert.equal((await s.api({ action: 'publish', text: 'oi', audience: 'public' }, { cookie: entrada.cookie })).status, 200);
+  } finally { await s.stop(); }
+});

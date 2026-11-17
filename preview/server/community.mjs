@@ -613,6 +613,7 @@ export default async function handler(req, res) {
         console.error(`AUTH_FALHA ip=${ip} conta=${createHash('sha256').update(identity).digest('hex').slice(0, 8)}`);
         fail(401, 'Usuário ou senha não conferem.');
       }
+      if (account.mustChangePassword && account.tempPasswordExpiresAt && Date.now() > account.tempPasswordExpiresAt) fail(401, 'A senha provisória expirou. Peça outra à administração.');
       if (isSuspended(account)) fail(403, suspensionMessage(account));
       const issued = await createSession(account.id, secret);
       stampSession(issued.session, req.headers['user-agent']);
@@ -636,6 +637,8 @@ export default async function handler(req, res) {
     const signedIn = sessionAccount((await readState()).data, session);
     if (!signedIn) fail(401, 'Entre para ver o Etnias.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
+    // Senha provisória emitida pela administração: nada funciona até a pessoa trocá-la (a regra vale no servidor, não só na tela).
+    if (signedIn.mustChangePassword && body.action !== 'password_change') fail(403, 'Troque a senha provisória para continuar.');
     let activeMe = member(signedIn);
     if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !pageActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
@@ -861,7 +864,7 @@ export default async function handler(req, res) {
           const next = passwordOf(body.next);
           if (!checkPassword(passwordOf(body.current), currentAccount.password || dummyPassword)) fail(403, 'A senha atual não confere.');
           if (next === body.current) fail(400, 'Escolha uma senha diferente da atual.');
-          currentAccount.password = hashPassword(next); delete currentAccount.legacyPassword; delete currentAccount.mustChangePassword;
+          currentAccount.password = hashPassword(next); delete currentAccount.legacyPassword; delete currentAccount.mustChangePassword; delete currentAccount.tempPasswordExpiresAt;
           // Os outros aparelhos saem: só este continua, já com a senha nova.
           currentAccount.sessions = (currentAccount.sessions || []).filter(item => item.id === session.id);
           activeMe = member(currentAccount);

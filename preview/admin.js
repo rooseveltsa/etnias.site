@@ -66,7 +66,7 @@ async function resetPassword(p) {
   if (!r || busy) return; busy = true;
   try {
     data = await api({ action: 'admin_reset_password', userKey: p.key, reason: r.reason }); render();
-    const d = el('dialog', undefined, 'adm-dialog'); d.append(el('h2', 'Senha provisória de ' + p.name), el('p', 'Passe à pessoa por um canal seguro. Ela não aparece de novo.', 'adm-muted'));
+    const d = el('dialog', undefined, 'adm-dialog'); d.append(el('h2', 'Senha provisória de ' + p.name), el('p', 'Passe à pessoa por um canal seguro. Ela não aparece de novo e vale por 48 horas.', 'adm-muted'));
     const code = el('output', data.temporaryPassword, 'adm-code'); d.append(code);
     const row = el('div', undefined, 'adm-dialog-actions');
     row.append(btn('Copiar', async () => { try { await navigator.clipboard.writeText(data.temporaryPassword); toast('Senha copiada.'); } catch { toast('Não foi possível copiar; anote a senha.', true); } }), btn('Fechar', () => d.close(), 'is-primary'));

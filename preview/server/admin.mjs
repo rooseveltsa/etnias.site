@@ -197,7 +197,7 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     if (envAdmins(env).includes(String(target.username || '').toLowerCase())) fail(403, 'Administradores definidos no servidor trocam a senha pela própria conta.');
     if (!reason) fail(400, 'Registre como a pessoa pediu a nova senha (por exemplo, "pediu pelo WhatsApp").');
     const temporary = temporaryPassword();
-    target.password = hashPassword(temporary); delete target.legacyPassword; target.mustChangePassword = true; target.sessions = [];
+    target.password = hashPassword(temporary); delete target.legacyPassword; target.mustChangePassword = true; target.tempPasswordExpiresAt = now + 48 * 3600e3; target.sessions = [];
     log(state, actor, 'Senha provisória emitida', target.name, reason);
     return { temporaryPassword: temporary };
   }
