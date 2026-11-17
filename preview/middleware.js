@@ -8,6 +8,7 @@ export const config = { matcher: '/:path*' };
 
 function isPublic(pathname) {
   return pathname === '/entrar' || pathname.startsWith('/entrar/')
+    || pathname.startsWith('/p/')
     || pathname === '/assets' || pathname.startsWith('/assets/')
     || pathname === '/api' || pathname.startsWith('/api/')
     || pathname === '/manifest.webmanifest' || pathname === '/sw.js'

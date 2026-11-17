@@ -7,6 +7,7 @@ import handler, { MAX_BODY_CHARS } from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 import { sendFile } from '../preview/server/files.mjs';
+import shareHandler from '../preview/server/share.mjs';
 const root = resolve('preview/dist/public');
 // Live (Fase 4): a sinalização WHIP/WHEP do navegador vai por aqui ao MediaMTX (OPY_LIVE_URL), com sessão obrigatória.
 // A mídia em si não passa pelo app (UDP/TCP 8189 direto no MediaMTX). Sem OPY_LIVE_URL o recurso fica desligado.
@@ -109,6 +110,8 @@ http.createServer(async (req, res) => {
     }
     return handler(req, res);
   }
+  // Link de compartilhamento: público de propósito (WhatsApp precisa ler as tags sem entrar). O servidor só expõe publicações públicas.
+  if (/^\/p\/[^/]+\/?$/.test(pathname) || path === '/api/share-image' || path === '/api/share') return await shareHandler(req, res);
   const gate = await middleware(new Request(url, { headers: req.headers }));
   // Busca: só a apresentação pública ("/" para quem não entrou, /entrar/, robots e sitemap) é indexável; o resto da rede segue noindex e atrás do login.
   const indexable = path === '/' || path === '/entrar' || path === '/robots.txt' || path === '/sitemap.xml' || pathname.startsWith('/assets/');

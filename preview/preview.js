@@ -135,6 +135,7 @@ const glyph={
  comment:'<path d="M5 6.5h14V15H9l-4 3.2z"/>',
  share:'<path d="M15 5l5 5-5 5"/><path d="M20 10H9a5 5 0 0 0-5 5v4"/>',
  save:'<path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.4L6 20V5a1 1 0 0 1 1-1z"/>',
+ send:'<path d="M21 4L10.5 14.5"/><path d="M21 4l-6.5 17-4-6.5L4 10.5z"/>',
  play:'<path d="M9 6.5v11l9-5.5z"/>',
  pause:'<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>',
  laugh:'<circle cx="12" cy="12" r="8"/><path d="M8.5 10h.01M15.5 10h.01M8.5 14.2a4 4 0 0 0 7 0"/>',
@@ -479,7 +480,12 @@ function renderPost(post, communityContext=null){
  const shareBtn=postAction('share','Repostar',()=>{repostForm.hidden=!repostForm.hidden;shareBtn.setAttribute('aria-expanded',String(!repostForm.hidden));if(!repostForm.hidden)repostInput.focus();});
  shareBtn.setAttribute('aria-expanded','false');
  const save=postAction('save','',()=>optimistic(post,{saved:!post.saved},{action:'save',postId:post.id}));save.classList.add('post-action-quiet');save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
- actions.append(reactWrap,commentBtn,shareBtn,save);card.append(actions,repostForm);
+ // Enviar link: só publicações públicas (o link mostra título, texto e foto da própria publicação no WhatsApp).
+ const linkBtn=post.audience==='public'?postAction('send','',async()=>{const url=location.origin+'/p/'+encodeURIComponent(post.id)+'/';const text=(post.text||'').slice(0,120);
+  if(navigator.share){try{await navigator.share({title:post.author+' no Etnias',text,url});}catch(e){if(e&&e.name==='AbortError')return;throw e;}return;}
+  try{await navigator.clipboard.writeText(url);toast('Link copiado. Cole no WhatsApp ou onde quiser.');}catch{window.prompt('Copie o link:',url);}}):null;
+ if(linkBtn){linkBtn.classList.add('post-action-quiet');linkBtn.setAttribute('aria-label','Compartilhar link');linkBtn.title='Compartilhar link';}
+ actions.append(reactWrap,commentBtn,shareBtn);if(linkBtn)actions.append(linkBtn);actions.append(save);card.append(actions,repostForm);
  // Ações da própria pessoa (e da moderação) ficam num menu ⋯ no cabeçalho, como nas redes que as pessoas já usam.
  const menuItems=[];
  if(post.own){

@@ -49,7 +49,7 @@ copy($root . '/preview/fonts/OFL-funnel-display.txt', $folder . '/OFL-funnel-dis
 file_put_contents($destination . '/robots.txt', "User-agent: *\nDisallow: /\n");
 copy($root . '/preview/manifest.webmanifest', $destination . '/manifest.webmanifest');
 copy($root . '/preview/sw.js', $destination . '/sw.js');
-$config = array('framework'=>null,'outputDirectory'=>'public','buildCommand'=>null,'installCommand'=>'npm ci --ignore-scripts','regions'=>array('iad1'),'functions'=>array('api/*.js'=>array('maxDuration'=>30)),'cleanUrls'=>true,'trailingSlash'=>true,'headers'=>array(
+$config = array('framework'=>null,'outputDirectory'=>'public','buildCommand'=>null,'installCommand'=>'npm ci --ignore-scripts','regions'=>array('iad1'),'functions'=>array('api/*.js'=>array('maxDuration'=>30)),'cleanUrls'=>true,'trailingSlash'=>true,'rewrites'=>array(array('source'=>'/p/:id','destination'=>'/api/share?id=:id'),array('source'=>'/p/:id/','destination'=>'/api/share?id=:id')),'headers'=>array(
     array('source'=>'/manifest.webmanifest','headers'=>array(array('key'=>'Content-Type','value'=>'application/manifest+json'),array('key'=>'X-Robots-Tag','value'=>'noindex, nofollow'))),
     array('source'=>'/(.*)','headers'=>array(array('key'=>'X-Robots-Tag','value'=>'noindex, nofollow'),array('key'=>'X-Content-Type-Options','value'=>'nosniff'),array('key'=>'Referrer-Policy','value'=>'strict-origin-when-cross-origin'),array('key'=>'Content-Security-Policy','value'=>"default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'")))
 ));
@@ -64,7 +64,7 @@ copy($root.'/preview/middleware.js', $project.'/middleware.js');
 // APK do app Android (gerado em apps/mobile; fora do git). Prefere o de produção assinado (apps/mobile/scripts/build-android.sh); sem build, o link do site dá 404.
 $apk=$root.'/apps/mobile/android/app/build/outputs/apk/release/app-release.apk'; if (!is_file($apk)) $apk=$root.'/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk'; if (is_file($apk)) { $folder=$destination.'/assets/app'; if (!is_dir($folder)) mkdir($folder,0755,true); copy($apk,$folder.'/etnias-android.apk'); }
 // Busca: robots e sitemap só expõem a apresentação pública; a imagem de compartilhamento acompanha a página.
-file_put_contents($destination . '/robots.txt', "User-agent: *\nAllow: /$\nAllow: /entrar/$\nAllow: /assets/\nAllow: /manifest.webmanifest\nDisallow: /\n\nSitemap: https://etnias.site/sitemap.xml\n");
+file_put_contents($destination . '/robots.txt', "User-agent: *\nAllow: /$\nAllow: /entrar/$\nAllow: /assets/\nAllow: /p/\nAllow: /api/share-image\nAllow: /manifest.webmanifest\nDisallow: /\n\nSitemap: https://etnias.site/sitemap.xml\n");
 file_put_contents($destination . '/sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://etnias.site/</loc><lastmod>' . gmdate('Y-m-d') . '</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>' . "\n");
 if (!is_file($root . '/preview/og-etnias.png')) throw new RuntimeException('Missing preview/og-etnias.png');
 copy($root . '/preview/og-etnias.png', $destination . '/assets/og-etnias.png');
