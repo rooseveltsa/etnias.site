@@ -1130,6 +1130,9 @@ export default async function handler(req, res) {
 // Eliminação definitiva das contas cujo prazo de carência (30 dias) venceu. Chamada de hora em hora pelo servidor.
 export async function purgeDueAccounts(now = Date.now()) {
   const { data } = await readState();
+  if ((data.accounts || []).some(a => a.deletionRequestedAt && !a.deletionDueAt)) {
+    await transact(state => { for (const a of state.accounts || []) if (a.deletionRequestedAt && !a.deletionDueAt) a.deletionDueAt = now + 30 * 864e5; });
+  }
   const due = (data.accounts || []).filter(a => dueForPurge(a, now)).map(a => a.id);
   if (!due.length) return { purged: 0 };
   let media = [];

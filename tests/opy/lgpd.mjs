@@ -44,9 +44,9 @@ test('exclusão definitiva apaga conta, publicações, comentários, mensagens, 
 
 test('prazo de carência de 30 dias e consentimento sensível', () => {
   const now = Date.now();
-  assert.equal(dueForPurge({ deletionRequestedAt: now - 29 * 864e5 }, now), false);
-  assert.equal(dueForPurge({ deletionRequestedAt: now - 31 * 864e5 }, now), true);
-  assert.equal(dueForPurge({}, now), false); assert.equal(DELETION_GRACE_DAYS, 30);
+  assert.equal(dueForPurge({ deletionRequestedAt: now - 29 * 864e5, deletionDueAt: now + 864e5 }, now), false);
+  assert.equal(dueForPurge({ deletionRequestedAt: now - 31 * 864e5, deletionDueAt: now - 864e5 }, now), true);
+  assert.equal(dueForPurge({}, now), false); assert.equal(dueForPurge({ deletionRequestedAt: 1 }, now), false, 'pedido antigo sem prazo não é apagado de surpresa'); assert.equal(DELETION_GRACE_DAYS, 30);
   assert.equal(sensitiveChange({ belonging: 'indigena', povo: 'X' }, 'indigena', 'X'), false, 'sem mudança não pede consentimento');
   assert.equal(sensitiveChange({}, 'indigena', 'X'), true); assert.equal(sensitiveChange({ belonging: 'indigena' }, '', ''), false, 'apagar não exige consentimento');
 });
@@ -74,13 +74,15 @@ test('servidor: a rotina apaga de verdade a conta com carência vencida e preser
   const { initialState } = await import('../../preview/server/store.mjs');
   const velho = Date.now() - 31 * 864e5, recente = Date.now() - 5 * 864e5;
   const seed = { ...initialState(), posts: [], accounts: [
-    { id: A, username: 'vencida', name: 'Vencida', createdAt: 1, sessions: [], deletionRequestedAt: velho, deactivatedAt: velho },
-    { id: B, username: 'recente', name: 'Recente', createdAt: 1, sessions: [], deletionRequestedAt: recente, deactivatedAt: recente }] };
+    { id: A, username: 'vencida', name: 'Vencida', createdAt: 1, sessions: [], deletionRequestedAt: velho, deletionDueAt: velho + 30 * 864e5 - 40 * 864e5, deactivatedAt: velho },
+    { id: B, username: 'recente', name: 'Recente', createdAt: 1, sessions: [], deletionRequestedAt: recente, deactivatedAt: recente },
+    { id: 'c0000000-0000-4000-8000-00000000000c', username: 'antiga', name: 'Antiga', createdAt: 1, sessions: [], deletionRequestedAt: velho, deactivatedAt: velho }] };
   const s = await startServer({ seed, env: { OPY_PURGE_FIRST_MS: '300' } });
   try {
     let accounts = [];
-    for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 150)); accounts = JSON.parse(await s.file()).accounts; if (accounts.length === 1) break; }
-    assert.deepEqual(accounts.map(a => a.username), ['recente']);
+    for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 150)); accounts = JSON.parse(await s.file()).accounts; if (accounts.length === 2) break; }
+    assert.deepEqual(accounts.map(a => a.username).sort(), ['antiga', 'recente']);
+    assert.ok(accounts.find(a => a.username === 'antiga').deletionDueAt > Date.now() + 29 * 864e5, 'pedido sem prazo ganha 30 dias novos');
     assert.match(s.logs(), /LGPD: 1 conta/);
   } finally { await s.stop(); }
 });

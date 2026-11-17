@@ -65,7 +65,8 @@ export function sensitiveChange(account, nextBelonging, nextPovo) {
 
 // ----- Eliminação -----
 export const DELETION_GRACE_DAYS = 30;
-export const dueForPurge = (account, now = Date.now()) => !!account.deletionRequestedAt && now >= (account.deletionDueAt || account.deletionRequestedAt + DELETION_GRACE_DAYS * 864e5);
+// Pedidos antigos (feitos antes de existir a rotina) não têm prazo: ganham 30 dias novos a partir da primeira execução, nunca são apagados de surpresa.
+export const dueForPurge = (account, now = Date.now()) => !!account.deletionRequestedAt && !!account.deletionDueAt && now >= account.deletionDueAt;
 
 // Apaga a conta e tudo o que for dela; devolve os arquivos de mídia a remover do disco. Mensagens, comentários e reações vão embora;
 // reposts de terceiros mantêm só um aviso de "conta excluída". O registro de moderação é mantido sem nome (prestação de contas).
