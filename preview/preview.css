@@ -2034,3 +2034,5 @@ a.opy-notif:hover{background:var(--color-surface-muted,#f2e9dc)}
 input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable=true]:focus-visible{outline:2px solid #b84a27;outline-offset:2px}
 .opy-search:focus-within{outline:2px solid #b84a27;outline-offset:2px;border-radius:999px}
 .opy-search input:focus-visible{outline:none}
+/* Compositor fechado: sem botão Publicar (não há o que publicar) para o convite "No que você está pensando?" caber inteiro */
+#opy-compose:not(.has-content):not(:focus-within) .compose-publish-top{display:none}
