@@ -940,6 +940,9 @@ function renderCommunities(){
   const isPending=!!(current.pending||current.requested);
   const canViewContent=current.canViewContent!==undefined?current.canViewContent:(!isPrivate||current.joined||current.canModerate);
   discovery.hidden=true;detail.hidden=false;
+  // A atualização periódica redesenha a comunidade: o que a pessoa estava digitando (e o cursor) volta ao lugar.
+  const keepDraft=(()=>{const t=$('#community-post-text',detail);if(!t||!t.value)return null;return {id:detail.dataset.draftId,value:t.value,focus:document.activeElement===t,start:t.selectionStart,end:t.selectionEnd};})();
+  detail.dataset.draftId=current.id;
   detail.replaceChildren();
   const backRow=make('div',undefined,'community-detail-nav');
   const backBtn=make('button','← Todas as comunidades','preview-secondary');backBtn.type='button';
@@ -1028,6 +1031,7 @@ function renderCommunities(){
      try{await change({action:'publish',text:cText.value,audience:'public',communityId:current.id});cText.value='';cStatus.textContent='Publicação compartilhada na comunidade.';}
      catch(err){cStatus.textContent=err.message;}finally{cSubmit.disabled=false;}
     };
+    if(keepDraft&&keepDraft.id===current.id){cText.value=keepDraft.value;if(keepDraft.focus)queueMicrotask(()=>{cText.focus({preventScroll:true});try{cText.setSelectionRange(keepDraft.start,keepDraft.end);}catch{}});}
     panel.append(cForm);
    }else if(isPrivate){
     const gate=make('div',undefined,'community-private-gate');
