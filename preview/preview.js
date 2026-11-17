@@ -153,8 +153,13 @@ const chatHeaderLink=()=>$('.messages-notification-container a');
 // Quando só uma publicação é redesenhada (curtida, comentário), o vídeo ou áudio que estava tocando continua de onde parou.
 function captureMedia(card){return all('video,audio',card).filter(m=>!m.paused&&!m.ended).map(m=>({tag:m.tagName.toLowerCase(),src:m.getAttribute('src')||m.currentSrc,time:m.currentTime,muted:m.muted,volume:m.volume}));}
 function resumeMedia(card,list){for(const saved of list||[]){const twin=all(saved.tag,card).find(m=>(m.getAttribute('src')||m.currentSrc)===saved.src);if(!twin)continue;const go=()=>{try{twin.currentTime=saved.time;}catch{}twin.muted=saved.muted;twin.volume=saved.volume;twin.play().catch(()=>{});};if(twin.readyState>=1)go();else{twin.preload='auto';twin.addEventListener('loadedmetadata',go,{once:true});twin.load();}}}
+// Quem ainda não tem foto recebe uma das miniaturas indígenas do projeto (em vez da inicial do nome). A escolha depende só do nome,
+// então a mesma pessoa mostra sempre a mesma miniatura, em qualquer tela e aparelho.
+const DEFAULT_AVATARS=['/assets/avatars/indigena-1.webp','/assets/avatars/indigena-2.webp','/assets/avatars/indigena-3.webp'];
+function defaultAvatarUrl(name){let h=0;for(const ch of String(name||'?'))h=(h*31+ch.codePointAt(0))>>>0;return DEFAULT_AVATARS[h%DEFAULT_AVATARS.length];}
+function defaultAvatar(name,size=42){const img=make('img',undefined,'preview-avatar preview-avatar-image preview-avatar-default');img.src=defaultAvatarUrl(name);img.alt='';img.width=size;img.height=size;img.setAttribute('aria-hidden','true');return img;}
 function avatarNode(name, url, size=42){
- const fallback=()=>make('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');
+ const fallback=()=>defaultAvatar(name,size);
  if(url&&(/^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url)||/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url)||/^\/legado\/upload\/[\w./%-]+\.(jpg|jpeg|png|webp|gif)$/i.test(url))){
   const img=make('img',undefined,'preview-avatar preview-avatar-image');img.src=url;img.alt='Foto de '+name;img.width=size;img.height=size;img.loading='lazy';
   img.addEventListener('error',()=>img.replaceWith(fallback()),{once:true});return img;
@@ -1404,7 +1409,7 @@ function marketForm(d,editing){
  return f;
 }
 function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$('#area-app');if(areaApp)renderArea(areaApp);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
- all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else el.textContent=state.me.name.slice(0,1).toLocaleUpperCase('pt-BR');el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
+ all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else if(el.querySelector('img')?.getAttribute('src')!==defaultAvatarUrl(state.me.name)){const im=make('img');im.src=defaultAvatarUrl(state.me.name);im.alt='';el.replaceChildren(im);}el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
  if(pForm&&!pForm.contains(document.activeElement)){
   if($('#profile-edit-name'))$('#profile-edit-name').value=state.me.name||'';

@@ -7,7 +7,9 @@ const status = message => { $('#chat-status').textContent=message; };
 const avatarOk = url => !!url && (/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url) || /^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url) || /^\/legado\/upload\/[\w./%-]+\.(jpg|jpeg|png|webp|gif)$/i.test(url));
 function avatarEl(name, url) {
  if (avatarOk(url)) { const img=node('img',undefined,'preview-avatar preview-avatar-image'); img.src=url; img.alt=''; img.loading='lazy'; return img; }
- const el=node('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar'); el.setAttribute('aria-hidden','true'); return el;
+ // Sem foto: miniatura indígena escolhida pelo nome (mesma regra do feed).
+ let h=0; for (const ch of String(name||'?')) h=(h*31+ch.codePointAt(0))>>>0;
+ const el=node('img',undefined,'preview-avatar preview-avatar-image preview-avatar-default'); el.src=`/assets/avatars/indigena-${h%3+1}.webp`; el.alt=''; el.setAttribute('aria-hidden','true'); return el;
 }
 const time = value => new Intl.DateTimeFormat('pt-BR',{timeStyle:'short'}).format(new Date(value));
 const dayKey = value => new Date(value).toDateString();

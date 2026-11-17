@@ -68,4 +68,5 @@ file_put_contents($destination . '/robots.txt', "User-agent: *\nAllow: /$\nAllow
 file_put_contents($destination . '/sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://etnias.site/</loc><lastmod>' . gmdate('Y-m-d') . '</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>' . "\n");
 if (!is_file($root . '/preview/og-etnias.png')) throw new RuntimeException('Missing preview/og-etnias.png');
 copy($root . '/preview/og-etnias.png', $destination . '/assets/og-etnias.png');
+$avatars=$destination.'/assets/avatars'; if (!is_dir($avatars)) mkdir($avatars,0755,true); foreach(glob($root.'/preview/avatars/*') as $file) copy($file,$avatars.'/'.basename($file));
 $archive=$destination.'/assets/archive'; if (!is_dir($archive)) mkdir($archive,0755,true); foreach(glob($root.'/preview/archive/*') as $file) copy($file,$archive.'/'.basename($file));
