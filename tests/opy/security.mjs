@@ -99,3 +99,16 @@ test('cabeçalhos: sw.js sem cache, security.txt público, COOP', async () => {
     assert.equal(sw.headers.get('cross-origin-opener-policy'), 'same-origin');
   } finally { await s.stop(); }
 });
+
+test('descrição da imagem (alt) é guardada, limitada a 300 caracteres e não vale para texto puro', async () => {
+  const s = await startServer();
+  try {
+    const r = await s.api({ action: 'register', acceptTerms: true, username: 'altana', name: 'Alt', password: 'Senha-de-teste-2026', contact: 'alt@exemplo.com' });
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==';
+    const a = await s.api({ action: 'publish', text: 'com foto', audience: 'public', media: { name: 'a.png', data: png }, alt: 'x'.repeat(500) }, { cookie: r.cookie });
+    assert.equal(a.status, 200);
+    assert.equal(a.data.posts.find(p => p.text === 'com foto').alt.length, 300);
+    const b = await s.api({ action: 'publish', text: 'só texto', audience: 'public', alt: 'inútil' }, { cookie: r.cookie });
+    assert.equal(b.data.posts.find(p => p.text === 'só texto').alt, '');
+  } finally { await s.stop(); }
+});
