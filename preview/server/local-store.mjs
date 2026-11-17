@@ -36,7 +36,7 @@ export function createLocalStore(directory, initialState) {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error('Identificador de anexo inválido.');
     return join(directory, 'media-' + id + '.json');
   }
-  async function saveMedia(id, bytes, type) { await atomicWrite(mediaPath(id), JSON.stringify({ type, bytes: bytes.toString('base64') })); }
+  async function saveMedia(id, bytes, type) { await atomicWrite(mediaPath(id), JSON.stringify({ type, bytes: bytes.toString('base64') })); forget(id); }
   // Cada anexo fica em disco como JSON com base64: ler e decodificar um vídeo de 40 MB a cada pedido de trecho (Range) seria lento.
   // Os últimos anexos lidos ficam decodificados em memória (até ~96 MB no total) e os pedidos seguintes saem daí.
   const recent = new Map(); let recentBytes = 0;
@@ -56,8 +56,9 @@ export function createLocalStore(directory, initialState) {
       return { statusCode: 200, blob: { contentType: value.type }, buffer, stream: new Blob([buffer]).stream() };
     } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   }
+  function forget(id) { const hit = recent.get(id); if (hit) { recent.delete(id); recentBytes -= hit.buffer.length; } }
   async function deleteMedia(id) {
-    const hit = recent.get(id); if (hit) { recent.delete(id); recentBytes -= hit.buffer.length; }
+    forget(id);
     await unlink(mediaPath(id)).catch(error => { if (error.code !== 'ENOENT') throw error; });
   }
   return { readState, transact, saveMedia, readMedia, deleteMedia };

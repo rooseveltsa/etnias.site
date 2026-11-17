@@ -3,7 +3,10 @@ import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import bcrypt from 'bcryptjs';
 import { createHash } from 'node:crypto';
-import { readState, transact, saveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
+import { readState, transact, saveMedia as storeSaveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
+import { scheduleTranscode } from './transcode.mjs';
+// Vídeo novo é guardado como veio e, em segundo plano, trocado por uma versão leve (720p, MP4 com início rápido) quando o ffmpeg existe.
+const saveMedia = async (id, bytes, type) => { await storeSaveMedia(id, bytes, type); if (/^video\//.test(type)) scheduleTranscode(id, { readMedia, saveMedia: storeSaveMedia }); };
 import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
 import { createSession, renewSession, SESSION_DAYS, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword, hashPasswordAsync, checkPasswordAsync, needsRehash } from './session.mjs';
@@ -495,7 +498,13 @@ function mediaInput(value) {
     : type.endsWith('/mp4') ? bytes.subarray(4, 8).toString() === 'ftyp'
     : type === 'audio/mpeg' ? bytes.subarray(0, 3).toString() === 'ID3' || bytes[0] === 255 && (bytes[1] & 224) === 224 : false;
   if (!valid) fail(400, 'O conteúdo do arquivo não corresponde ao formato informado. Use foto, vídeo, áudio, PDF, TXT, DOC ou DOCX.');
-  if (!type.startsWith('video/') && bytes.length > 2 * 1024 * 1024) fail(413, 'Escolha um arquivo de até 2 MB.');
+  if (!type.startsWith('video/') && bytes.length > 2 * 1024 * 1024) {
+    const mb = (bytes.length / 1048576).toFixed(1).replace('.', ',');
+    fail(413, type.startsWith('image/') ? `A foto tem ${mb} MB e o limite é 2 MB. Escolha outra foto ou tire uma nova.`
+      : type === 'application/pdf' ? `O PDF tem ${mb} MB e o limite é 2 MB. Comprima o PDF (há sites gratuitos para isso) ou envie só as páginas que importam.`
+      : type.startsWith('audio/') ? `O áudio tem ${mb} MB e o limite é 2 MB. Grave um áudio mais curto (até 1 minuto) ou use o botão do microfone.`
+      : `O arquivo tem ${mb} MB e o limite é 2 MB. Reduza o arquivo e tente de novo.`);
+  }
   return { id: randomUUID(), bytes, type, kind: type.startsWith('image/') ? 'image' : type.startsWith('video/') ? 'video' : type.startsWith('audio/') ? 'audio' : 'file', name };
 }
 export { mediaInput, googleKeyOf, phoneOf };

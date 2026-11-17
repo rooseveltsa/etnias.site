@@ -11,6 +11,8 @@ COPY preview/i18n preview/i18n
 COPY preview/middleware.js preview/public-posts.json preview/
 COPY preview/dist/public preview/dist/public
 COPY scripts/opy-preview-server.mjs scripts/opy-import-legacy.mjs scripts/
+# U-03: ffmpeg para trocar vídeos novos por uma versão leve (720p) em segundo plano. Sem ele o app funciona igual, só sem a otimização.
+RUN apk add --no-cache ffmpeg
 RUN mkdir -p /data && chown node:node /data
 USER node
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8101 OPY_LOCAL_DATA_DIR=/data
