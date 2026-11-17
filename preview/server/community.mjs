@@ -44,6 +44,31 @@ function registerAllowed(req) {
   if (registerSlots.size > 5000) for (const [k, v] of registerSlots) if (!v.some(t => now - t < 3600e3)) registerSlots.delete(k);
   return true;
 }
+// Tetos globais só como proteção do disco; o freio do dia a dia é por pessoa. Aviso no log (uma vez) ao passar de 70%.
+const capacityWarned = new Set();
+function capacity(name, used, max) {
+  if (used >= max * 0.7 && !capacityWarned.has(name)) { capacityWarned.add(name); console.error(`AVISO capacidade: ${name} em ${used} de ${max} (${Math.round(used / max * 100)}%)`); }
+  return used >= max;
+}
+const MAX_POSTS_PER_USER_DAY = () => Number(process.env.OPY_MAX_POSTS_PER_USER_DAY) || 60;
+function postBudget(state, me) {
+  const since = Date.now() - 864e5; let n = 0;
+  for (const post of state.posts) if (post.authorId === me.id && post.createdAt >= since) n++;
+  if (n >= MAX_POSTS_PER_USER_DAY()) fail(429, `Você já publicou ${n} vezes nas últimas 24 horas. Volte amanhã para publicar de novo.`);
+}
+// Índice id da mídia -> publicações, refeito quando a lista de publicações muda (tamanho, primeira ou última). Mídia de publicação não muda
+// depois de criada; cada resultado ainda é conferido antes de ser entregue.
+const mediaIndexes = new WeakMap();
+function postsWithMedia(state, id) {
+  let entry = mediaIndexes.get(state.posts);
+  if (!entry || entry.size !== state.posts.length || entry.first !== state.posts[0] || entry.last !== state.posts.at(-1)) {
+    entry = { size: state.posts.length, first: state.posts[0], last: state.posts.at(-1), map: new Map() };
+    for (const post of state.posts) for (const mid of postMediaIds(post)) { const list = entry.map.get(mid); if (list) list.push(post); else entry.map.set(mid, [post]); }
+    mediaIndexes.set(state.posts, entry);
+  }
+  const hits = (entry.map.get(id) || []).filter(post => postMediaIds(post).includes(id));
+  return hits;
+}
 function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
 function text(value, maximum, required = true) {
   if (typeof value !== 'string' || value.length > maximum || required && !value.trim()) fail(400, 'Confira o texto e o limite de caracteres.');
@@ -263,7 +288,19 @@ function personFor(state, me, ctx, key, counts) {
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
   return post ? { ...base, name: post.author, username: '', bio: '', affiliation: '', avatar: archiveAvatar(post), cover: '', joinedAt: 0, verified: false, own: false } : null;
 }
-function accountMatches(acc, q) { return !q || plain(`${acc.name} ${acc.username || ''} ${acc.affiliation || ''} ${acc.bio || ''}`).includes(q); }
+// Texto de busca normalizado, guardado por conta (e refeito se o perfil mudar): sem normalizar 8 mil contas a cada tecla.
+const searchText = new WeakMap();
+function accountMatches(acc, q) {
+  if (!q) return true;
+  const raw = `${acc.name} ${acc.username || ''} ${acc.affiliation || ''} ${acc.bio || ''}`;
+  let hit = searchText.get(acc);
+  if (!hit || hit.raw !== raw) { hit = { raw, text: plain(raw) }; searchText.set(acc, hit); }
+  return hit.text.includes(q);
+}
+function searchBudget(me) {
+  if (tooMany('busca:' + me.id, 40, 60_000)) fail(429, 'Muitas buscas em pouco tempo. Espere alguns segundos e continue.');
+  note('busca:' + me.id, 60_000);
+}
 // Pessoas que importam para quem está vendo: relações, autores da página e sugestões. O restante vem pela busca.
 function peopleFor(state, me, ctx, pagePosts, counts) {
   const keys = new Set([ctx.myKey, ...ctx.friends, ...(state.friendRequests?.[ctx.myKey] || []), ...ctx.followed]);
@@ -526,7 +563,7 @@ export default async function handler(req, res) {
         if (view === 'extras') { const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ usernameInfo: usernameInfo(acc, state), location: acc.location || null, reactions: roleOf(acc) === 'admin' ? reactionConfig(state) : undefined })); }
         if (view === 'link') return res.end(JSON.stringify({ preview: await linkPreview(me.id, path.searchParams.get('url')) }));
         if (view === 'notifications') return res.end(JSON.stringify({ items: notificationItems(state, me, feedContext(state, me)) }));
-        return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? searchView(state, me, path.searchParams) : profileView(state, me, path.searchParams)));
+        return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? (searchBudget(me), searchView(state, me, path.searchParams)) : profileView(state, me, path.searchParams)));
       }
       if (path.pathname.replace(/\/$/, '') === '/api/link-image') {
         let image = null; try { image = await linkImage(path.searchParams.get('u')); } catch { image = null; }
@@ -536,8 +573,9 @@ export default async function handler(req, res) {
       }
       if (path.pathname.replace(/\/$/, '') === '/api/media') {
         const id = path.searchParams.get('id');
-        const post = state.posts.find(p => visible(p, me, state) && postMediaIds(p).includes(id));
-        const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
+        const post = postsWithMedia(state, id).find(p => visible(p, me, state));
+        // Story: só quem pode ver o perfil do autor (mesma regra do feed de stories).
+        const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id && (!item.authorId || item.authorId === me.id || profileAccess(state, me.id, item.authorId) === 'full'));
         // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
         const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
         const named = (extrasMedia(state, id)) || pageMedia(state, id) || profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id) || marketMedia(state, me, id));
@@ -582,7 +620,7 @@ export default async function handler(req, res) {
         stampSession(issued.session, req.headers['user-agent']);
         const { data, result } = await transact(state => {
           const accounts = accountsOf(state);
-          if (accounts.length >= (Number(process.env.OPY_MAX_ACCOUNTS) || 20000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
+          if (capacity('contas', accounts.length, Number(process.env.OPY_MAX_ACCOUNTS) || 100000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
           if (accounts.some(item => item.username === username)) fail(409, 'Esse usuário já existe. Entre ou escolha outro.');
           if (!usernameCheck(state, null, username).ok) fail(409, 'Esse usuário não está disponível. Escolha outro.');
           const account = { id: accountId, username, name, password: passwordHash, googleKey, phone, createdAt: Date.now() };
@@ -788,7 +826,8 @@ export default async function handler(req, res) {
           // shortcut: limpeza física ocorre ao criar outro story; usar coleta agendada em produção.
           removedIds = (state.stories || []).filter(item => item.expiresAt <= Date.now()).map(item => item.media?.id).filter(Boolean);
           state.stories = (state.stories || []).filter(item => item.expiresAt > Date.now());
-          if (state.stories.length >= 100 || state.stories.filter(item => item.authorId === me.id).length >= 5) fail(409, 'Limite de stories ativos atingido nesta homologação.');
+          if (state.stories.filter(item => item.authorId === me.id).length >= 5) fail(409, 'Você já tem 5 stories ativos. Apague um ou espere um expirar (eles somem em 24 horas).');
+          if (capacity('stories', state.stories.length, Number(process.env.OPY_MAX_STORIES) || 5000)) fail(409, 'O Etnias está com muitos stories agora. Tente de novo em instantes.');
           const createdAt = Date.now();
           state.stories.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text, createdAt, expiresAt: createdAt + 86400000, ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name } } : {}) });
           break;
@@ -828,7 +867,8 @@ export default async function handler(req, res) {
           break;
         }
         case 'publish': {
-          if (state.posts.filter(p => p.origin !== 'legacy').length >= (Number(process.env.OPY_MAX_POSTS) || 100000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
+          if (capacity('publicações', state.posts.length, Number(process.env.OPY_MAX_POSTS) || 500000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
+          postBudget(state, me);
           let targetCommunity = null;
           if (typeof body.communityId === 'string' && body.communityId.trim()) {
             targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
@@ -840,7 +880,8 @@ export default async function handler(req, res) {
         }
         case 'repost': {
           if (post.audience === 'private' || post.audience === 'friends' || (post.communityId && !canViewCommunityContent(state, null, post.communityId))) fail(400, 'Publicações privadas não podem ser repostadas.');
-          if (state.posts.filter(p => p.origin !== 'legacy').length >= (Number(process.env.OPY_MAX_POSTS) || 100000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
+          if (capacity('publicações', state.posts.length, Number(process.env.OPY_MAX_POSTS) || 500000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
+          postBudget(state, me);
           const note = text(body.text || '', 1000, false);
           const source = post.repostOf || {
             id: post.id, author: post.author, authorKey: authorKeyOf(post), createdAt: post.createdAt,

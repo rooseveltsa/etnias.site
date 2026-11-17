@@ -194,7 +194,7 @@ function bindLiveStudio(){
  if(!$('#compose-live'))return;
  all('[data-live-format]').forEach(b=>b.addEventListener('click',()=>{if(S.liveMode==='live')return;liveFormat=b.dataset.liveFormat;liveUi(S.liveMode);}));
  $('#live-start').addEventListener('click',async()=>{const status=$('#live-status'),b=$('#live-start');b.disabled=true;
-  try{if(S.liveMode==='idle'){S.cameraFacing='user';await startCamera($('#live-preview'),true);liveUi('preview');status.textContent=S.cameraStream.getAudioTracks().length?'Confira o enquadramento e toque em "Começar a transmitir".':'Sem microfone: a live sai sem som. Confira o enquadramento e toque em "Começar a transmitir".';return;}await goLive();}
+  try{if(S.liveMode==='idle'){S.cameraFacing='user';await startCamera($('#live-preview'),true);liveUi('preview');status.textContent=S.cameraStream.getAudioTracks().length?'Confira o enquadramento e toque em "Começar a transmitir". Atenção: a live é gravada e a gravação fica na sua publicação.':'Sem microfone: a live sai sem som. Confira o enquadramento e toque em "Começar a transmitir". Atenção: a live é gravada e a gravação fica na sua publicação.';return;}await goLive();}
   catch(error){status.textContent=error.message;if(!S.liveSession){stopCamera();liveUi('idle');}}finally{b.disabled=false;}});
  $('#live-flip').addEventListener('click',async()=>{if(S.liveSession)return flipCamera();S.cameraFacing=S.cameraFacing==='environment'?'user':'environment';try{await startCamera($('#live-preview'),true);}catch(error){$('#live-status').textContent=error.message;}});
  $('#live-cancel').addEventListener('click',()=>{stopCamera();liveUi('idle');$('#live-status').textContent='';});

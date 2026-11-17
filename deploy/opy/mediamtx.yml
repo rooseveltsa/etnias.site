@@ -13,7 +13,8 @@ moq: no
 webrtc: yes
 webrtcAddress: :8889
 webrtcEncryption: no
-webrtcAllowOrigins: ['*']
+# S-14: só o próprio site (a sinalização já passa pelo app; o navegador não fala direto com o MediaMTX).
+webrtcAllowOrigins: ['https://etnias.site', 'https://opy.179-66-136-125.sslip.io']
 webrtcLocalUDPAddress: :8189
 webrtcLocalTCPAddress: :8189
 webrtcIPsFromInterfaces: no

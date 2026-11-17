@@ -1386,7 +1386,7 @@ function handleHashActions(){
  // Termo preservado: a página de resultados é estática, então o campo recebe o termo pelo endereço.
  const fromUrl=new URLSearchParams(location.search).get('query');if(fromUrl&&!input.value){input.value=fromUrl.slice(0,200);const c=$('.opy-search-clear');if(c)c.hidden=false;}
  input.setAttribute('role','combobox');input.setAttribute('aria-expanded','false');
- input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(suggest,220);});
+ input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(suggest,300);});
  input.addEventListener('focus',()=>{if(input.value.trim().length>=2)suggest();});
  input.addEventListener('keydown',e=>{
   if(box.hidden)return;const list=options();const cur=list.findIndex(a=>a.getAttribute('aria-selected')==='true');

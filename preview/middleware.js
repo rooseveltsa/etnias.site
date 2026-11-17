@@ -12,7 +12,10 @@ function isPublic(pathname) {
     || pathname === '/assets' || pathname.startsWith('/assets/')
     || pathname === '/api' || pathname.startsWith('/api/')
     || pathname === '/manifest.webmanifest' || pathname === '/sw.js'
-    || pathname === '/robots.txt' || pathname === '/sitemap.xml';
+    || pathname === '/robots.txt' || pathname === '/sitemap.xml'
+    || pathname === '/.well-known/security.txt'
+    || pathname === '/privacidade' || pathname.startsWith('/privacidade/') || pathname === '/termos' || pathname.startsWith('/termos/')
+    || pathname === '/offline' || pathname.startsWith('/offline/');
 }
 
 function safeNext(pathname, search) {

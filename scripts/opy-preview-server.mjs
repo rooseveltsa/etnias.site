@@ -2,7 +2,7 @@ import http from 'node:http';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
-import { resolve, join, extname, sep } from 'node:path';
+import { resolve, join, extname, sep, basename } from 'node:path';
 import handler, { MAX_BODY_CHARS } from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
@@ -89,6 +89,8 @@ const security = {
   'X-Robots-Tag': 'noindex, nofollow',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Resource-Policy': 'same-site',
   'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(self)',
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob: https://i.ytimg.com; media-src 'self' blob: data:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'"
 };
@@ -102,6 +104,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `${proto}://${req.headers.host || '127.0.0.1'}`);
   const pathname = url.pathname;
   const path = pathname.replace(/\/$/, '') || '/';
+  if (path === '/.well-known/security.txt') {
+    const expires = new Date(Date.now() + 300 * 864e5).toISOString().replace(/\.\d+Z$/, 'Z');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.end(`Contact: ${process.env.OPY_SECURITY_CONTACT || 'https://etnias.site/privacidade/#contato'}\nExpires: ${expires}\nPreferred-Languages: pt, en\nCanonical: https://etnias.site/.well-known/security.txt\n`);
+  }
   if (path === '/api/health') { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); return res.end('{"ok":true}'); }
   if (pathname.startsWith('/legado/')) return await serveLegacy(req, res, pathname);
   compressText(req, res);
@@ -134,7 +141,7 @@ const server = http.createServer(async (req, res) => {
   if (!file.startsWith(root + sep) || !types[extname(file)]) { res.writeHead(404); return res.end(); }
   // Assets com versão na URL (?v=) nunca mudam: o navegador guarda por um ano e as páginas seguintes não baixam 1,8 MB de novo.
   // Páginas HTML são revalidadas a cada visita; o resto fica uma hora.
-  const cache = url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : extname(file) === '.html' ? 'no-cache' : 'public, max-age=3600';
+  const cache = basename(file) === 'sw.js' ? 'no-cache' : url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : extname(file) === '.html' ? 'no-cache' : 'public, max-age=3600';
   try { res.setHeader('Content-Type', types[extname(file)]); res.setHeader('Cache-Control', cache); res.end(await readFile(file)); } catch { res.writeHead(404); res.end(); }
  } catch (error) { console.error(`ERRO 400 ${req.method} ${String(req.url).split('?')[0]}: ${error.message}`); if (!res.headersSent) res.writeHead(400); res.end('Requisição inválida.'); }
 });

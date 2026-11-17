@@ -77,3 +77,25 @@ test('senha provisória: expira em 48 h e bloqueia tudo, no servidor, até ser t
     assert.equal((await s.api({ action: 'publish', text: 'oi', audience: 'public' }, { cookie: entrada.cookie })).status, 200);
   } finally { await s.stop(); }
 });
+
+test('limites por pessoa: publicações por dia e buscas por minuto (sem teto global de 100 stories)', async () => {
+  const s = await startServer({ env: { OPY_MAX_POSTS_PER_USER_DAY: '2' } });
+  try {
+    const a = await s.api(reg('carla'));
+    for (let i = 0; i < 2; i++) assert.equal((await s.api({ action: 'publish', text: 'oi ' + i, audience: 'public' }, { cookie: a.cookie })).status, 200);
+    const terceira = await s.api({ action: 'publish', text: 'oi 3', audience: 'public' }, { cookie: a.cookie });
+    assert.equal(terceira.status, 429); assert.match(terceira.data.error || JSON.stringify(terceira.data), /24 horas/);
+    let ultimo = 200;
+    for (let i = 0; i < 45 && ultimo !== 429; i++) ultimo = (await fetch(s.base + '/api/community?view=search&q=carla', { headers: { cookie: a.cookie } })).status;
+    assert.equal(ultimo, 429, 'busca limitada a 40 por minuto por pessoa');
+  } finally { await s.stop(); }
+});
+
+test('cabeçalhos: sw.js sem cache, security.txt público, COOP', async () => {
+  const s = await startServer();
+  try {
+    const sw = await fetch(s.base + '/sw.js'); assert.equal(sw.headers.get('cache-control'), 'no-cache');
+    const sec = await fetch(s.base + '/.well-known/security.txt', { redirect: 'manual' }); assert.equal(sec.status, 200); assert.match(await sec.text(), /^Contact: /);
+    assert.equal(sw.headers.get('cross-origin-opener-policy'), 'same-origin');
+  } finally { await s.stop(); }
+});
