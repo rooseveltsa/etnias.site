@@ -2042,3 +2042,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable
 .welcome-consent input{width:1.35rem;height:1.35rem;min-height:0;flex:none;margin-top:.1rem}
 .welcome-consent a{text-decoration:underline}
 #forgot-password,#recover-back{margin-top:.5rem}
+
+/* U-13: borda desvanecida mostra que a fileira de chips rola para o lado (some ao chegar no fim) */
+.feed-chip-row{--fade-l:0px;--fade-r:28px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent)}
+.feed-chip-row[data-at-start="0"]{--fade-l:28px}
+.feed-chip-row[data-at-end="1"]{--fade-r:0px}

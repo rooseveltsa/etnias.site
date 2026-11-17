@@ -355,7 +355,9 @@ window.addEventListener('offline',()=>status('Sem conexão. Escreva e tente envi
 window.addEventListener('online',refresh);
 window.addEventListener('opy:call-ended',()=>refresh());
 // shortcut: polling com a tela visível serve à homologação; migrar para eventos (SSE na VPS) antes de ampliar o público.
-setInterval(()=>{if(!document.hidden&&!$('#chat-dialog').open&&!$('#chat-sheet').open)refresh();},4000);
+// U-10: consulta periódica com freio: pausa em segundo plano e espaça as consultas quando a pessoa está parada (4x depois de 5 min; dobra no modo economia de dados).
+const opyEvery=(fn,ms)=>{let act=Date.now(),n=0;['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,()=>{act=Date.now();},{passive:true}));return setInterval(()=>{if(document.hidden)return;const idle=Date.now()-act,every=(idle<60000?1:idle<300000?2:4)*(document.documentElement.dataset.saver==='on'?2:1);if(++n%every===0||every===1)fn();},ms);};
+opyEvery(()=>{if(!$('#chat-dialog').open&&!$('#chat-sheet').open)refresh();},4000);
 // Mensagem sugerida por outra tela (ex.: "Tenho interesse" no Mercado): só preenche o campo; quem envia é a pessoa.
 try{const d=JSON.parse(sessionStorage.getItem('opy_chat_draft')||'null');sessionStorage.removeItem('opy_chat_draft');if(d&&d.key===key&&typeof d.text==='string'){$('#chat-text').value=d.text.slice(0,1000);grow();}}catch{}
 refresh();

@@ -191,3 +191,13 @@ function tuneLandmarks(){
 function init(){tuneComposer();tuneLandmarks();tuneChips();addFab();addGeoButton();addSavedLink();addRecorder();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
+
+// U-13: indica quando a fileira de chips ainda tem o que rolar (bordas desvanecidas, ver preview.css).
+(()=>{
+ const update=row=>{const max=row.scrollWidth-row.clientWidth;row.dataset.atStart=row.scrollLeft>4?'0':'1';row.dataset.atEnd=max<=4||row.scrollLeft>=max-4?'1':'0';};
+ const scan=()=>document.querySelectorAll('.feed-chip-row').forEach(update);
+ document.addEventListener('scroll',e=>{if(e.target.classList?.contains('feed-chip-row'))update(e.target);},true);
+ window.addEventListener('resize',scan,{passive:true});
+ const start=()=>{new MutationObserver(()=>requestAnimationFrame(scan)).observe(document.body,{childList:true,subtree:true});scan();};
+ document.body?start():document.addEventListener('DOMContentLoaded',start);
+})();

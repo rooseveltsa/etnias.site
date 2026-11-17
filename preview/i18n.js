@@ -6,7 +6,10 @@
   const ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
   const read = k => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
   const write = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
-  const guess = () => { const n = (navigator.language || '').toLowerCase(); return REFERENCE.find(c => n.startsWith(c)) || BASE; };
+  // Quem está no Brasil começa em português mesmo com o navegador em inglês (muito comum em celulares configurados de fábrica).
+  const BR_ZONES = /^America\/(Sao_Paulo|Manaus|Belem|Fortaleza|Recife|Bahia|Cuiaba|Campo_Grande|Porto_Velho|Boa_Vista|Rio_Branco|Araguaina|Maceio|Noronha|Santarem|Eirunepe)$/;
+  const inBrazil = () => { try { return BR_ZONES.test(Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch { return false; } };
+  const guess = () => { if (inBrazil()) return BASE; const n = (navigator.language || '').toLowerCase(); return REFERENCE.find(c => n.startsWith(c)) || BASE; };
   let locale = read(STORE) || guess();
   let dict = {}, patterns = [], ready = false;
   let languages = [{ code: BASE, name: 'Português' }, { code: 'en', name: 'English' }, { code: 'es', name: 'Español' }];

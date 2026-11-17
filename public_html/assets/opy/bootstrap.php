@@ -166,6 +166,8 @@ function Etnias_OpyNavigation() {
     $items = Etnias_OpyItems();
     foreach ($items as $id => $item) {
         if (in_array($id, array('etnia', 'doar'), true)) { continue; }
+        // U-08: itens "Em breve" não ocupam espaço no menu; voltam sozinhos quando saem de opy_soon.
+        if (!empty($item['state']) && $item['state'] === 'Em breve' && $item['url'] === '') { continue; }
         echo Etnias_OpyItem($id, $item);
     }
     echo '<div class="opy-support">' . Etnias_OpyItem('doar', $items['doar']) . '</div>';

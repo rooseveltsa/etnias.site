@@ -10,5 +10,8 @@
     document.documentElement.dataset.text = localStorage.getItem('opy-text') === 'large' ? 'large' : 'normal';
     document.documentElement.dataset.nav = localStorage.getItem('opy-nav') === 'icons' ? 'icons' : 'labels';
     document.documentElement.dataset.motion = localStorage.getItem('opy-motion') === 'reduce' ? 'reduce' : 'auto';
+    // Economia de dados: escolha da pessoa ('on'/'off') ou, sem escolha, o pedido do próprio navegador (Save-Data).
+    var saver = localStorage.getItem('opy-saver');
+    document.documentElement.dataset.saver = saver === 'on' || (saver !== 'off' && navigator.connection && navigator.connection.saveData) ? 'on' : 'off';
   } catch (e) { document.documentElement.dataset.theme = 'light'; }
 })();

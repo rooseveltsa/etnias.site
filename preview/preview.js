@@ -237,7 +237,7 @@ function mediaBlock(item,urls){
 }
 let nearObserver=null;let videoObserver=null;
 function autoplayWhenVisible(video){
- if(!('IntersectionObserver' in window)||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ if(!('IntersectionObserver' in window)||matchMedia('(prefers-reduced-motion: reduce)').matches||document.documentElement.dataset.saver==='on')return;
  videoObserver||=new IntersectionObserver(entries=>{for(const e of entries){const v=e.target;if(e.intersectionRatio>=0.6){if(v.paused&&!v.dataset.userPaused)v.play().catch(()=>{});}else if(!v.paused){v.dataset.autoPaused='1';v.pause();}}},{threshold:[0,0.6]});
  videoObserver.observe(video);
  // Perto da tela, carrega só os metadados (tamanho e duração): o quadro ganha a altura certa antes de aparecer, sem baixar o vídeo inteiro.
@@ -249,7 +249,7 @@ function autoplayWhenVisible(video){
 // MOMENTOS: no feed o vídeo aparece como capa com botão de tocar e só carrega quando a pessoa toca (economiza dados). Quem escolhe
 // "tocar automaticamente" nas configurações da conta (ou a gravação de uma live) mantém o player direto no cartão.
 function videoBlock(item){
- if(!item.live&&state.me?.videoAutoplay!=='on'&&window.OpyVideos?.openClip){
+ if(!item.live&&(state.me?.videoAutoplay!=='on'||document.documentElement.dataset.saver==='on')&&window.OpyVideos?.openClip){
   const box=make('div',undefined,'post-media post-media-video post-media-momentos');box.dataset.count='1';
   const b=make('button',undefined,'momentos-play');b.type='button';b.setAttribute('aria-label','Assistir ao vídeo de '+item.author+' em tela cheia');
   if(item.media.poster){const img=make('img');img.src=item.media.poster;img.alt='';img.loading='lazy';img.decoding='async';b.append(img);}
@@ -689,7 +689,7 @@ let settingsData=null,settingsLoading=false;
 function prefGet(k,d){try{return localStorage.getItem(k)||d;}catch{return d;}}
 // Barra inferior: cada botão tem nome acessível e dica (title) mesmo quando só o ícone aparece (Configurações > Aparência).
 function labelBottomBar(){for(const a of all('.opy-bottom .opy-nav-item')){const label=(a.getAttribute('aria-label')||a.querySelector('span')?.textContent||'').trim();if(!label)continue;if(!a.hasAttribute('aria-label'))a.setAttribute('aria-label',label);a.title=label;}}
-function applyA11y(){const r=document.documentElement;r.dataset.nav=prefGet('opy-nav','labels')==='icons'?'icons':'labels';labelBottomBar();r.dataset.text=prefGet('opy-text','normal');r.dataset.motion=prefGet('opy-motion','auto');}
+function applyA11y(){const r=document.documentElement;r.dataset.nav=prefGet('opy-nav','labels')==='icons'?'icons':'labels';labelBottomBar();r.dataset.text=prefGet('opy-text','normal');r.dataset.motion=prefGet('opy-motion','auto');{const v=prefGet('opy-saver','');r.dataset.saver=v==='on'||(v!=='off'&&navigator.connection?.saveData)?'on':'off';}}
 let plansData=null;
 async function loadSettings(){settingsLoading=true;try{const [a,p]=await Promise.all([apiGet({view:'account'}),apiGet({view:'plans'})]);settingsData=a;plansData=p;}catch(e){showError(e.message);}finally{settingsLoading=false;renderSettings();}}
 async function accountChange(body,ok){try{const next=await change(body);if(next?.account)settingsData=next.account;if(next?.plans)plansData=next.plans;if(!next?.account&&!next?.plans)await loadSettings();if(ok)toast(ok);renderSettings();}catch(e){showError(e.message);}}
@@ -840,6 +840,8 @@ function renderSettings(){
  look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
  const vids=card('Vídeos (MOMENTOS)','Salvo na sua conta, vale em qualquer aparelho.');
  vids.append(radioGroup('set-autoplay','Vídeos no feed',[['off','Tocar só quando eu tocar (gasta menos dados)'],['on','Tocar automaticamente, sem som']],state.me.videoAutoplay==='on'?'on':'off',v=>{change({action:'video_prefs',autoplay:v}).then(()=>toast('Preferência de vídeos salva.')).catch(e=>showError(e.message));}));
+ const saver=card('Economia de dados','Preferência deste aparelho. Ajuda quando a internet é lenta ou o pacote de dados é pequeno.');
+ saver.append(radioGroup('set-saver','Modo economia de dados',[['off','Normal'],['on','Economia de dados','Vídeos só carregam quando você toca, sem reprodução automática, e o Etnias consulta novidades com menos frequência.']],document.documentElement.dataset.saver==='on'?'on':'off',v=>{try{localStorage.setItem('opy-saver',v);}catch{}applyA11y();toast(v==='on'?'Economia de dados ligada.':'Economia de dados desligada.');}));
  const a11y=card('Acessibilidade','Preferências deste aparelho.');
  a11y.append(radioGroup('set-text','Tamanho do texto',[['normal','Normal'],['large','Grande']],prefGet('opy-text','normal'),v=>{try{localStorage.setItem('opy-text',v);}catch{}applyA11y();}));
  a11y.append(radioGroup('set-motion','Animações',[['auto','Seguir o aparelho'],['reduce','Reduzir movimento']],prefGet('opy-motion','auto'),v=>{try{localStorage.setItem('opy-motion',v);}catch{}applyA11y();}));
@@ -1788,7 +1790,7 @@ function openPasswordDialog(forced){
  form.onsubmit=async e=>{e.preventDefault();if(next.value!==again.value){err.textContent='As senhas não são iguais.';err.hidden=false;return;}ok.disabled=true;try{await api({action:'password_change',current:current.value,next:next.value});if(state?.me)state.me.mustChangePassword=false;dlg.close();toast('Senha atualizada.');}catch(x){err.textContent=x.message;err.hidden=false;ok.disabled=false;}};
  dlg.addEventListener('close',()=>dlg.remove());dlg.showModal();
 }
-function bindWelcome(){const login=$('#welcome-login'),register=$('#welcome-register');const tabs=[$('#tab-login'),$('#tab-register')];function show(which){login.hidden=which!=='login';register.hidden=which!=='register';tabs[0].setAttribute('aria-selected',String(which==='login'));tabs[1].setAttribute('aria-selected',String(which==='register'));$('#welcome-error').hidden=true;}
+function bindWelcome(){try{navigator.serviceWorker?.controller?.postMessage('clear-private');}catch{}const login=$('#welcome-login'),register=$('#welcome-register');const tabs=[$('#tab-login'),$('#tab-register')];function show(which){login.hidden=which!=='login';register.hidden=which!=='register';tabs[0].setAttribute('aria-selected',String(which==='login'));tabs[1].setAttribute('aria-selected',String(which==='register'));$('#welcome-error').hidden=true;}
  tabs[0].onclick=()=>show('login');tabs[1].onclick=()=>show('register');
  try{const left=sessionStorage.getItem('opy-left');if(left){sessionStorage.removeItem('opy-left');toast(left);}}catch{}
  const presetUser=new URLSearchParams(location.search).get('user');if(presetUser&&$('#login-username')){$('#login-username').value=presetUser.slice(0,80);show('login');setTimeout(()=>$('#login-password')?.focus(),50);}

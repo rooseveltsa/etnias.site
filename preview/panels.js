@@ -2,6 +2,8 @@
    Usa window.OpyShared (preview.js). Ctrl/⌘-clique ou botão do meio ainda abre a página inteira. */
 (function(){
 'use strict';
+// U-10: consulta periódica com freio: pausa em segundo plano e espaça as consultas quando a pessoa está parada (4x depois de 5 min; dobra no modo economia de dados).
+const opyEvery=(fn,ms)=>{let act=Date.now(),n=0;['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,()=>{act=Date.now();},{passive:true}));return setInterval(()=>{if(document.hidden)return;const idle=Date.now()-act,every=(idle<60000?1:idle<300000?2:4)*(document.documentElement.dataset.saver==='on'?2:1);if(++n%every===0||every===1)fn();},ms);};
 const S=()=>window.OpyShared;
 const $=(s,r=document)=>r.querySelector(s),all=(s,r=document)=>[...r.querySelectorAll(s)];
 const mk=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -75,7 +77,7 @@ function chatPanel(body,ctx){
     if(!openKey&&sig!==lastSig){lastSig=sig;body.replaceChildren(ul);}else if(!openKey&&!body.firstChild)body.replaceChildren(ul);
    }catch(e){if(!openKey)body.replaceChildren(errorBox(e.message,list));}
   };
-  load();timer=setInterval(()=>{if(!openKey)load();},15000);
+  load();timer=opyEvery(()=>{if(!openKey)load();},15000);
  };
  const thread=c=>{
   clearInterval(timer);openKey=c.key;ctx.title.textContent=c.name;
@@ -106,7 +108,7 @@ function chatPanel(body,ctx){
     const last=server[server.length-1];if(last&&!last.own&&d.selected&&c.unread!==0){c.unread=0;postJson({action:'chat_read',key:c.key,messageId:last.id,chatView:true,viewKey:c.key}).catch(()=>{});}
    }catch(e){status.textContent=e.message;}
   };
-  load();timer=setInterval(load,5000);
+  load();timer=opyEvery(load,5000);
   form.addEventListener('submit',async e=>{
    e.preventDefault();const text=input.value.trim();if(!text||send.disabled)return;
    const clientId=crypto.randomUUID();const temp={id:'tmp-'+clientId,own:true,text,pending:true,at:Date.now()};
