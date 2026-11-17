@@ -1972,3 +1972,4 @@ a.opy-notif:hover{background:var(--color-surface-muted,#f2e9dc)}
 .set-username-hint{min-height:22px;margin:6px 0 0;font-size:14px}
 .set-username-hint[data-state=ok]{color:#1d6b3a}.set-username-hint[data-state=bad]{color:#a3261b}
 .compose-geo{margin-top:8px;min-height:44px}.compose-geo-note{margin:4px 0 0;font-size:13px;color:var(--color-text-secondary)}
+#video-status.is-error{color:#a3261b;font-weight:600}
