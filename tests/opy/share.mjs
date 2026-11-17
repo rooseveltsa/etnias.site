@@ -15,7 +15,7 @@ test('compartilhamento: só publicação pública vira prévia', () => {
 });
 test('compartilhamento: perfil só para amigos, conta suspensa e comunidade privada não vazam', () => {
   assert.equal(publicPost(state([post('post-1')], [acc('a1', { privacy: { profile: 'friends' } })]), 'post-1'), null);
-  assert.equal(publicPost(state([post('post-1')], [acc('a1', { suspended: { until: Date.now() + 1e6, reason: 'x' } })]), 'post-1'), null);
+  assert.equal(publicPost(state([post('post-1')], [acc('a1', { suspension: { until: Date.now() + 1e6, reason: 'x' } })]), 'post-1'), null);
   assert.equal(publicPost(state([post('post-1', { communityId: 'c1' })], [acc('a1')], [{ id: 'c1', visibility: 'private' }]), 'post-1'), null);
   assert.ok(publicPost(state([post('post-1', { communityId: 'c1' })], [acc('a1')], [{ id: 'c1', visibility: 'public' }]), 'post-1'));
 });
