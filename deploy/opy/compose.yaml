@@ -6,6 +6,14 @@ services:
       dockerfile: deploy/opy/Dockerfile
     image: casa-opy:local
     restart: unless-stopped
+    # S-18: limites e o mínimo de privilégios. O app só escreve em /data (volume) e em /tmp (memória).
+    mem_limit: 3g
+    cpus: 2.0
+    pids_limit: 512
+    read_only: true
+    tmpfs: ["/tmp:size=512m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     ports:
       # Só o proxy HTTPS do host acessa. Câmera e microfone exigem HTTPS no navegador.
       - "127.0.0.1:${OPY_HTTP_PORT:-8101}:8101"
@@ -32,8 +40,11 @@ services:
       - live-recordings:/recordings:ro
   live:
     # Servidor de vídeo ao vivo (WebRTC). Só a porta de mídia é pública; a sinalização entra pelo app. Config: mediamtx.yml.
-    image: bluenviron/mediamtx:1.21.3
+    image: bluenviron/mediamtx:1.21.3@sha256:59e43552f3be43695b70c19424dc2a42fcec18075f88d91561a24ac5d70a586c
     restart: unless-stopped
+    mem_limit: 1g
+    pids_limit: 512
+    security_opt: ["no-new-privileges:true"]
     ports:
       - "8189:8189/udp"
       - "8189:8189/tcp"
@@ -44,13 +55,21 @@ services:
       - live-recordings:/recordings
   turn:
     # TURN/STUN próprio para as chamadas atravessarem redes móveis (CGNAT). Rede do host: o TURN precisa do IP público e da faixa UDP.
-    image: coturn/coturn:4.6
+    image: coturn/coturn:4.6@sha256:71c3c990283385567f11794ee692e3a47b66fd9b0bb39e42afbe776e331dd888
     restart: unless-stopped
     network_mode: host
+    mem_limit: 512m
+    pids_limit: 512
+    security_opt: ["no-new-privileges:true"]
+    # S-19: o segredo não aparece na linha de comando do processo (ps / docker inspect Args): é gravado num arquivo temporário (600) dentro do container.
+    environment:
+      TURN_SECRET: ${OPY_TURN_SECRET:?Configure deploy/opy/.env}
+      TURN_PUBLIC_IP: ${OPY_PUBLIC_IP:?Configure deploy/opy/.env}
+      TURN_REALM: ${OPY_TURN_REALM:?Configure deploy/opy/.env}
     volumes:
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
       - ${OPY_TURN_CERT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
-    command: ["-c", "/etc/coturn/turnserver.conf", "--static-auth-secret=${OPY_TURN_SECRET:?Configure deploy/opy/.env}", "--external-ip=${OPY_PUBLIC_IP:?Configure deploy/opy/.env}", "--realm=${OPY_TURN_REALM:?Configure deploy/opy/.env}"]
+    command: ["sh", "-c", "umask 077; { cat /etc/coturn/turnserver.conf; echo \"static-auth-secret=$$TURN_SECRET\"; echo \"external-ip=$$TURN_PUBLIC_IP\"; echo \"realm=$$TURN_REALM\"; } > /tmp/turn.conf && exec turnserver -c /tmp/turn.conf"]
 volumes:
   opy-data:
   live-recordings:

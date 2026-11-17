@@ -1,0 +1,13 @@
+# S-26: avisos semanais de atualização de dependências (npm do app, imagens do Docker e ações do GitHub).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /preview
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /deploy/opy
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

@@ -1,0 +1,21 @@
+# S-26: testes automáticos e auditoria de dependências a cada envio. A auditoria só avisa (não bloqueia) para não travar por
+# vulnerabilidades sem correção publicada.
+name: testes
+on:
+  push:
+    branches: ['**']
+  pull_request:
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --omit=dev --ignore-scripts
+        working-directory: preview
+      - run: ln -s ../preview/node_modules tests/node_modules
+      - run: node --test tests/opy/*.mjs
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: preview
+        continue-on-error: true
