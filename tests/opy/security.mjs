@@ -112,3 +112,22 @@ test('descrição da imagem (alt) é guardada, limitada a 300 caracteres e não 
     assert.equal(b.data.posts.find(p => p.text === 'só texto').alt, '');
   } finally { await s.stop(); }
 });
+
+test('silenciar some do feed geral, mas o perfil e a busca continuam mostrando', async () => {
+  const s = await startServer();
+  try {
+    const a = await s.api({ action: 'register', acceptTerms: true, username: 'ana1', name: 'Ana', password: 'Senha-de-teste-2026', contact: 'a1@exemplo.com' });
+    const b = await s.api({ action: 'register', acceptTerms: true, username: 'beto1', name: 'Beto', password: 'Senha-de-teste-2026', contact: 'b1@exemplo.com' });
+    await s.api({ action: 'publish', text: 'post do beto', audience: 'public' }, { cookie: b.cookie });
+    const bKey = 'id:' + b.data.me.id;
+    const feed = async (qs = '') => (await s.get('/api/community?view=posts&limit=50' + qs, { cookie: a.cookie })).data.posts.map(p => p.text);
+    assert.ok((await feed()).includes('post do beto'));
+    const m = await s.api({ action: 'mute_set', key: bKey, muted: true }, { cookie: a.cookie });
+    assert.equal(m.status, 200); assert.deepEqual(m.data.me.muted, [bKey]);
+    assert.ok(!(await feed()).includes('post do beto'));
+    assert.ok((await feed('&author=' + encodeURIComponent(bKey))).includes('post do beto'));
+    assert.equal((await s.api({ action: 'mute_set', key: 'id:' + a.data.me.id, muted: true }, { cookie: a.cookie })).status, 400);
+    await s.api({ action: 'mute_set', key: bKey, muted: false }, { cookie: a.cookie });
+    assert.ok((await feed()).includes('post do beto'));
+  } finally { await s.stop(); }
+});

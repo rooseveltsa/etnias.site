@@ -23,8 +23,9 @@ export async function startServer({ env = {}, seed } = {}) {
     const text = await r.text(); let data; try { data = JSON.parse(text); } catch { data = text; }
     return { status: r.status, data, cookie: (r.headers.get('set-cookie') || '').split(';')[0] };
   };
+  const get = async (path, { cookie = '' } = {}) => { const r = await fetch(base + path, { headers: { ...(cookie ? { cookie } : {}) } }); const text = await r.text(); let data; try { data = JSON.parse(text); } catch { data = text; } return { status: r.status, data }; };
   return {
-    base, dir, api, logs: () => logs,
+    base, dir, api, get, logs: () => logs,
     file: async () => readFile(join(dir, 'community.json'), 'utf8').catch(() => ''),
     stop: async () => { child.kill('SIGKILL'); await rm(dir, { recursive: true, force: true }); }
   };

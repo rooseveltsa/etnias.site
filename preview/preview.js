@@ -82,7 +82,7 @@ async function change(body){const next=await api(body);feedGen++;const touched=n
  else if(body.action==='delete'||body.action==='community_moderate_post'){dropPost(body.postId);if(feed.pinned?.id===body.postId)feed.pinned=null;}
  if(['friend','follow','community_accept_invite','community_decline_invite','community_approve','community_reject'].includes(body.action))notifData.loaded=false;
  // Só a publicação própria volta ao topo do feed; excluir e repostar já atualizam o que está carregado (sem perder a paginação).
- if(body.action==='publish'){feed.key='';profileData.key='';communityPosts.id='';}
+ if(body.action==='publish'||body.action==='mute_set'){feed.key='';profileData.key='';communityPosts.id='';}
  if(body.action==='follow'){const d=(state.directory||[]).find(p=>p.key===body.authorKey);const person=profileData.key===body.authorKey?profileData.person:null;
   // A pessoa pode não estar no diretório (top 20): sem ela, a resposta do servidor é o inverso do estado anterior.
   const following=d?d.following:person?!person.following:undefined;
@@ -835,6 +835,8 @@ function renderSettings(){
  fing.append(peopleList(d.following,'Você ainda não segue ninguém.','Deixar de seguir',p=>accountChange({action:'follow',authorKey:p.key},'Você deixou de seguir '+p.name+'.')));
  const blk=card('Pessoas bloqueadas','Quem está bloqueado não vê seu perfil nem suas publicações, não manda mensagem e não pede amizade. A pessoa não é avisada.');
  blk.append(peopleList(d.blocked,'Você não bloqueou ninguém.','Desbloquear',p=>accountChange({action:'block_set',key:p.key,blocked:false},p.name+' foi desbloqueado(a).')));
+ const mut=card('Pessoas silenciadas','Quem você silenciou some do seu feed, mas continua podendo ver seu perfil e falar com você. A pessoa não é avisada.');
+ mut.append(peopleList(d.muted||[],'Você não silenciou ninguém.','Reativar',p=>accountChange({action:'mute_set',key:p.key,muted:false},p.name+' voltou ao seu feed.')));
  const look=card('Aparência','Preferência deste aparelho.','aparencia');
  look.append(radioGroup('set-nav','Barra inferior (celular)',[['labels','Ícones com nome'],['icons','Só ícones']],prefGet('opy-nav','labels'),v=>{try{localStorage.setItem('opy-nav',v);}catch{}applyA11y();}));
  look.append(radioGroup('set-theme','Tema',[['light','Dia'],['dark','Noite']],document.documentElement.dataset.theme==='dark'?'dark':'light',v=>applyTheme(v)));
@@ -945,7 +947,7 @@ function renderProfile(){
   row('Nome',person.name);row('Usuário',person.username?'@'+person.username:'');row('Pertencimento',person.belonging==='indigena'?'Indígena'+(person.povo?' · '+person.povo:''):person.belonging==='nao_indigena'?'Não indígena':'');row('Pronomes',person.pronouns);row('Povo, território ou organização',person.affiliation);row('Apresentação',person.bio);
   row('Na rede desde',person.joinedAt?new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(new Date(person.joinedAt)):'');
   row('Amizades',person.friendsCount?String(person.friendsCount):'');
-  c.append(dl);if(blockPerson){const bl=button('Bloquear',blockPerson,c);bl.className='preview-secondary pf-block';}main.append(c);
+  c.append(dl);if(!own&&key.startsWith('id:')){const isMuted=(state.me.muted||[]).includes(key);const mu=button(isMuted?'Reativar no feed':'Silenciar',async()=>{try{await change({action:'mute_set',key,muted:!isMuted});toast(isMuted?person.name+' voltou ao seu feed.':person.name+' foi silenciado(a). Some do feed, sem avisar.');renderProfile();}catch(e){showError(e.message);}},c);mu.className='preview-secondary pf-block';}if(blockPerson){const bl=button('Bloquear',blockPerson,c);bl.className='preview-secondary pf-block';}main.append(c);
  }else if(profileTab==='photos'){
   const c=make('section',undefined,'pf-card');const head=make('div',undefined,'pf-card-head');head.append(make('h2','Fotos'));
   if(own){const lab=make('label','Adicionar foto','preview-secondary pf-file');const inp=make('input');inp.type='file';inp.accept='image/jpeg,image/png,image/webp,image/gif';inp.hidden=true;inp.onchange=()=>addProfilePhoto(inp);lab.append(inp);head.append(lab);}

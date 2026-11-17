@@ -6,7 +6,7 @@ import { exportAccountData, recordConsent, DELETION_GRACE_DAYS as GRACE } from '
 import { tooMany, note } from './throttle.mjs';
 import { providerConfigured, contactOf, issueCode, checkCode } from './recovery.mjs';
 
-export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update', 'contact_verify_request', 'contact_verify_confirm'];
+export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'mute_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update', 'contact_verify_request', 'contact_verify_confirm'];
 export const DELETION_GRACE_DAYS = GRACE;
 const DAY = 864e5;
 const keyOf = id => `id:${id}`;
@@ -78,6 +78,7 @@ export function accountView(state, account, currentSessionId, now = Date.now()) 
     followers,
     following: (state.follows?.[account.id] || []).map(card).filter(Boolean),
     blocked: (state.chatBlocks?.[key] || []).map(card).filter(Boolean),
+    muted: (state.mutes?.[key] || []).map(card).filter(Boolean),
     verified: !!account.verified,
     // Contato de recuperação (mascarado) e se o envio de códigos está ligado neste servidor.
     contact: (() => { const c = contactOf(account); return c ? { channel: c.channel, masked: maskContact(c), verified: !!(account.contactVerified || account.legacyId != null) } : null; })(),
@@ -129,6 +130,18 @@ export function accountAction(state, account, body, currentSessionId, now = Date
       const list = state.follows?.[who.slice(3)];
       if (!Array.isArray(list) || !list.includes(key)) fail(404, 'Esta pessoa não segue você.');
       state.follows[who.slice(3)] = list.filter(k => k !== key);
+      return {};
+    }
+    case 'mute_set': {
+      // Silenciar: some do feed geral, sem bloquear e sem avisar a pessoa. O perfil dela continua acessível.
+      const who = String(body.key || '');
+      if (!/^id:[a-f0-9-]{36}$/.test(who) || !(state.accounts || []).some(a => keyOf(a.id) === who)) fail(404, 'Pessoa não encontrada.');
+      if (who === key) fail(400, 'Escolha outra pessoa.');
+      if (typeof body.muted !== 'boolean') fail(400, 'Escolha silenciar ou reativar.');
+      state.mutes ||= {};
+      const set = new Set(state.mutes[key] || []);
+      if (body.muted) set.add(who); else set.delete(who);
+      state.mutes[key] = [...set].slice(-500);
       return {};
     }
     case 'block_set': {

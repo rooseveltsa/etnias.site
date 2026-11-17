@@ -271,7 +271,9 @@ function postsPage(state, me, params, ctx = feedContext(state, me)) {
   const limit = Math.min(50, Math.max(1, Number(params.get('limit')) || PAGE_SIZE));
   // Cursor por (createdAt, id): publicações do acervo têm precisão de segundos e podem empatar na data.
   const older = p => p.createdAt < before || (p.createdAt === before && beforeId && p.id < beforeId);
-  const list = state.posts.filter(p => older(p) && visible(p, me, state) && postMatches(p, params, me, ctx))
+  // Silenciadas saem do feed geral, mas aparecem quando a pessoa abre o perfil, o post, uma busca ou os salvos.
+  const muted = !params.get('author') && !params.get('id') && !params.get('q') && params.get('feed') !== 'saved' ? new Set(state.mutes?.[ctx.myKey] || []) : null;
+  const list = state.posts.filter(p => older(p) && visible(p, me, state) && !(muted?.size && muted.has(authorKeyOf(p))) && postMatches(p, params, me, ctx))
     .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
   return { posts: list.slice(0, limit).map(p => projectPost(p, me, state, ctx)), hasMore: list.length > limit };
 }
@@ -445,7 +447,7 @@ function snapshot(state, me) {
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
   if (pick?.inPage) { const inPage = posts.find(p => p.id === pick.post.id); if (inPage) inPage.sponsored = tag; }
-  return { me, reactionSet: reactionSet(state), reactionAll: reactionConfig(state).map(r => ({ id: r.id, label: r.label, ...(r.mediaId ? { mediaId: r.mediaId } : {}) })), usernameInfo: usernameInfo((state.accounts || []).find(a => a.id === me.id) || {}, state), i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me: { ...me, muted: state.mutes?.[myKey] || [] }, reactionSet: reactionSet(state), reactionAll: reactionConfig(state).map(r => ({ id: r.id, label: r.label, ...(r.mediaId ? { mediaId: r.mediaId } : {}) })), usernameInfo: usernameInfo((state.accounts || []).find(a => a.id === me.id) || {}, state), i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
