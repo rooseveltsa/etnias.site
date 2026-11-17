@@ -22,6 +22,7 @@ import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } fr
 import { areaView } from './areas.mjs';
 import { saberesActions, saberesAction, saberesView, saberMedia } from './saberes.mjs';
 import { marketActions, marketAction, marketMedia, MAX_MARKET_PHOTOS } from './mercado.mjs';
+import { extrasActions, extrasUploadActions, extrasAction, extrasPrepareUpload, extrasMedia, reactionConfig, reactionIds, reactionSet, reactionAllowed, usernameCheck, usernameCheckAllowed, usernameInfo, reverseGeocode, stickerCatalog, stickerById } from './extras.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction, syncCommunityChat } from './communities.mjs';
 
@@ -132,6 +133,7 @@ function feedContext(state, me) {
   return {
     myKey, communities,
     communityNames: new Map(communities.map(c => [c.id, c.name])),
+    reactionIds: reactionIds(state),
     followed: new Set(Array.isArray(state.follows?.[me.id]) ? state.follows[me.id] : []),
     friends: new Set(state.friends?.[myKey] || []),
     accountsById: new Map((state.accounts || []).map(a => [a.id, a]))
@@ -170,9 +172,9 @@ function projectPost(p, me, state, ctx) {
     audience: p.audience, feeling: p.feeling || '', own: p.authorId === me.id,
     shares: p.shares || 0,
     repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file), images: p.repostOf.photos?.length > 1 ? p.repostOf.photos.map(m => `/api/media?id=${m.id}`) : p.repostOf.images || [], photos: undefined } : null,
-    reactions: Object.fromEntries(reactions.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
+    reactions: Object.fromEntries(ctx.reactionIds.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
     reactedBy: reactorNames(p, me, ctx),
-    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, mentions: mentionKeys(c.mentions, ctx), createdAt: c.createdAt, editedAt: c.editedAt || 0,
+    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, sticker: c.sticker ? { id: c.sticker.id, name: c.sticker.name, url: `/api/media?id=${c.sticker.mediaId}` } : null, mentions: mentionKeys(c.mentions, ctx), createdAt: c.createdAt, editedAt: c.editedAt || 0,
       parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(ctx.myKey), own: c.authorKey === ctx.myKey })),
     editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
     poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
@@ -241,7 +243,7 @@ function personFor(state, me, ctx, key, counts) {
     if (access === 'none') return null;
     // Perfil só para amizades: quem não é amizade vê o cartão (nome, foto, apresentação) e o botão de pedir amizade.
     if (access === 'limited') return { ...base, postsCount: 0, name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: '', belonging: '', povo: '', avatar: personAvatar(acc), cover: '', joinedAt: 0, verified: !!acc.verified, own: false, locked: true };
-    return { ...base, online: onlineFor(state, ctx, acc, me), name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', pronouns: acc.pronouns || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
+    return { ...base, location: acc.location ? [acc.location.city, acc.location.uf].filter(Boolean).join(', ') : '', online: onlineFor(state, ctx, acc, me), name: acc.name, username: acc.username || '', bio: acc.bio || '', affiliation: acc.affiliation || '', pronouns: acc.pronouns || '', belonging: acc.belonging || '', povo: acc.povo || '', avatar: personAvatar(acc), cover: acc.coverUrl || profileUrl(acc.coverId), joinedAt: acc.createdAt || 0, verified: !!acc.verified, plan: planBadge(acc), own: acc.id === me.id, blockedByMe: (state.chatBlocks?.[ctx.myKey] || []).includes(key) };
   }
   // Pessoa do acervo sem conta: só o nome e a foto que vieram com a publicação.
   const post = state.posts.find(p => authorKeyOf(p) === key && visible(p, me, state));
@@ -260,7 +262,8 @@ function peopleFor(state, me, ctx, pagePosts, counts) {
   const followers = a => counts.followers.get(`id:${a.id}`) || 0;
   const featured = a => planOf(a).destaque;
   for (const a of state.accounts || []) if (featured(a) && !reasons.has(`id:${a.id}`)) reasons.set(`id:${a.id}`, 'Membro em destaque');
-  const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a) && !isInactive(state, a.id) && !isBlockedPair(state, ctx.myKey, `id:${a.id}`))
+  const dismissed = new Set(state.dismissedSuggestions?.[me.id] || []);
+  const suggestions = (state.accounts || []).filter(a => a.id !== me.id && !keys.has(`id:${a.id}`) && !dismissed.has(`id:${a.id}`) && (a.avatarUrl || a.avatarId) && !isSuspended(a) && !isInactive(state, a.id) && !isBlockedPair(state, ctx.myKey, `id:${a.id}`))
     .sort((a, b) => Number(featured(b)) - Number(featured(a)) || Number(reasons.has(`id:${b.id}`)) - Number(reasons.has(`id:${a.id}`)) || followers(b) - followers(a)).slice(0, 12);
   const suggested = new Map(suggestions.map(a => [`id:${a.id}`, reasons.get(`id:${a.id}`) || 'Popular na rede']));
   for (const key of suggested.keys()) keys.add(key);
@@ -372,7 +375,7 @@ function snapshot(state, me) {
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
   if (pick?.inPage) { const inPage = posts.find(p => p.id === pick.post.id); if (inPage) inPage.sponsored = tag; }
-  return { me, i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  return { me, reactionSet: reactionSet(state), usernameInfo: usernameInfo((state.accounts || []).find(a => a.id === me.id) || {}, state), i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -498,9 +501,13 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
-      if (['posts', 'search', 'profile', 'notifications', 'link'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
+      if (['posts', 'search', 'profile', 'notifications', 'link', 'username_check', 'geo', 'stickers', 'extras'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
         const view = path.searchParams.get('view');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        if (view === 'username_check') { if (!usernameCheckAllowed(me.id)) fail(429, 'Muitas verificações. Aguarde um minuto.'); const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ ...usernameCheck(state, acc, path.searchParams.get('u')), ...usernameInfo(acc, state) })); }
+        if (view === 'geo') return res.end(JSON.stringify(await reverseGeocode(me.id, path.searchParams.get('lat'), path.searchParams.get('lon'))));
+        if (view === 'stickers') return res.end(JSON.stringify(stickerCatalog(state, path.searchParams.get('all') === '1' && roleOf((state.accounts || []).find(a => a.id === me.id)) === 'admin')));
+        if (view === 'extras') { const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ usernameInfo: usernameInfo(acc, state), location: acc.location || null, reactions: roleOf(acc) === 'admin' ? reactionConfig(state) : undefined })); }
         if (view === 'link') return res.end(JSON.stringify({ preview: await linkPreview(me.id, path.searchParams.get('url')) }));
         if (view === 'notifications') return res.end(JSON.stringify({ items: notificationItems(state, me, feedContext(state, me)) }));
         return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? searchView(state, me, path.searchParams) : profileView(state, me, path.searchParams)));
@@ -517,11 +524,12 @@ export default async function handler(req, res) {
         const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id);
         // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
         const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
-        const named = profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id) || marketMedia(state, me, id));
+        const named = (extrasMedia(state, id)) || profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id) || marketMedia(state, me, id));
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
         if (named.kind === 'file') res.setHeader('Content-Disposition', `attachment; filename="${named.name.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
+        if (media.blob.contentType === 'image/svg+xml') res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'none'");
         return sendBuffer(req, res, media.buffer || Buffer.from(await new Response(media.stream).arrayBuffer()), media.blob.contentType, id);
       }
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -557,6 +565,7 @@ export default async function handler(req, res) {
           const accounts = accountsOf(state);
           if (accounts.length >= (Number(process.env.OPY_MAX_ACCOUNTS) || 20000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
           if (accounts.some(item => item.username === username)) fail(409, 'Esse usuário já existe. Entre ou escolha outro.');
+          if (!usernameCheck(state, null, username).ok) fail(409, 'Esse usuário não está disponível. Escolha outro.');
           const account = { id: accountId, username, name, password: hashPassword(password), googleKey, phone, createdAt: Date.now() };
           addSession(account, issued.session);
           accounts.push(account);
@@ -603,7 +612,7 @@ export default async function handler(req, res) {
     if (!signedIn) fail(401, 'Entre para ver o Etnias.');
     if (isSuspended(signedIn)) fail(403, suspensionMessage(signedIn));
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(plainText(body.text || ''), 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -634,6 +643,7 @@ export default async function handler(req, res) {
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
       if (fileUpload) await saveMedia(fileUpload.id, fileUpload.bytes, fileUpload.type);
     }
+    if (extrasUploadActions.includes(body.action)) upload = await extrasPrepareUpload(body, signedIn, { mediaInput, saveMedia });
     if (body.action === 'dm') {
       upload = mediaInput(body.media);
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
@@ -689,6 +699,7 @@ export default async function handler(req, res) {
       if (adminActions.includes(body.action)) { adminResult = adminAction(state, currentAccount, body); if (adminResult.removedIds) removedIds.push(...adminResult.removedIds); return; }
       if (i18nActions.includes(body.action)) { i18nAction(state, currentAccount, body); return; }
       if (pushActions.includes(body.action)) { pushAction(state, me, body); return; }
+      if (extrasActions.includes(body.action)) { const r = extrasAction(state, currentAccount, body, upload); if (r.removedIds) removedIds.push(...r.removedIds); activeMe = member(currentAccount); return; }
       if (accountActions.includes(body.action)) { accountResult = accountAction(state, currentAccount, body, session.id); activeMe = member(currentAccount); return; }
       if (planActions.includes(body.action)) { planAction(state, currentAccount, body); return; }
       if (boostActions.includes(body.action)) { boostResult = boostAction(state, me, currentAccount, body); return; }
@@ -815,7 +826,7 @@ export default async function handler(req, res) {
           break;
         }
         case 'react':
-          if (!reactions.includes(body.reaction) && body.reaction !== '') fail(400, 'Reação inválida.');
+          if (typeof body.reaction !== 'string' || !reactionAllowed(state, body.reaction, post.reactions[me.id])) fail(400, 'Reação inválida.');
           post.reactions[me.id] = body.reaction; if (body.reaction && post.authorId !== me.id) post.reactedAt = Date.now(); break;
         case 'notifications_seen':
           currentAccount.notificationsSeenAt = Date.now(); break;
@@ -835,7 +846,9 @@ export default async function handler(req, res) {
             // Respostas ficam em um nível só, presas ao comentário principal, como nas redes sociais.
             let parentId = '';
             if (body.replyTo) { const parent = post.comments.find(c => c.id === body.replyTo); if (!parent) fail(404, 'Comentário não encontrado.'); parentId = parent.parentId || parent.id; }
-            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(plainText(body.text), 500), createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
+            const sticker = body.stickerId ? stickerById(state, String(body.stickerId)) : null;
+            if (body.stickerId && !sticker) fail(404, 'Figurinha não encontrada.');
+            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: sticker && !String(body.text || '').trim() ? '' : text(plainText(body.text), 500), createdAt: Date.now(), ...(sticker ? { sticker: { id: sticker.id, mediaId: sticker.mediaId, name: sticker.name } } : {}), ...(parentId ? { parentId } : {}) };
             post.comments.push(comment);
             const to = [post.authorId, idOf(post.comments.find(c => c.id === parentId)?.authorKey)].filter(id => id && id !== me.id);
             if (to.length) pushNotice = { to, payload: { title: `${me.name} comentou`, body: comment.text.slice(0, 120), href: `/#post-${post.id}`, tag: `post-${post.id}` } };
@@ -890,7 +903,7 @@ export default async function handler(req, res) {
           // O aparelho manda o estado que a pessoa quer (seguir ou deixar de seguir): repetir o pedido, por rede ruim, não desfaz o que ela fez.
           const want = typeof body.following === 'boolean' ? body.following : !list.includes(key);
           const was = list.includes(key);
-          state.follows[me.id] = want ? (was ? list : [...list, key].slice(-200)) : list.filter(item => item !== key);
+          state.follows[me.id] = want ? (was ? list : [...list, key].slice(-2000)) : list.filter(item => item !== key);
           if (want && !was && key.startsWith('id:')) {
             state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
             pushNotice = { to: [key.slice(3)], payload: { title: 'Novo seguidor', body: `${me.name} começou a seguir você`, href: `/perfil/?u=id:${me.id}`, tag: `follow-${me.id}` } };

@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { canMessage } from './account.mjs';
 
+import { stickerById } from './extras.mjs';
 export const chatActions = ['dm', 'chat_typing', 'chat_edit', 'chat_delete', 'chat_react', 'chat_read', 'chat_preferences', 'chat_block', 'chat_report', 'chat_group_create', 'chat_group_accept', 'chat_group_decline', 'chat_group_update', 'chat_group_invite', 'chat_group_remove', 'chat_group_admin', 'chat_group_leave', 'chat_request_accept', 'chat_request_decline'];
 const keyOf = me => `id:${me.id}`;
 const typingBucketKey = (mine, key) => key.startsWith('group:') ? key : [mine, key].sort().join('|');
@@ -71,6 +72,7 @@ function project(state, me, m) {
   return { id: m.id, fromKey: m.fromKey, fromName: m.fromName, own: m.fromKey === keyOf(me), text: m.deleted ? '' : m.text,
     createdAt: m.createdAt, editedAt: m.editedAt || null, deleted: !!m.deleted,
     media: !m.deleted && m.media ? { url: `/api/media?id=${m.media.id}`, kind: m.media.kind, name: m.media.name } : null,
+    sticker: !m.deleted && m.sticker ? { id: m.sticker.id, name: m.sticker.name, url: `/api/media?id=${m.sticker.mediaId}` } : null,
     reply: m.replyTo ? { text: reply && !reply.deleted ? reply.text.slice(0,160) : 'Mensagem apagada', name: reply?.fromName || '' } : null,
     reactions: m.deleted ? {} : Object.fromEntries(reactions.map(r => [r, Object.values(m.reactions || {}).filter(v => v === r).length]).filter(([,n])=>n)),
     reaction: m.deleted ? '' : m.reactions?.[keyOf(me)] || '', call: m.call ? { kind: m.call.kind, status: m.call.status, duration: m.call.duration } : null };
@@ -159,9 +161,11 @@ export function chatAction(state, me, body, upload) {
     if(String(body.toKey).startsWith('id:') && !canMessage(state,me.id,body.toKey))fail(403,'Esta pessoa só recebe mensagens de amizades.');
     if(!t.group?.communityId && t.members.some(k=>k!==mine && blocked(state,mine,k)))fail(403,'Conversa bloqueada. Não é possível enviar mensagens.');
     const copy=text(body.text || '',2000,false);
-    if(!copy && !upload)fail(400,'Escreva uma mensagem ou escolha um anexo.');
+    const sticker=body.stickerId?stickerById(state,String(body.stickerId)):null;
+    if(body.stickerId && !sticker)fail(404,'Figurinha não encontrada.');
+    if(!copy && !upload && !sticker)fail(400,'Escreva uma mensagem ou escolha um anexo.');
     if(body.clientId!==undefined && !uuid.test(body.clientId))fail(400,'Identificador de envio inválido.');
-    const digest=createHash('sha256').update(JSON.stringify([body.toKey,copy,body.replyTo || '',upload?.name || '',upload?.bytes || null])).digest('hex');
+    const digest=createHash('sha256').update(JSON.stringify([body.toKey,copy,body.replyTo || '',upload?.name || '',upload?.bytes || null,sticker?.id || ''])).digest('hex');
     const previous=body.clientId && state.dms.find(m=>m.fromKey===mine && m.clientId===body.clientId);
     if(previous){if(previous.digest!==digest)fail(409,'Este envio já foi usado. Abra um novo rascunho.');return {duplicate:true};}
     if(!t.group){
@@ -176,7 +180,7 @@ export function chatAction(state, me, body, upload) {
     if(body.replyTo){const reply=messageOf(state,me,body.replyTo);if(reply.deleted || reply.call || messageKey(me,reply)!==body.toKey)fail(400,'Escolha uma mensagem desta conversa para responder.');}
     const bucket=typingBucketKey(mine,body.toKey);
     if(state.chatTyping?.[bucket]) delete state.chatTyping[bucket][mine];
-    state.dms.push({id:randomUUID(),clientId:body.clientId || randomUUID(),digest,fromKey:mine,fromName:me.name,toKey:body.toKey,toName:t.name,text:copy,createdAt:Date.now(),replyTo:body.replyTo || null,...(upload ? {media:{id:upload.id,name:upload.name,kind:upload.kind}} : {})});
+    state.dms.push({id:randomUUID(),clientId:body.clientId || randomUUID(),digest,fromKey:mine,fromName:me.name,toKey:body.toKey,toName:t.name,text:copy,createdAt:Date.now(),replyTo:body.replyTo || null,...(upload ? {media:{id:upload.id,name:upload.name,kind:upload.kind}} : {}),...(sticker ? {sticker:{id:sticker.id,mediaId:sticker.mediaId,name:sticker.name}} : {})});
     // Aviso no aparelho de quem recebe; para quem recebe, a conversa 1:1 tem a chave de quem enviou.
     const threadKey=t.group ? body.toKey : mine;
     return {notify:t.members.filter(k=>k!==mine && k.startsWith('id:')).map(k=>k.slice(3)), push:{title:t.group ? `${me.name} · ${t.name}` : me.name, body:copy ? copy.slice(0,120) : 'Enviou um anexo', href:'/chat/?p='+encodeURIComponent(threadKey), tag:'chat-'+threadKey}};
