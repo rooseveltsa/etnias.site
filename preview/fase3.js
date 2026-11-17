@@ -177,6 +177,17 @@ function addRecorder(){
  const b=document.createElement('button');b.type='button';b.id='record-hold';b.className='preview-secondary';b.textContent='Gravar segurando';b.onclick=openRecorder;
  native.insertAdjacentElement('beforebegin',b);native.textContent='Câmera do aparelho';
 }
-function init(){tuneComposer();tuneChips();addFab();addGeoButton();addSavedLink();addRecorder();}
+
+
+// Acessibilidade: pontos de referência (landmarks) com nomes únicos e o botão flutuante dentro de uma região.
+function tuneLandmarks(){
+ const label=(el,text)=>{if(el&&!el.getAttribute('aria-label')&&!el.getAttribute('aria-labelledby'))el.setAttribute('aria-label',text);};
+ const search=document.getElementById('opy-search');if(search){if(!search.getAttribute('role'))search.setAttribute('role','search');label(search,'Pesquisar no Etnias');}
+ const sides=[...document.querySelectorAll('aside.opy-sidebar')];sides.forEach((a,i)=>{if(i>0&&a.getAttribute('aria-label')===sides[0].getAttribute('aria-label'))a.setAttribute('aria-label',(a.getAttribute('aria-label')||'Etnias')+' (menu '+(i+1)+')');});
+ label(document.querySelector('aside.leftcol'),'Atalhos');label(document.querySelector('aside.rightcol'),'Sugestões e comunidades');
+ label(document.querySelector('header.header-container'),'Cabeçalho do Etnias');
+ const fab=document.querySelector('.opy-fab');if(fab&&!fab.parentElement.matches('[data-fab-region]')){const r=document.createElement('div');r.setAttribute('role','region');r.setAttribute('aria-label','Criar publicação');r.dataset.fabRegion='1';fab.replaceWith(r);r.append(fab);}
+}
+function init(){tuneComposer();tuneLandmarks();tuneChips();addFab();addGeoButton();addSavedLink();addRecorder();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
