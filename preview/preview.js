@@ -634,6 +634,7 @@ function welcomeCard(){
  const steps=[
   ['Coloque uma foto no perfil',!!state.me.avatar,'/perfil/'],
   ['Conte quem você é na apresentação',!!state.me.bio,'/perfil/'],
+  ['Diga seu povo e sua região (opcional — só para sugerir pessoas e comunidades)',!!(state.me.povo||state.me.belonging),'/perfil/'],
   ['Entre em uma comunidade',communitiesList().some(c=>c.joined&&c.id!=='avaliacao-casa-opy'),'/grupos/'],
   ['Siga 3 pessoas',(state.directory||[]).filter(p=>p.following).length>=3,()=>$('[data-feed-view="discover"]')?.click()],
   ['Faça sua primeira publicação',((state.directory||[]).find(p=>p.own)?.postsCount||0)>0||state.posts.some(p=>p.own),()=>{const t=$('#opy-compose textarea');t?.scrollIntoView({block:'center'});t?.focus();}]
@@ -647,7 +648,7 @@ function welcomeCard(){
  const bar=make('div',undefined,'opy-welcome-bar');bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax',String(steps.length));bar.setAttribute('aria-valuenow',String(done));bar.setAttribute('aria-label','Primeiros passos');const fill=make('span');fill.style.width=(done/steps.length*100)+'%';bar.append(fill);
  const list=make('ol',undefined,'opy-welcome-steps');
  for(const [label,ok,go] of steps){const li=make('li',undefined,ok?'is-done':'');const el=ok?make('span',label):typeof go==='string'?make('a',label):make('button',label);if(!ok){if(typeof go==='string')el.href=go;else{el.type='button';el.onclick=go;}}li.append(el);list.append(li);}
- box.replaceChildren(head,make('p',`${done} de ${steps.length} passos para aproveitar a rede.`,'opy-welcome-sub'),bar,list);
+ box.replaceChildren(head,make('p','Aqui você encontra pessoas e comunidades dos povos indígenas. Nada é obrigatório: vá no seu ritmo.','opy-welcome-sub'),make('p',`${done} de ${steps.length} passos para aproveitar a rede.`,'opy-welcome-sub'),bar,list,make('p','No topo da tela: lupa = buscar · pessoa com + = pedidos de amizade e sugestões · balão = mensagens · maracá = avisos.','opy-welcome-legend'));
  return box;
 }
 function paintAnnouncements(){

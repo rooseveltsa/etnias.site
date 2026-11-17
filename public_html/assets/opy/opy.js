@@ -166,7 +166,7 @@
     }
     function enhanceHeader() {
         [
-            ['.opy-member-controls .notification-container > a', 'Maracá', 'Maracá — notificações'],
+            ['.opy-member-controls .notification-container > a', 'Avisos', 'Avisos (maracá)'],
             ['.opy-member-controls .messages-notification-container > a', 'Chat', 'Mensagens'],
             ['.opy-member-controls .requests-container > a', '', 'Solicitações de conexão']
         ].forEach(function (entry) {

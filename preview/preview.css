@@ -2049,3 +2049,4 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable
 .feed-chip-row[data-at-end="1"]{--fade-r:0px}
 .photo-alt-wrap{display:grid;gap:4px;margin:6px 0 2px;font-size:.85rem;color:var(--muted,#5b6470)}
 .photo-alt-wrap input{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--border,#d7dde4);border-radius:10px;font:inherit;background:var(--surface,#fff);color:inherit}
+.opy-welcome-legend{margin:10px 0 0;font-size:.82rem;line-height:1.4;color:var(--muted,#5b6470)}

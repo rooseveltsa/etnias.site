@@ -3,7 +3,7 @@
     <nav class="opy-topbar-inner" aria-label="Navegação principal">
         <div class="opy-topbar-start">
             <?php // O logo da casa é o botão do menu OPY ("Encontre seu caminho no Etnias"); o feed fica no item Opy do menu e na barra inferior. ?>
-            <button type="button" class="opy-brand opy-house" data-opy-open="opy-menu" aria-label="OPY — Encontre seu caminho no Etnias" title="OPY — Encontre seu caminho no Etnias" aria-haspopup="dialog" aria-controls="opy-menu" aria-expanded="false">
+            <button type="button" class="opy-brand opy-house" data-opy-open="opy-menu" aria-label="Menu do Etnias" title="Menu do Etnias" aria-haspopup="dialog" aria-controls="opy-menu" aria-expanded="false">
                 <span class="opy-logo-crop"><img src="<?php echo Etnias_OpyEscape(Etnias_OpyAsset('etnias-logo.png')); ?>" alt="" width="150" height="40"></span>
                 <svg class="opy-brand-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
