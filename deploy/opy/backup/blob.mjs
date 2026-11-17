@@ -25,9 +25,13 @@ if (cmd === 'upload') {
   await put(`${b}/community.json`, await readFile(join(a, 'community.json')), { ...opts, addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
   let n = 0;
   for (const f of await readdir(a)) {
-    const m = /^media-([a-f0-9-]{36})\.json$/.exec(f); if (!m) continue;
-    const { type, bytes } = JSON.parse(await readFile(join(a, f), 'utf8'));
-    await put(`${b}/media/${m[1]}`, Buffer.from(bytes, 'base64'), { ...opts, addRandomSuffix: false, allowOverwrite: true, contentType: type }); n++;
+    // Anexos antigos: media-<id>.json (base64). Novos: media-<id>.bin + media-<id>.type.
+    const m = /^media-([a-f0-9-]{36})\.(json|bin)$/.exec(f); if (!m) continue;
+    if (m[2] === 'json' && (await readdir(a)).includes(`media-${m[1]}.bin`)) continue;
+    let type, body;
+    if (m[2] === 'json') { const j = JSON.parse(await readFile(join(a, f), 'utf8')); type = j.type; body = Buffer.from(j.bytes, 'base64'); }
+    else { type = (await readFile(join(a, `media-${m[1]}.type`), 'utf8')).trim(); body = await readFile(join(a, f)); }
+    await put(`${b}/media/${m[1]}`, body, { ...opts, addRandomSuffix: false, allowOverwrite: true, contentType: type }); n++;
   }
   console.log('restaurado em', b, '· anexos:', n);
 } else if (cmd === 'remove') {
