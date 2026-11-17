@@ -150,6 +150,9 @@ async function openInboxPopover(event){
  }catch(error){list.replaceChildren(make('li',error.message,'opy-inbox-empty'));}
 }
 const chatHeaderLink=()=>$('.messages-notification-container a');
+// Quando só uma publicação é redesenhada (curtida, comentário), o vídeo ou áudio que estava tocando continua de onde parou.
+function captureMedia(card){return all('video,audio',card).filter(m=>!m.paused&&!m.ended).map(m=>({tag:m.tagName.toLowerCase(),src:m.getAttribute('src')||m.currentSrc,time:m.currentTime,muted:m.muted,volume:m.volume}));}
+function resumeMedia(card,list){for(const saved of list||[]){const twin=all(saved.tag,card).find(m=>(m.getAttribute('src')||m.currentSrc)===saved.src);if(!twin)continue;const go=()=>{try{twin.currentTime=saved.time;}catch{}twin.muted=saved.muted;twin.volume=saved.volume;twin.play().catch(()=>{});};if(twin.readyState>=1)go();else{twin.preload='auto';twin.addEventListener('loadedmetadata',go,{once:true});twin.load();}}}
 function avatarNode(name, url, size=42){
  const fallback=()=>make('span',(name||'?').slice(0,1).toLocaleUpperCase('pt-BR'),'preview-avatar');
  if(url&&(/^\/assets\/archive\/avatar-[a-f0-9]{20}\.(jpg|jpeg|png|webp|gif)$/.test(url)||/^\/api\/media\?id=[a-f0-9-]{36}$/.test(url)||/^\/legado\/upload\/[\w./%-]+\.(jpg|jpeg|png|webp|gif)$/i.test(url))){
@@ -1466,7 +1469,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   const feedSig=frameSig+sugSig+posts.map(postSig).join('');
   // Só a publicação que mudou (curtida, comentário, edição) é trocada no lugar: o resto do feed e a posição de leitura ficam como estão.
   if(feedEl.dataset.sig!==feedSig&&feedEl.dataset.frame===frameSig&&feedEl._sigs){
-   for(const p of posts){const sig=postSig(p);if(feedEl._sigs.get(p.id)!==sig){const card=document.getElementById('post-'+p.id);if(card){const draft=$('.preview-comment-form input',card)?.value||'';const fresh=renderPost(p);const input=$('.preview-comment-form input',fresh);if(input&&draft&&!input.value)input.value=draft;card.replaceWith(fresh);}feedEl._sigs.set(p.id,sig);}}
+   for(const p of posts){const sig=postSig(p);if(feedEl._sigs.get(p.id)!==sig){const card=document.getElementById('post-'+p.id);if(card){const draft=$('.preview-comment-form input',card)?.value||'';const fresh=renderPost(p);const input=$('.preview-comment-form input',fresh);if(input&&draft&&!input.value)input.value=draft;const playing=captureMedia(card);card.replaceWith(fresh);resumeMedia(fresh,playing);}feedEl._sigs.set(p.id,sig);}}
    if(feedEl.dataset.sug!==sugSig){feedEl.dataset.sug=sugSig;const old=$('.opy-suggest',feedEl);const sug=!key&&!saved&&!suggestionsClosed?suggestionsRow():null;if(old&&sug)old.replaceWith(sug);else if(old)old.remove();}
    feedEl.dataset.sig=feedSig;
   }

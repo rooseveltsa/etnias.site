@@ -37,12 +37,28 @@ export function createLocalStore(directory, initialState) {
     return join(directory, 'media-' + id + '.json');
   }
   async function saveMedia(id, bytes, type) { await atomicWrite(mediaPath(id), JSON.stringify({ type, bytes: bytes.toString('base64') })); }
+  // Cada anexo fica em disco como JSON com base64: ler e decodificar um vídeo de 40 MB a cada pedido de trecho (Range) seria lento.
+  // Os últimos anexos lidos ficam decodificados em memória (até ~96 MB no total) e os pedidos seguintes saem daí.
+  const recent = new Map(); let recentBytes = 0;
+  const RECENT_LIMIT = 96 * 1024 * 1024;
+  function remember(id, value) {
+    if (value.buffer.length > RECENT_LIMIT / 2) return;
+    recent.set(id, value); recentBytes += value.buffer.length;
+    while (recentBytes > RECENT_LIMIT) { const [oldest, old] = recent.entries().next().value; recent.delete(oldest); recentBytes -= old.buffer.length; }
+  }
   async function readMedia(id) {
+    const hit = recent.get(id);
+    if (hit) { recent.delete(id); recent.set(id, hit); return { statusCode: 200, blob: { contentType: hit.type }, buffer: hit.buffer, stream: new Blob([hit.buffer]).stream() }; }
     try {
       const value = JSON.parse(await readFile(mediaPath(id), 'utf8'));
-      return { statusCode: 200, blob: { contentType: value.type }, stream: new Blob([Buffer.from(value.bytes, 'base64')]).stream() };
+      const buffer = Buffer.from(value.bytes, 'base64');
+      remember(id, { type: value.type, buffer });
+      return { statusCode: 200, blob: { contentType: value.type }, buffer, stream: new Blob([buffer]).stream() };
     } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   }
-  async function deleteMedia(id) { await unlink(mediaPath(id)).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
+  async function deleteMedia(id) {
+    const hit = recent.get(id); if (hit) { recent.delete(id); recentBytes -= hit.buffer.length; }
+    await unlink(mediaPath(id)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+  }
   return { readState, transact, saveMedia, readMedia, deleteMedia };
 }

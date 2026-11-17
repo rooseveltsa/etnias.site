@@ -12,7 +12,7 @@ import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspe
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
-import { sendFile } from './files.mjs';
+import { sendFile, sendBuffer } from './files.mjs';
 import { plainText } from './plain-text.mjs';
 import { postMediaIds, orphanMediaIds, findPostMedia } from './post-media.mjs';
 import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
@@ -505,9 +505,8 @@ export default async function handler(req, res) {
         if (!named || !/^[a-f0-9-]{36}$/.test(id || '')) fail(404, 'Anexo não encontrado.');
         const media = await readMedia(id);
         if (!media || media.statusCode !== 200) fail(404, 'Anexo não encontrado.');
-        res.setHeader('Content-Type', media.blob.contentType);
         if (named.kind === 'file') res.setHeader('Content-Disposition', `attachment; filename="${named.name.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
-        return res.end(Buffer.from(await new Response(media.stream).arrayBuffer()));
+        return sendBuffer(req, res, media.buffer || Buffer.from(await new Response(media.stream).arrayBuffer()), media.blob.contentType, id);
       }
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       return res.end(JSON.stringify(snapshot(state, me)));
