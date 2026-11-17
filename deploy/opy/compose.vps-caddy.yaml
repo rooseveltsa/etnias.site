@@ -14,7 +14,7 @@ services:
       - live-recordings:/recordings
       - /srv/casa-opy/legacy-media:/legacy-media:ro
   turn:
-    volumes: !reset
+    volumes: !override
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
 networks:
   caddy:
