@@ -15,7 +15,7 @@ Servidor: `root@179.66.136.125` (15,6 GB RAM, 4 CPUs, disco de 193 GB). Alteraç
 | Sistema antigo (Etnias 1.0 / WoWonder) **parado**, não apagado | contêineres `etnias-web-1` e `etnias-db-1` (Exited); cron do antigo comentado em `/etc/cron.d/etnias` (linhas com `#DESATIVADO-17-11`); Caddyfile com cópias `.bak-20261117-042954` em `/srv/etnias/deploy/` | Religar: `cd /srv/etnias/deploy && docker compose up -d`, descomentar a linha do cron, e restaurar o Caddyfile (`cp Caddyfile.bak-20261117-042954 Caddyfile` e recarregar o Caddy) |
 
 ## Cópias de segurança (onde estão)
-- `/var/backups/casa-opy/opy-AAAA-MM-DD.tgz.enc` (+ `.sha256`): diárias, cifradas (a chave de decifrar está **no Mac**, `~/.cleo-tmp/etnias-chave-backup.key`, e não no servidor; guarde também num cofre).
+- `/var/backups/casa-opy/opy-AAAA-MM-DD.tgz.enc` (+ `.sha256`): diárias, cifradas (chave em `/root/.casa-opy/backup.key`, modo 600, fora da pasta dos backups; **cópia no Mac** em `~/.cleo-tmp/etnias-chave-backup.key`. Guarde também num cofre: sem a chave os backups não abrem).
 - `/var/backups/casa-opy/opy-pre-fase3-20261117-0351.tgz.enc` e `codigo-pre-fase3-20261117-0351.tgz`: antes das mudanças de hoje.
 - `/var/backups/etnias-legacy/`: dump do MariaDB e arquivos do sistema antigo (parado), com `SHA256SUMS`. Cópia também no Mac: `~/.cleo-tmp/etnias-legado-backup/`.
 - Imagem Docker de volta: `casa-opy:pre-fase3-20261117-0351`.
