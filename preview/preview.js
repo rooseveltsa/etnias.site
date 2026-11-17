@@ -268,7 +268,11 @@ function tagged(text,mentions){
 })();
 // Bandeja de reações aberta (toque longo) fecha ao tocar fora dela.
 document.addEventListener('pointerdown',e=>{for(const w of document.querySelectorAll('.post-react.is-open'))if(!w.contains(e.target))w.classList.remove('is-open');},true);
+// Textos antigos ou colados de outro editor chegam com <div>, <br>…: aparecem como texto, nunca como código na tela.
+const MARKUP_TAG=/<\/?[a-z][a-z0-9-]*(?:\s[^<>]*)?\/?>/i;
+function stripMarkup(t){t=String(t==null?'':t);if(!MARKUP_TAG.test(t))return t;return t.replace(/<\s*(?:br|\/p|\/div|\/li|\/h[1-6])\b[^<>]*>/gi,'\n').replace(/<\/?[a-z][a-z0-9-]*(?:\s[^<>]*)?\/?>/gi,'').replace(/&nbsp;/g,' ').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&').replace(/\n{3,}/g,'\n\n').trim();}
 function linkified(text,mentions){
+ text=stripMarkup(text);
  const frag=document.createDocumentFragment();let last=0;
  for(const m of text.matchAll(URL_RE)){
   let ok=false;try{ok=['http:','https:'].includes(new URL(m[0]).protocol);}catch{}
@@ -768,7 +772,7 @@ function renderProfile(){
  const comms=(state.communities||[]).filter(c=>own?c.joined:(c.members||[]).some(m=>m.key===key));
  const ea=$('#profile-edit-avatar');if(ea)ea.replaceChildren(avatarNode(state.me.name,state.me.avatar,72));
  const ec=$('#profile-edit-cover');if(ec){ec.replaceChildren();if(state.me.cover){const im=make('img');im.src=state.me.cover;im.alt='';ec.append(im);}}
- const signature=JSON.stringify([person,posts.map(p=>[p.id,p.reaction,p.comments?.length,p.saved,p.editedAt]),comms.map(c=>c.id),profileTab,profileData.hasMore]);
+ const signature=JSON.stringify([person,posts.map(p=>[p.id,p.reaction,p.reactions,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,expandedComments.has(p.id),replyTargets.has(p.id),openCommentForms.has(p.id)]),comms.map(c=>c.id),profileTab,profileData.hasMore]);
  if(signature===profileSignature)return;profileSignature=signature;
  document.title=person.name+' · Etnias';
  const cover=make('div',undefined,'pf-cover');
@@ -1449,7 +1453,7 @@ function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$(
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
   const welcome=!key&&!saved?welcomeCard():null;
-  const postSig=p=>JSON.stringify([p.sponsored?.boostId,p.reaction,p.comments?.length,p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
+  const postSig=p=>JSON.stringify([p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
   // O patrocinado fica o mesmo enquanto a pessoa lê: o rodízio do servidor só vale na próxima abertura do feed (sem redesenhar a lista).
   if(!key&&!saved&&fs.sponsored===undefined&&state.sponsored!==undefined)fs.sponsored=state.sponsored||null;
   const sponsoredPost=!key&&!saved?(fs.sponsored||null):null;

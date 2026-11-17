@@ -13,6 +13,7 @@ import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
 import { sendFile } from './files.mjs';
+import { plainText } from './plain-text.mjs';
 import { postMediaIds, orphanMediaIds, findPostMedia } from './post-media.mjs';
 import { planActions, planAction, plansView, planOf, planBadge, decidePlanRequest, decideVerification } from './planos.mjs';
 import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } from './impulsos.mjs';
@@ -589,7 +590,7 @@ export default async function handler(req, res) {
     let activeMe = member(signedIn);
     if (!chatActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
-      body.text = text(body.text || '', 5000, false);
+      body.text = text(plainText(body.text || ''), 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
       if (body.feeling && !feelings.includes(body.feeling)) fail(400, 'Sentimento inválido.');
       if (body.poll && (!Array.isArray(body.poll) || body.poll.length < 2 || body.poll.length > 4 || body.poll.some(v => typeof v !== 'string' || !v.trim() || v.length > 100))) fail(400, 'Preencha de duas a quatro opções da enquete.');
@@ -809,7 +810,7 @@ export default async function handler(req, res) {
             // Respostas ficam em um nível só, presas ao comentário principal, como nas redes sociais.
             let parentId = '';
             if (body.replyTo) { const parent = post.comments.find(c => c.id === body.replyTo); if (!parent) fail(404, 'Comentário não encontrado.'); parentId = parent.parentId || parent.id; }
-            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(body.text, 500), createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
+            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: text(plainText(body.text), 500), createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
             post.comments.push(comment);
             const to = [post.authorId, idOf(post.comments.find(c => c.id === parentId)?.authorKey)].filter(id => id && id !== me.id);
             if (to.length) pushNotice = { to, payload: { title: `${me.name} comentou`, body: comment.text.slice(0, 120), href: `/#post-${post.id}`, tag: `post-${post.id}` } };
@@ -832,7 +833,7 @@ export default async function handler(req, res) {
         }
         case 'post_edit': {
           if (post.authorId !== me.id) fail(403, 'Só quem publicou pode editar.');
-          const next = text(String(body.text ?? ''), 5000, false);
+          const next = text(plainText(String(body.text ?? '')), 5000, false);
           if (!next && !post.media && !post.file && !post.repostOf) fail(400, 'A publicação não pode ficar vazia.');
           post.text = next; post.editedAt = Date.now();
           { const ids = mentionsIn(state, next, me.id).filter(id => visible(post, { id }, state)); if (ids.length) post.mentions = ids; else delete post.mentions; }
