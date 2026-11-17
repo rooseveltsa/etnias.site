@@ -117,6 +117,7 @@ function message(m, showDay) {
  if(data?.selected?.group&&!m.own)bubble.append(node('strong',m.fromName,'chat-author'));
  if(m.reply)bubble.append(node('blockquote',(m.reply.name?m.reply.name+': ':'')+m.reply.text));
  if(m.deleted||m.text)bubble.append(node('p',m.deleted?'Mensagem apagada':m.text,m.deleted?'is-deleted':undefined));
+ if(m.sticker){const im=node('img',undefined,'chat-sticker');im.src=m.sticker.url;im.alt='Figurinha: '+m.sticker.name;im.width=128;im.height=128;im.loading='lazy';bubble.append(im);}
  media(m.media,bubble);article.append(bubble);
  const meta=node('div',undefined,'chat-meta');
  const when=node('small',time(m.createdAt)+(m.editedAt?' · editada':''));when.title=new Date(m.createdAt).toLocaleString('pt-BR');meta.append(when);
@@ -282,7 +283,7 @@ $('#chat-sheet').addEventListener('click',e=>{if(e.target===$('#chat-sheet'))$('
 for(const b of document.querySelectorAll('[data-pick]'))b.onclick=()=>{const input=$('#chat-file');input.accept=accepts[b.dataset.pick];if(b.dataset.pick==='camera')input.setAttribute('capture','environment');else input.removeAttribute('capture');$('#chat-sheet').close();input.click();};
 $('#chat-file').onchange=async e=>{const current=key,version=++fileGeneration;try{const file=e.target.files[0];if(file){const result=await fileData(file);if(current!==key||version!==fileGeneration)return;attachment=result;}paintDraft();}catch(error){if(current===key)status(error.message);}};
 // Seletor completo de emojis (preview.js, mesmo das publicações e comentários).
-$('#chat-emoji').onclick=()=>dialog('Emojis',box=>{if(!window.OpyEmoji){status('Os emojis não carregaram. Recarregue a página.');return;}window.OpyEmoji.open(box,$('#chat-text'),()=>$('#chat-dialog').close());});
+$('#chat-emoji').onclick=()=>dialog('Figurinhas',box=>{if(!window.OpyStickers){status('As figurinhas não carregaram. Recarregue a página.');return;}window.OpyStickers.open(box,async st=>{$('#chat-dialog').close();const current=key;try{await action({action:'dm',toKey:current,text:'',stickerId:st.id,clientId:crypto.randomUUID()});}catch(error){status(error.message);}});});
 $('#chat-older').onclick=async()=>{if(loading||!data.messages.length)return;loading=true;const current=key,version=++generation;try{const page=await request(null,{before:data.messages[0].id,q:query});if(current!==key||version!==generation)return;data.messages=[...page.messages,...data.messages];data.hasMore=page.hasMore;older=true;render();}catch(e){status(e.message);}finally{if(version===generation)loading=false;}};
 $('#chat-log').addEventListener('scroll',()=>{markRead().catch(()=>{});},{passive:true});
 for(const b of document.querySelectorAll('[data-box]'))b.onclick=()=>{box=b.dataset.box;render();};

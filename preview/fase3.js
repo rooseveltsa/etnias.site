@@ -67,6 +67,54 @@ function addFab(){
  });
  document.body.append(a);
 }
-function init(){tuneComposer();tuneChips();addFab();}
+
+// Figurinhas: seletor com abas por pacote. onPick recebe {id,name,url}. Usado nos comentários e no chat.
+const stickerCache={at:0,data:null};
+async function stickerCatalog(){
+ if(stickerCache.data&&Date.now()-stickerCache.at<60000)return stickerCache.data;
+ const r=await fetch('/api/community?view=stickers',{credentials:'same-origin',cache:'no-store'});
+ const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||'Não foi possível carregar as figurinhas.');
+ stickerCache.at=Date.now();stickerCache.data=j;return j;
+}
+window.OpyStickers={
+ open(root,onPick){
+  root.classList.add('opy-stickers');root.hidden=false;
+  const status=document.createElement('p');status.className='opy-stickers-status';status.textContent='Carregando figurinhas…';root.replaceChildren(status);
+  stickerCatalog().then(cat=>{
+   const packs=cat.packs.filter(p=>p.items.length);
+   if(!packs.length){status.textContent='Ainda não há figurinhas. A equipe do Etnias está preparando os pacotes.';return;}
+   let current=packs[0].id;
+   const tabs=document.createElement('div');tabs.className='opy-stickers-tabs';tabs.setAttribute('role','tablist');
+   const grid=document.createElement('div');grid.className='opy-stickers-grid';
+   const paint=()=>{
+    for(const b of tabs.children)b.setAttribute('aria-selected',String(b.dataset.pack===current));
+    const pack=packs.find(p=>p.id===current);
+    grid.replaceChildren(...pack.items.map(it=>{const b=document.createElement('button');b.type='button';b.className='opy-sticker-btn';b.setAttribute('aria-label',it.name);
+     const im=document.createElement('img');im.src='/api/media?id='+it.mediaId;im.alt='';im.width=72;im.height=72;im.loading='lazy';im.decoding='async';b.append(im);
+     b.onclick=()=>onPick({id:it.id,name:it.name,url:im.src});return b;}));
+   };
+   for(const p of packs){const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.dataset.pack=p.id;b.textContent=p.name;b.title=p.category;b.onclick=()=>{current=p.id;paint();};tabs.append(b);}
+   root.replaceChildren(tabs,grid);paint();
+  }).catch(e=>{status.textContent=e.message;});
+ }
+};
+
+// Composer: botão "Usar minha localização" no painel de local (só com o toque da pessoa; guarda apenas cidade/UF).
+function addGeoButton(){
+ const place=document.getElementById('compose-place');if(!place||document.getElementById('compose-geo'))return;
+ const b=document.createElement('button');b.type='button';b.id='compose-geo';b.className='preview-secondary compose-geo';b.textContent='Usar minha localização';
+ const note=document.createElement('p');note.className='compose-geo-note';note.setAttribute('role','status');note.textContent='Opcional. Só a cidade e a UF vão para a publicação.';
+ b.onclick=()=>{
+  if(!navigator.geolocation){note.textContent='Este navegador não oferece localização. Digite o local.';return;}
+  b.disabled=true;note.textContent='Pedindo a localização ao navegador…';
+  navigator.geolocation.getCurrentPosition(async pos=>{
+   try{const r=await fetch('/api/community?view=geo&lat='+pos.coords.latitude.toFixed(2)+'&lon='+pos.coords.longitude.toFixed(2),{credentials:'same-origin'});const j=await r.json();
+    if(!r.ok)throw Error(j.error||'Falhou');place.value=[j.city,j.uf].filter(Boolean).join(', ');place.dispatchEvent(new Event('input',{bubbles:true}));note.textContent='Local preenchido: '+place.value+'. Você pode editar.';}
+   catch(e){note.textContent=e.message||'Não foi possível descobrir a cidade agora.';}finally{b.disabled=false;}
+  },err=>{b.disabled=false;note.textContent=err.code===1?'Permissão negada. Digite o local ou libere nas configurações do navegador.':'Não foi possível obter a localização agora.';},{timeout:12000,maximumAge:600000});
+ };
+ place.insertAdjacentElement('afterend',note);place.insertAdjacentElement('afterend',b);
+}
+function init(){tuneComposer();tuneChips();addFab();addGeoButton();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

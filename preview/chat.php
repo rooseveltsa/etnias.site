@@ -65,7 +65,7 @@ $chatIcon = function ($name) {
    <button type="button" data-pick="camera"><span><?php echo $chatIcon('camera'); ?></span>Câmera</button>
    <button type="button" data-pick="gallery"><span><?php echo $chatIcon('image'); ?></span>Foto ou vídeo</button>
    <button type="button" data-pick="audio"><span><?php echo $chatIcon('headphones'); ?></span>Áudio</button>
-   <button type="button" id="chat-emoji"><span><?php echo $chatIcon('smile'); ?></span>Emoji</button>
+   <button type="button" id="chat-emoji"><span><?php echo $chatIcon('smile'); ?></span>Figurinhas</button>
   </div>
   <p class="chat-hint">Até 2 MB por anexo. Áudio e vídeo só carregam quando você toca.</p>
   <form method="dialog"><button class="preview-secondary chat-sheet-close">Fechar</button></form>

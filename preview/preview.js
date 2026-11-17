@@ -9,7 +9,15 @@ const button=(label, fn, root)=>{const b=make('button',label,'preview-secondary'
 let emojiData=null,emojiRecent=[];try{emojiRecent=JSON.parse(localStorage.getItem('opy-emoji-recentes')||'[]');}catch{emojiRecent=[];}
 async function loadEmojis(){if(emojiData)return emojiData;const response=await fetch('/assets/emojis.json',{credentials:'same-origin'});if(!response.ok)throw Error('Não foi possível carregar os emojis.');emojiData=await response.json();return emojiData;}
 function insertEmoji(target,symbol){const start=target.selectionStart??target.value.length;target.setRangeText(symbol,start,target.selectionEnd??start,'end');target.dispatchEvent(new Event('input',{bubbles:true}));target.focus();emojiRecent=[symbol,...emojiRecent.filter(s=>s!==symbol)].slice(0,24);try{localStorage.setItem('opy-emoji-recentes',JSON.stringify(emojiRecent));}catch{}}
-const reactions=[['like','👍','Curti'],['heart','❤️','Amei'],['laugh','😂','Haha'],['wow','😮','Surpresa'],['sad','😢','Triste']];
+const reactions0=[['like','👍','Curti'],['heart','❤️','Amei'],['laugh','😂','Haha'],['wow','😮','Surpresa'],['sad','😢','Triste']];
+let reactions=reactions0.slice(), trayReactions=reactions0.map(r=>r.slice()), reactionUrls={};
+// Os ícones de reação vêm do servidor (painel admin: até 6 ativos, na ordem escolhida). Sem a lista, vale o conjunto original.
+function syncReactionSet(){
+ const set=state?.reactionSet;if(!Array.isArray(set))return;const all=Array.isArray(state.reactionAll)?state.reactionAll:set;
+ const sig=JSON.stringify([set,all]);if(syncReactionSet.sig===sig)return;syncReactionSet.sig=sig;
+ const row=r=>{const b=reactions0.find(x=>x[0]===r.id);reactionUrls[r.id]=r.mediaId?'/api/media?id='+r.mediaId:'';return [r.id,b?b[1]:'⭐',r.label];};
+ reactions=all.map(row);trayReactions=set.map(row);
+}
 let state, filter='all', view='news', videoAttachment=null, fileAttachment=null, busy=false;
 // Feed, perfil, comunidade e busca vêm paginados do servidor; o cliente guarda só o que está na tela.
 const feed={key:'',posts:[],hasMore:false,loading:false};
@@ -134,7 +142,7 @@ const glyph={
  sad:'<circle cx="12" cy="12" r="8"/><path d="M9 10h.01M15 10h.01M8.5 16a4 4 0 0 1 7 0"/>',
  file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M8 13h8M8 17h5"/>'
 };
-function svg(name){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+glyph[name]+'</svg>';}
+function svg(name){if(reactionUrls[name])return '<img class="react-img" src="'+reactionUrls[name]+'" alt="" width="28" height="28" loading="lazy" decoding="async">';return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+glyph[name]+'</svg>';}
 function clock(seconds){if(!Number.isFinite(seconds))return '0:00';const whole=Math.max(0,Math.round(seconds));return Math.floor(whole/60)+':'+String(whole%60).padStart(2,'0');}
 const plural=(n,one,many)=>`${n} ${n===1?one:many}`;
 // O menu vem do legado ("Grupos"); na prévia o nome é Comunidades, como no resto da tela.
@@ -422,9 +430,9 @@ function renderPost(post, communityContext=null){
  input.addEventListener('input',()=>{submit.disabled=!input.value.trim();});
  const target=replyTargets.get(post.id);
  if(target){const chip=make('p',undefined,'comment-reply-chip');chip.append(make('span','Respondendo a '+target.author));const x=button('Cancelar',()=>{replyTargets.delete(post.id);render();},chip);x.className='comment-reply-cancel';x.setAttribute('aria-label','Cancelar resposta a '+target.author);form.append(chip);input.placeholder='Responder a '+target.author.split(' ')[0]+'…';}
- const emojiBtn=make('button',undefined,'comment-emoji-btn');emojiBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/></svg>';emojiBtn.type='button';emojiBtn.setAttribute('aria-label','Inserir emoji');emojiBtn.setAttribute('aria-expanded','false');
+ const emojiBtn=make('button',undefined,'comment-emoji-btn comment-sticker-btn');emojiBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v9l-6 6H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 20v-5a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="14" cy="10" r="1.1" fill="currentColor"/></svg>';emojiBtn.type='button';emojiBtn.setAttribute('aria-label','Enviar figurinha');emojiBtn.title='Figurinhas';emojiBtn.setAttribute('aria-expanded','false');
  const emojiBox=make('div',undefined,'comment-emoji-picker');emojiBox.hidden=true;
- emojiBtn.onclick=()=>{emojiBox.hidden=!emojiBox.hidden;emojiBtn.setAttribute('aria-expanded',String(!emojiBox.hidden));if(!emojiBox.hidden)picker(emojiBox,input,()=>{emojiBox.hidden=true;emojiBtn.setAttribute('aria-expanded','false');});};
+ emojiBtn.onclick=()=>{emojiBox.hidden=!emojiBox.hidden;emojiBtn.setAttribute('aria-expanded',String(!emojiBox.hidden));if(!emojiBox.hidden)window.OpyStickers?.open(emojiBox,async st=>{emojiBox.hidden=true;emojiBtn.setAttribute('aria-expanded','false');try{openCommentForms.add(post.id);const replyTo=replyTargets.get(post.id)?.id;replyTargets.delete(post.id);await change({action:'comment',postId:post.id,text:'',stickerId:st.id,...(replyTo?{replyTo}:{})});}catch(err){showError(err.message);}});};
  const box=make('div',undefined,'comment-box');box.append(input,emojiBtn,submit);
  form.append(box,charCount,emojiBox);
  form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{openCommentForms.add(post.id);const draft=input.value;const replyTo=replyTargets.get(post.id)?.id;replyTargets.delete(post.id);try{await change({action:'comment',postId:post.id,text:draft,...(replyTo?{replyTo}:{})});}catch(error){if(replyTo)replyTargets.set(post.id,{id:replyTo,author:''});throw error;}const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
@@ -464,7 +472,7 @@ function renderPost(post, communityContext=null){
  let hold;like.addEventListener('pointerdown',()=>{like.dataset.held='';hold=setTimeout(()=>{like.dataset.held='1';reactWrap.classList.add('is-open');navigator.vibrate?.(10);},450);});
  const endHold=()=>clearTimeout(hold);like.addEventListener('pointerup',endHold);like.addEventListener('pointercancel',endHold);like.addEventListener('contextmenu',event=>event.preventDefault());
  const tray=make('div',undefined,'post-react-tray');tray.setAttribute('role','group');tray.setAttribute('aria-label','Reações');
- for(const [id,icon,label] of [['like','like','Curti'],['heart','heart','Amei'],['laugh','laugh','Haha'],['wow','wow','Surpresa'],['sad','sad','Triste']]){const choice=postAction(icon,'',()=>optimistic(post,reactPatch(post,post.reaction===id?'':id),{action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));choice.addEventListener('click',()=>reactWrap.classList.remove('is-open'));tray.append(choice);}
+ for(const [id,,label] of trayReactions){const icon=id;const choice=postAction(icon,'',()=>optimistic(post,reactPatch(post,post.reaction===id?'':id),{action:'react',postId:post.id,reaction:post.reaction===id?'':id}));choice.classList.add('post-react-choice','is-'+id);choice.setAttribute('aria-label',label);choice.title=label;choice.setAttribute('aria-pressed',String(post.reaction===id));choice.addEventListener('click',()=>reactWrap.classList.remove('is-open'));tray.append(choice);}
  reactWrap.append(like,tray);
  const commentBtn=postAction('comment','Comentar',()=>{form.hidden=!form.hidden;if(form.hidden)openCommentForms.delete(post.id);else openCommentForms.add(post.id);commentBtn.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)input.focus();});
  commentBtn.setAttribute('aria-expanded',String(!form.hidden));commentBtn.setAttribute('aria-controls',form.id);
@@ -510,7 +518,7 @@ function renderPost(post, communityContext=null){
   const body=make('div',undefined,'preview-comment-body');
   const bubble=make('div',undefined,'comment-bubble');
   const cAuthor=make('button',comment.author,'author-name-btn');cAuthor.type='button';cAuthor.onclick=()=>openProfile(cKey,comment.author,'');
-  const cText=make('p');cText.append(linkified(comment.text,comment.mentions));bubble.append(cAuthor,cText);
+  const cText=make('p');cText.append(linkified(comment.text,comment.mentions));bubble.append(cAuthor);if(comment.text)bubble.append(cText);if(comment.sticker){const im=make('img',undefined,'comment-sticker');im.src=comment.sticker.url;im.alt='Figurinha: '+comment.sticker.name;im.width=96;im.height=96;im.loading='lazy';bubble.append(im);}
   if(comment.likes){const n=make('span','❤ '+comment.likes,'comment-likes');n.setAttribute('aria-label',comment.likes+(comment.likes===1?' curtida':' curtidas'));bubble.append(n);}
   const bar=make('div',undefined,'comment-actions');
   const like=button(comment.liked?'Curtido':'Curtir',()=>change({action:'comment_like',postId:post.id,commentId:comment.id}),bar);like.className='comment-act'+(comment.liked?' is-on':'');like.setAttribute('aria-pressed',String(!!comment.liked));
@@ -777,6 +785,31 @@ function renderSettings(){
  if(!settingsData){if(!settingsLoading)loadSettings();root.replaceChildren(make('p','Carregando configurações…','pf-loading'));return;}
  const d=settingsData;const page=make('div',undefined,'set-page');page.append(make('h1','Configurações'));
  const card=(title,desc,id)=>{const c=make('section',undefined,'pf-card set-card');if(id)c.id=id;c.append(make('h2',title));if(desc)c.append(make('p',desc,'set-desc'));page.append(c);return c;};
+
+ // Seu @: troca com verificação ao digitar, uma vez a cada 15 dias; o @ antigo fica reservado.
+ const idc=card('Seu @','Seu nome de usuário no Etnias. Dá para trocar uma vez a cada 15 dias, e o @ antigo fica reservado por 90 dias.','arroba');
+ {const info=state.usernameInfo||{};const inp=make('input');inp.value=state.me.username||'';inp.maxLength=25;inp.autocomplete='off';inp.autocapitalize='none';inp.spellcheck=false;inp.setAttribute('aria-label','Novo @');inp.id='set-username';
+  const hint=make('p',undefined,'set-username-hint');hint.setAttribute('role','status');hint.setAttribute('aria-live','polite');
+  const save=make('button','Trocar @','opy-primary');save.type='button';save.disabled=true;
+  const row=make('div',undefined,'set-username-row');row.append(make('span','@','set-username-at'),inp,save);idc.append(row,hint);
+  if(!info.canChange){hint.textContent='Você já trocou o @ há pouco. A próxima troca é possível em '+new Date(info.nextChangeAt).toLocaleDateString('pt-BR')+'.';inp.disabled=true;}
+  let timer=0,seq=0;inp.addEventListener('input',()=>{save.disabled=true;clearTimeout(timer);const v=inp.value.trim().replace(/^@+/,'');if(!v||v===state.me.username){hint.textContent='';return;}hint.textContent='Verificando…';hint.dataset.state='wait';
+   timer=setTimeout(async()=>{const me=++seq;try{const r=await apiGet({view:'username_check',u:v});if(me!==seq)return;hint.textContent=r.ok?'@'+r.username+' está disponível.':r.reason;hint.dataset.state=r.ok?'ok':'bad';save.disabled=!(r.ok&&info.canChange);}catch(e){if(me===seq){hint.textContent=e.message;hint.dataset.state='bad';}}},350);});
+  save.onclick=async()=>{const v=inp.value.trim().replace(/^@+/,'');if(!confirm('Trocar seu @ para @'+v.toLowerCase()+'? Você só poderá trocar de novo daqui a 15 dias.'))return;save.disabled=true;try{await change({action:'username_change',username:v});toast('Seu @ agora é @'+v.toLowerCase()+'.');settingsData=null;render();}catch(e){showError(e.message);}};
+  if(info.history?.length){const h=make('p','Já usados: '+info.history.map(x=>'@'+x.username).join(', '),'set-desc');idc.append(h);}
+ }
+ // Localização opcional: só cidade e UF, com seu consentimento.
+ const loc=card('Localização','Opcional. Mostra apenas sua cidade e UF no perfil. Pedimos a localização ao navegador só quando você tocar no botão e não guardamos o ponto exato.','localizacao');
+ {const cur=make('p',state.me.location?'No perfil: '+state.me.location:'Nada aparece no perfil agora.','set-desc');cur.setAttribute('role','status');
+  const use=make('button','Usar minha localização','preview-secondary');use.type='button';use.onclick=async()=>{
+   if(!navigator.geolocation){showError('Este navegador não oferece localização. Digite o local ao publicar.');return;}
+   use.disabled=true;cur.textContent='Pedindo a localização ao navegador…';
+   navigator.geolocation.getCurrentPosition(async pos=>{try{const g=await apiGet({view:'geo',lat:pos.coords.latitude.toFixed(2),lon:pos.coords.longitude.toFixed(2)});
+     if(!confirm('Mostrar “'+g.city+(g.uf?', '+g.uf:'')+'” no seu perfil?'))return;await change({action:'location_set',city:g.city,uf:g.uf,consent:true});toast('Localização atualizada.');}catch(e){showError(e.message);}finally{use.disabled=false;}},err=>{use.disabled=false;cur.textContent=err.code===1?'Permissão negada. Você pode liberar a localização nas configurações do navegador.':'Não foi possível obter sua localização agora.';},{enableHighAccuracy:false,timeout:12000,maximumAge:600000});
+  };
+  const rm=make('button','Remover do perfil','preview-secondary');rm.type='button';rm.onclick=async()=>{try{await change({action:'location_clear'});toast('Localização removida.');}catch(e){showError(e.message);}};
+  const actions=make('div',undefined,'set-actions');actions.append(use,rm);loc.append(cur,actions);
+ }
  const priv=card('Privacidade','Vale para todo mundo, inclusive na busca e no feed.','privacidade');
  priv.append(radioGroup('set-profile','Quem pode ver seu perfil e suas publicações',[['public','Todas as pessoas da rede'],['friends','Só amizades','Quem não é amizade vê só seu nome, foto e apresentação.']],d.privacy.profile,v=>accountChange({action:'privacy_update',profile:v},'Privacidade atualizada.')));
  priv.append(radioGroup('set-messages','Quem pode mandar mensagem',[['everyone','Todas as pessoas da rede'],['friends','Só amizades']],d.privacy.messages,v=>accountChange({action:'privacy_update',messages:v},'Privacidade atualizada.')));
@@ -1365,11 +1398,11 @@ function paintRequests(){
  else{badge?.remove();toggle.setAttribute('aria-label','Solicitações e pessoas para seguir');}
  const sig=JSON.stringify([incoming.map(p=>p.key),suggest.map(p=>[p.key,p.following])]);if(box.dataset.sig===sig)return;box.dataset.sig=sig;
  const row=(p,actions)=>{const li=make('div',undefined,'opy-req-row');const who=make('a',undefined,'opy-req-who');who.href='/perfil/?u='+encodeURIComponent(p.key);who.append(avatarNode(p.name,p.avatar,40));const t=make('span');t.append(make('strong',p.name),make('small',p.reason||(p.username?'@'+p.username:p.affiliation||'')));who.append(t);li.append(who,actions);return li;};
- const act=(label,cls,fn)=>{const b=make('button',label,cls);b.type='button';b.dataset.keepOpen='1';b.onclick=async()=>{b.disabled=true;try{await fn();}catch(e){showError(e.message);b.disabled=false;}};return b;};
+ const act=(label,cls,fn,optimistic)=>{const b=make('button',label,cls);b.type='button';b.dataset.keepOpen='1';b.onclick=async()=>{b.disabled=true;const rowEl=b.closest('.opy-req-row');if(optimistic)optimistic(b);try{await fn();}catch(e){showError(e.message);b.disabled=false;box.dataset.sig='';paintRequests();}};return b;};
  const nodes=[make('p','Pedidos de amizade','opy-pop-title')];
  if(!incoming.length)nodes.push(make('p','Nenhum pedido no momento.','opy-req-empty'));
  for(const p of incoming){const a=make('div',undefined,'opy-req-actions');a.append(act('Aceitar','opy-primary',()=>change({action:'friend',authorKey:p.key})),act('Recusar','preview-secondary',()=>change({action:'friend_decline',authorKey:p.key})));nodes.push(row(p,a));}
- if(suggest.length){nodes.push(make('p','Pessoas para seguir','opy-pop-title'));for(const p of suggest){const a=make('div',undefined,'opy-req-actions');a.append(act('Seguir','opy-primary',()=>toggleFollow(p.key)));nodes.push(row(p,a));}}
+ if(suggest.length){nodes.push(make('p','Pessoas para seguir','opy-pop-title'));for(const p of suggest){const a=make('div',undefined,'opy-req-actions');const gone=b=>{b.closest('.opy-req-row')?.remove();};a.append(act('Seguir','opy-primary',()=>toggleFollow(p.key),gone),act('Agora não','preview-secondary',()=>change({action:'suggestion_dismiss',authorKey:p.key}),gone));nodes.push(row(p,a));}}
  const all_=make('a','Encontrar mais pessoas','opy-req-more');all_.href='/search/';nodes.push(all_);
  box.replaceChildren(...nodes);
 }
@@ -1501,7 +1534,7 @@ function marketForm(d,editing){
  f.onsubmit=async e=>{e.preventDefault();save.disabled=true;st.textContent='Salvando…';try{const r=await api({action:'market_save',...(editing?{id:x.id,keepPhotos:kept.map(p=>p.id)}:{}),title:title.value,description:description.value,price:price.value,category:cat.value,location:place.value,photos:added.map(p=>({name:p.name,data:p.data}))});location.href=location.pathname+'?id='+encodeURIComponent(r.item.id);}catch(err){st.textContent=err.message;showError(err.message);save.disabled=false;}};
  return f;
 }
-function render(){if(!state)return;setTimeout(watchSponsored,0);const areaApp=$('#area-app');if(areaApp)renderArea(areaApp);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
+function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0);const areaApp=$('#area-app');if(areaApp)renderArea(areaApp);window.OpyI18n?.sync(state.i18n);liveUi(liveMode);rememberAccount(state.me);
  all('[data-community-name]').forEach(el=>el.textContent=state.me.name);all('[data-community-username]').forEach(el=>el.textContent='@'+state.me.username);all('[data-community-avatar]').forEach(el=>{if(state.me.avatar){if(el.querySelector('img')?.getAttribute('src')!==state.me.avatar){const im=make('img');im.src=state.me.avatar;im.alt='';el.replaceChildren(im);}}else if(el.querySelector('img')?.getAttribute('src')!==defaultAvatarUrl(state.me.name)){const im=make('img');im.src=defaultAvatarUrl(state.me.name);im.alt='';el.replaceChildren(im);}el.title=state.me.name;});all('[data-community-contact]').forEach(el=>{const digits=state.me.phone||'';const phone=digits.length>=10?digits.replace(/(\d{2})(\d{4,5})(\d{4})/,'($1) $2-$3'):'não informado nesta conta';el.textContent='Chave Google: '+(state.me.googleKey||'não informada nesta conta')+' · Telefone: '+phone;});
  const pForm=$('#profile-edit-form');
  if(pForm&&!pForm.contains(document.activeElement)){

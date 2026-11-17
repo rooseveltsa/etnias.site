@@ -1933,3 +1933,42 @@ a.opy-notif:hover{background:var(--color-surface-muted,#f2e9dc)}
  .opy-panel{left:8px;right:8px;width:auto;top:calc(var(--opy-head,56px) + 4px);height:calc(100dvh - var(--opy-head,56px) - 76px);border-radius:14px}
 }
 @media(max-width:991px){.opy-panel-etnia,.opy-panel-chat,.opy-panel-notif{max-height:calc(100dvh - var(--opy-head,56px) - 76px)}}
+
+/* ===== Figurinhas, ícones de reação e animação suave ===== */
+.opy-stickers{border:1px solid var(--color-border-subtle);border-radius:14px;background:var(--color-surface);padding:8px;margin-top:8px;max-height:300px;overflow:auto}
+.opy-stickers-status{margin:8px;color:var(--color-text-secondary);font-size:14px}
+.opy-stickers-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+.opy-stickers-tabs button{flex:0 0 auto;min-height:44px;padding:0 14px;border:1px solid var(--color-border-subtle);border-radius:999px;background:none;font:inherit;font-size:13px;cursor:pointer}
+.opy-stickers-tabs button[aria-selected=true]{background:var(--color-surface-muted,#f2e9dc);border-color:#b84a27;font-weight:600}
+.opy-stickers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
+.opy-sticker-btn{display:grid;place-items:center;min-height:80px;padding:4px;border:0;border-radius:12px;background:none;cursor:pointer}
+.opy-sticker-btn:hover,.opy-sticker-btn:focus-visible{background:var(--color-surface-muted,#f2e9dc)}
+.opy-sticker-btn img{width:72px;height:72px;object-fit:contain}
+.comment-sticker{display:block;width:96px;height:96px;object-fit:contain;margin-top:4px}
+.chat-sticker{display:block;width:128px;height:128px;object-fit:contain}
+.react-img{width:28px;height:28px;object-fit:contain;display:block;margin:auto}
+.post-react-main .react-img{width:22px;height:22px;display:inline-block;vertical-align:-5px;margin:0 4px 0 0}
+.preview-post-actions .post-react-choice{width:44px;height:44px;min-height:44px;flex:0 0 44px}
+/* bandeja: entrada suave e tremidinha leve ao passar o mouse (desligadas com prefers-reduced-motion) */
+@keyframes opy-wobble{0%,100%{transform:rotate(0) scale(1.14)}25%{transform:rotate(-7deg) scale(1.14)}75%{transform:rotate(7deg) scale(1.14)}}
+@keyframes opy-tray-in{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:no-preference){
+ .post-react.is-open .post-react-tray,.post-react:hover .post-react-tray{animation:opy-tray-in .18s ease-out}
+ .post-react-choice:hover,.post-react-choice:focus-visible{animation:opy-wobble .5s ease-in-out infinite;transform:scale(1.14)}
+}
+/* administração: reações e figurinhas */
+.adm-react-list{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:8px}
+.adm-react-list li,.adm-inline-form,.adm-pack-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.adm-react-thumb{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;background:var(--color-surface-muted,#f2e9dc);font-size:22px}
+.adm-react-thumb img{width:32px;height:32px;object-fit:contain}
+.adm-sticker-grid{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.adm-sticker-grid figure{margin:0;display:grid;justify-items:center;gap:2px;font-size:12px}
+.adm-pack{padding:12px;border:1px solid var(--color-border-subtle);border-radius:12px;margin-top:10px}
+.adm-check{display:inline-flex;align-items:center;gap:6px;min-height:44px}
+/* @ e localização nas configurações */
+.set-username-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.set-username-row input{flex:1 1 180px;min-height:44px;padding:0 12px;border:1px solid var(--color-border-subtle);border-radius:10px;font:inherit}
+.set-username-at{font-weight:700;color:var(--color-text-secondary)}
+.set-username-hint{min-height:22px;margin:6px 0 0;font-size:14px}
+.set-username-hint[data-state=ok]{color:#1d6b3a}.set-username-hint[data-state=bad]{color:#a3261b}
+.compose-geo{margin-top:8px;min-height:44px}.compose-geo-note{margin:4px 0 0;font-size:13px;color:var(--color-text-secondary)}

@@ -8,7 +8,7 @@ const fmtDate = t => t ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', 
 const fmtDay = t => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(t));
 const rel = t => { if (!t) return 'sem atividade'; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`; };
 let data = null, tab = location.hash.replace('#', '') || 'visao', query = '', busy = false;
-const tabs = [['visao', 'Visão geral'], ['decisoes', 'Decisões'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['traducoes', 'Traduções'], ['desenvolvimento', 'Desenvolvimento']];
+const tabs = [['visao', 'Visão geral'], ['decisoes', 'Decisões'], ['alertas', 'Alertas'], ['pessoas', 'Pessoas'], ['conteudo', 'Conteúdo'], ['comunidades', 'Comunidades'], ['comunicados', 'Comunicados'], ['registro', 'Registro'], ['midia', 'Reações e figurinhas'], ['traducoes', 'Traduções'], ['desenvolvimento', 'Desenvolvimento']];
 // Painel de traduções (GET /api/community?view=i18n). Quem só traduz entra direto nele.
 let idata = null, ilang = '', ifilter = 'faltando', iquery = '', ipage = 0, translatorOnly = false;
 // Rascunhos de tradução por frase: sobrevivem ao redesenho da lista ao enviar uma sugestão ou buscar.
@@ -308,6 +308,72 @@ const views = {
     if (!data.log.length) box.append(el('p', 'Nenhuma ação registrada ainda.', 'adm-empty'));
     const ul = el('ol', undefined, 'adm-log'); data.log.forEach(l => { const li = el('li'); li.append(el('strong', l.action), document.createTextNode(' · ' + l.target + ' · por ' + l.byName), el('small', fmtDate(l.at), 'adm-muted')); if (l.reason) li.append(el('p', l.reason)); ul.append(li); }); box.append(ul); return box;
   }
+};
+
+// Reações (até 6 ícones ativos) e figurinhas: tudo enviado pelo painel, sem mexer em código.
+const BUILTIN_GLYPH = { like: '🪘', heart: '❤️', laugh: '😂', wow: '😮', sad: '😢' };
+const readDataUrl = file => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(Error('Não foi possível ler o arquivo.')); r.readAsDataURL(file); });
+async function post(body) {
+  const r = await fetch('/api/community', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível concluir.'); return j;
+}
+async function getx(qs) { const r = await fetch('/api/community?' + qs, { credentials: 'same-origin', cache: 'no-store' }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Error(j.error || 'Não foi possível carregar.'); return j; }
+async function fileBody(file) { const url = await readDataUrl(file); return /svg/i.test(file.type) || /\.svg$/i.test(file.name) ? { svg: { name: file.name, data: url.replace(/^data:[^;,]*/, 'data:image/svg+xml') } } : { media: { name: file.name, data: url } }; }
+views.midia = function () {
+  const box = el('div', undefined, 'adm-midia');
+  const reactCard = el('section', undefined, 'adm-card'), stickCard = el('section', undefined, 'adm-card');
+  box.append(reactCard, stickCard);
+  const run = async (fn, ok) => { try { await fn(); toast(ok); await paint(); } catch (e) { toast(e.message, true); } };
+  async function paint() {
+    const [ex, st] = await Promise.all([getx('view=extras'), getx('view=stickers&all=1')]);
+    const items = (ex.reactions || []).slice().sort((a, b) => a.order - b.order);
+    const active = items.filter(r => r.active).length;
+    const h = el('h2', 'Ícones de reação (curtir)'); const p = el('p', `Aparecem na bandeja ao segurar ou passar o mouse no Curtir. Até 6 ativos (agora ${active}). SVG ou PNG de até 512 KB; o SVG é limpo antes de salvar.`, 'adm-muted');
+    const list = el('ol', undefined, 'adm-react-list');
+    items.forEach((r, i) => {
+      const li = el('li'); const thumb = el('span', undefined, 'adm-react-thumb');
+      if (r.mediaId) { const im = el('img'); im.src = '/api/media?id=' + r.mediaId; im.alt = ''; im.width = 32; im.height = 32; thumb.append(im); } else thumb.textContent = BUILTIN_GLYPH[r.id] || '⭐';
+      const name = el('input'); name.value = r.label; name.maxLength = 24; name.setAttribute('aria-label', 'Nome do ícone ' + r.label);
+      name.onchange = () => run(() => post({ action: 'reaction_save', id: r.id, label: name.value }), 'Nome salvo.');
+      const on = el('input'); on.type = 'checkbox'; on.checked = r.active; const lab = el('label', undefined, 'adm-check'); lab.append(on, document.createTextNode(' Ativo'));
+      on.onchange = () => run(() => post({ action: 'reaction_save', id: r.id, label: name.value, active: on.checked }), on.checked ? 'Ícone ativado.' : 'Ícone desativado.').then(() => {}, () => {});
+      const move = dir => () => { const ids = items.map(x => x.id); const j = i + dir; if (j < 0 || j >= ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; run(() => post({ action: 'reaction_reorder', ids }), 'Ordem salva.'); };
+      const up = btn('↑', move(-1)); up.setAttribute('aria-label', 'Subir ' + r.label); const down = btn('↓', move(1)); down.setAttribute('aria-label', 'Descer ' + r.label);
+      li.append(thumb, name, lab, up, down);
+      if (!r.builtin) { const del = btn('Apagar', () => { if (confirm('Apagar este ícone? Quem reagiu com ele passa a ter a reação Curti.')) run(() => post({ action: 'reaction_delete', id: r.id }), 'Ícone apagado.'); }); li.append(del); }
+      list.append(li);
+    });
+    const form = el('form', undefined, 'adm-inline-form');
+    const label = el('input'); label.placeholder = 'Nome (ex.: Força)'; label.maxLength = 24; label.required = true; label.setAttribute('aria-label', 'Nome do novo ícone');
+    const file = el('input'); file.type = 'file'; file.accept = '.svg,image/svg+xml,image/png,image/webp,image/gif'; file.required = true; file.setAttribute('aria-label', 'Arquivo do ícone');
+    form.append(label, file, btn('Adicionar ícone', () => {}, 'adm-primary')); form.lastChild.type = 'submit';
+    form.onsubmit = e => { e.preventDefault(); run(async () => post({ action: 'reaction_save', label: label.value, ...(await fileBody(file.files[0])) }), 'Ícone adicionado (inativo até você ativar).'); };
+    reactCard.replaceChildren(h, p, list, form);
+    // figurinhas
+    const h2 = el('h2', 'Figurinhas'); const p2 = el('p', 'Pacotes por categoria. Aparecem no botão de figurinhas dos comentários e do chat. PNG, WebP, GIF ou SVG de até 512 KB (PNG com fundo transparente).', 'adm-muted');
+    const packForm = el('form', undefined, 'adm-inline-form');
+    const pn = el('input'); pn.placeholder = 'Novo pacote (ex.: Zé Monge)'; pn.maxLength = 40; pn.required = true; pn.setAttribute('aria-label', 'Nome do pacote');
+    const pc = el('select'); pc.setAttribute('aria-label', 'Categoria'); (st.categories || []).forEach(c => pc.append(new Option(c, c)));
+    packForm.append(pn, pc, btn('Criar pacote', () => {}, 'adm-primary')); packForm.lastChild.type = 'submit';
+    packForm.onsubmit = e => { e.preventDefault(); run(() => post({ action: 'sticker_pack_save', name: pn.value, category: pc.value }), 'Pacote criado.'); };
+    const packs = el('div', undefined, 'adm-packs');
+    for (const pack of st.packs) {
+      const c = el('div', undefined, 'adm-pack'); const head = el('div', undefined, 'adm-pack-head'); head.append(el('strong', pack.name), el('small', pack.category, 'adm-muted'));
+      const on = el('input'); on.type = 'checkbox'; on.checked = pack.active; const lab = el('label', undefined, 'adm-check'); lab.append(on, document.createTextNode(' Ativo'));
+      on.onchange = () => run(() => post({ action: 'sticker_pack_save', id: pack.id, name: pack.name, category: pack.category, active: on.checked }), 'Pacote atualizado.');
+      head.append(lab, btn('Apagar pacote', () => { if (confirm('Apagar o pacote e as figurinhas dele?')) run(() => post({ action: 'sticker_pack_delete', id: pack.id }), 'Pacote apagado.'); }));
+      const grid = el('div', undefined, 'adm-sticker-grid');
+      pack.items.forEach(it => { const f = el('figure'); const im = el('img'); im.src = '/api/media?id=' + it.mediaId; im.alt = it.name; im.width = 64; im.height = 64; const x = btn('Remover', () => run(() => post({ action: 'sticker_delete', id: it.id }), 'Figurinha removida.')); x.setAttribute('aria-label', 'Remover figurinha ' + it.name); f.append(im, el('figcaption', it.name), x); grid.append(f); });
+      const add = el('form', undefined, 'adm-inline-form'); const nm = el('input'); nm.placeholder = 'Nome'; nm.maxLength = 40; nm.setAttribute('aria-label', 'Nome da figurinha'); const fl = el('input'); fl.type = 'file'; fl.multiple = true; fl.accept = '.svg,image/svg+xml,image/png,image/webp,image/gif'; fl.required = true; fl.setAttribute('aria-label', 'Arquivos das figurinhas');
+      add.append(nm, fl, btn('Adicionar', () => {}, 'adm-primary')); add.lastChild.type = 'submit';
+      add.onsubmit = e => { e.preventDefault(); run(async () => { for (const file of fl.files) await post({ action: 'sticker_add', packId: pack.id, name: (fl.files.length > 1 || !nm.value) ? file.name.replace(/\.[^.]+$/, '') : nm.value, ...(await fileBody(file)) }); }, 'Figurinhas enviadas.'); };
+      c.append(head, grid, add); packs.append(c);
+    }
+    if (!st.packs.length) packs.append(el('p', 'Nenhum pacote ainda. Crie o primeiro acima.', 'adm-empty'));
+    stickCard.replaceChildren(h2, p2, packForm, packs);
+  }
+  paint().catch(e => box.prepend(el('p', e.message, 'adm-denied')));
+  return box;
 };
 function go(next) { tab = next; history.replaceState(null, '', '#' + next); render(); root.querySelector('.adm-main')?.focus(); }
 function render() {
