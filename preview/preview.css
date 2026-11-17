@@ -1850,3 +1850,37 @@ html[data-nav=icons] .opy-bottom .opy-soon{display:none}
 .community-links-list li span{flex:1 1 220px;font-size:14px}
 .community-links-empty{color:var(--color-text-secondary)}
 .community-links-new select{min-height:44px;padding:0 12px;border:1px solid var(--color-border-subtle);border-radius:10px;background:var(--color-surface);font:inherit}
+
+/* ===== Fase 3: navegação enxuta, botão de criar, compositor e filtros ===== */
+/* 9 — barra inferior com 3 botões: Saberes e Comunidades saem (seguem no menu lateral) */
+html[data-flag-bar-saberes=off] .opy-bottom [data-opy-destination=saberes],
+html[data-flag-bar-comunidades=off] .opy-bottom [data-opy-destination=grupos]{display:none}
+.opy-bottom .opy-nav-item{max-width:140px}
+/* 10 — "Onde publicar" (aldeia) escondido por interruptor */
+html[data-flag-aldeia=off] label[for=preview-community-target],html[data-flag-aldeia=off] #preview-community-target{display:none}
+/* 11 — seletor de quem vê, pequeno; busca compacta */
+.preview-publish-selectors select{min-height:40px;padding:0 28px 0 12px;font-size:13px;border-radius:999px;max-width:120px}
+.preview-publish-row{justify-content:flex-start}
+body.opy-preview .opy-search{max-width:420px}
+body.opy-preview .opy-search input{height:38px;font-size:15px}
+body.opy-preview .opy-search-results a{min-height:44px;padding:6px 12px}
+/* 12 — Publicar no alto do compositor, fixo ao rolar */
+.compose-head{position:sticky;top:var(--opy-head,56px);z-index:6;background:inherit;border-radius:12px}
+.compose-publish-top{margin-left:auto;align-self:center;min-height:40px;padding:0 18px;font-size:14px;opacity:.55;transition:opacity .15s}
+#opy-compose.has-content .compose-publish-top,#opy-compose:focus-within .compose-publish-top{opacity:1}
+/* 13 — filtros com ícone e nome, roláveis, com alvo de toque de 44 px */
+.feed-chips .feed-chip-row{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 92%,transparent)}
+.feed-chips .feed-chip-row::-webkit-scrollbar{display:none}
+.feed-chips [data-feed-view]{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;scroll-snap-align:start;white-space:nowrap}
+.feed-chips [data-feed-view] .opy-mini-icon{width:18px;height:18px;flex:0 0 18px}
+@media(max-width:380px){.feed-chips [data-feed-view]{padding:0 11px}}
+/* 8 — botão flutuante de criar */
+.opy-fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));z-index:1030;display:none;align-items:center;gap:8px;min-height:56px;padding:0 20px 0 16px;border-radius:999px;background:var(--opy-green,#b84a27);color:#fff;font-weight:600;font-size:15px;text-decoration:none;box-shadow:0 6px 20px #0003}
+.opy-fab:hover,.opy-fab:focus-visible{filter:brightness(1.08);color:#fff}
+.opy-fab .opy-mini-icon{width:22px;height:22px;stroke-width:2.4}
+@media(min-width:992px){.opy-fab{display:inline-flex}.opy-fab span{display:inline}}
+@media(max-width:991px){body.opy-bar-hidden .opy-fab{display:inline-flex;width:56px;padding:0;justify-content:center}body.opy-bar-hidden .opy-fab span{display:none}}
+@media(prefers-reduced-motion:no-preference){.opy-fab{transition:transform .15s}.opy-fab:active{transform:scale(.95)}}
+
+#opy-compose .preview-publish-row label[for=preview-audience]{flex:0 0 auto}
+#opy-compose .preview-publish-row #preview-audience{width:auto;min-width:110px;height:40px;min-height:40px}
