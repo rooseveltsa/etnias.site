@@ -2030,3 +2030,7 @@ a.opy-notif:hover{background:var(--color-surface-muted,#f2e9dc)}
  .comment-box .comment-send,.comment-box .comment-emoji-btn{min-width:44px!important}
  .set-card label{min-height:44px!important;display:flex;align-items:center;gap:10px}
 }
+/* Foco visível em todos os campos (teclado) */
+input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable=true]:focus-visible{outline:2px solid #b84a27;outline-offset:2px}
+.opy-search:focus-within{outline:2px solid #b84a27;outline-offset:2px;border-radius:999px}
+.opy-search input:focus-visible{outline:none}
