@@ -4,8 +4,9 @@
 import { checkPassword } from './session.mjs';
 import { exportAccountData, recordConsent, DELETION_GRACE_DAYS as GRACE } from './lgpd.mjs';
 import { tooMany, note } from './throttle.mjs';
+import { providerConfigured, contactOf, issueCode, checkCode } from './recovery.mjs';
 
-export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update'];
+export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update', 'contact_verify_request', 'contact_verify_confirm'];
 export const DELETION_GRACE_DAYS = GRACE;
 const DAY = 864e5;
 const keyOf = id => `id:${id}`;
@@ -61,6 +62,10 @@ const deviceOf = ua => {
 // Chamado ao criar a sessão (cadastro e entrada): guarda só o rótulo do aparelho, nunca o user-agent inteiro nem IP.
 export function stampSession(session, userAgent, now = Date.now()) { session.createdAt = now; session.device = deviceOf(userAgent); return session; }
 
+function maskContact({ channel, to }) {
+  if (channel === 'email') { const [name, host] = to.split('@'); return `${name.slice(0, 2)}${'•'.repeat(Math.max(1, name.length - 2))}@${host}`; }
+  return `(${to.slice(0, 2)}) •••••-${to.slice(-4)}`;
+}
 export function accountView(state, account, currentSessionId, now = Date.now()) {
   const key = keyOf(account.id);
   const byKey = new Map((state.accounts || []).map(a => [keyOf(a.id), a]));
@@ -74,6 +79,9 @@ export function accountView(state, account, currentSessionId, now = Date.now()) 
     following: (state.follows?.[account.id] || []).map(card).filter(Boolean),
     blocked: (state.chatBlocks?.[key] || []).map(card).filter(Boolean),
     verified: !!account.verified,
+    // Contato de recuperação (mascarado) e se o envio de códigos está ligado neste servidor.
+    contact: (() => { const c = contactOf(account); return c ? { channel: c.channel, masked: maskContact(c), verified: !!(account.contactVerified || account.legacyId != null) } : null; })(),
+    recoveryAvailable: providerConfigured(),
     deletionGraceDays: DELETION_GRACE_DAYS
   };
 }
@@ -159,6 +167,19 @@ export function accountAction(state, account, body, currentSessionId, now = Date
       if (tooMany('export:' + account.id, 3, 3600e3)) fail(429, 'Você já pediu seus dados algumas vezes. Tente de novo daqui a uma hora.');
       note('export:' + account.id, 3600e3);
       return { exportData: exportAccountData(state, account, now) };
+    }
+    case 'contact_verify_request': {
+      const contact = contactOf(account);
+      if (!contact) fail(400, 'Sua conta não tem e-mail nem celular. Adicione um primeiro.');
+      if (!providerConfigured()) fail(503, 'O envio de códigos ainda não está ativo neste servidor. Fale com a equipe do Etnias.');
+      if (now - (account.codes?.verify?.sentAt || 0) < 60e3) fail(429, 'Espere um minuto para pedir outro código.');
+      return { deliver: { ...contact, code: issueCode(account, 'verify', process.env.OPY_SESSION_SECRET, now), purpose: 'verify' } };
+    }
+    case 'contact_verify_confirm': {
+      const outcome = checkCode(account, 'verify', body.code, process.env.OPY_SESSION_SECRET, now);
+      if (outcome !== 'ok') fail(400, 'Código inválido ou vencido. Peça um código novo.');
+      account.contactVerified = true;
+      return {};
     }
     // Consentimentos revogáveis a qualquer momento: dados sensíveis (povo e pertencimento) e cidade no perfil.
     case 'consent_update': {

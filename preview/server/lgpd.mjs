@@ -22,7 +22,7 @@ export function exportAccountData(state, account, now = Date.now()) {
     if (Array.isArray(p.saves) && p.saves.includes(id)) saved.push(p.id);
   }
   const mediaIds = new Set([...mine.flatMap(ownMediaIds), account.avatarId, account.coverId].filter(Boolean));
-  const { password, legacyPassword, sessions, ...profile } = account;
+  const { password, legacyPassword, sessions, codes, ...profile } = account;
   return {
     formato: 'etnias-meus-dados-v1',
     geradoEm: new Date(now).toISOString(),

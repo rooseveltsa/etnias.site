@@ -6,6 +6,7 @@ import { answerEtnia } from './etnia.mjs';
 import { createIaraTicket, cancelIaraTicket, iaraTickets } from './iara.mjs';
 import { createSession, renewSession, SESSION_DAYS, verifySession, sessionCookie, sessionAccount, addSession, hashPassword, checkPassword, hashPasswordAsync, checkPasswordAsync, needsRehash } from './session.mjs';
 import { tooMany, note, clear, clientIp } from './throttle.mjs';
+import { providerConfigured, eligibleForRecovery, contactOf, issueCode, checkCode, deliverCode } from './recovery.mjs';
 import { recordConsent, sensitiveChange, purgeAccount, dueForPurge, TERMS_VERSION } from './lgpd.mjs';
 
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
@@ -109,10 +110,22 @@ function usernameOf(value) {
   if (!/^[a-z0-9][a-z0-9._]{2,23}$/.test(username)) fail(400, 'Use um usuário de 3 a 24 caracteres: letras, números, ponto ou _.');
   return username;
 }
+// Celular pode ser compartilhado (família, associação): só identifica a conta quando é de uma pessoa só e não é o @ de ninguém.
+function findByIdentity(accounts, identity) {
+  const direct = accounts.find(item => item.username === identity || item.googleKey === identity);
+  if (direct || !/^\d{10,11}$/.test(identity)) return direct;
+  const byPhone = accounts.filter(item => item.phone === identity);
+  return byPhone.length === 1 ? byPhone[0] : undefined;
+}
 function loginIdentity(value) {
   const identity = text(String(value || '').trim(), 80).toLowerCase();
+  // Celular com DDD (com ou sem +55, parênteses e traços) também identifica a conta.
+  if (/^[+\d][\d\s().+-]{7,19}$/.test(identity)) {
+    const digits = identity.replace(/\D/g, ''); const local = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
+    if (/^[1-9][0-9]9?[0-9]{8}$/.test(local)) return local;
+  }
   if (!identity.includes('@') || identity.startsWith('@')) return usernameOf(identity);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)) fail(400, 'Informe o usuário ou o e-mail da conta Google.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)) fail(400, 'Informe o usuário, o e-mail ou o celular da conta.');
   return identity;
 }
 function personName(value) {
@@ -126,7 +139,7 @@ function passwordOf(value) {
 }
 function googleKeyOf(value) {
   const key = text(String(value || ''), 80).toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) fail(400, 'Informe a chave Google: o e-mail da conta Google.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) fail(400, 'Informe um e-mail válido, como nome@exemplo.com.');
   return key;
 }
 function phoneOf(value) {
@@ -499,6 +512,19 @@ export default async function handler(req, res) {
     }
     const session = await verifySession(sessionCookie(req), secret);
     await slideSession(res, session, secret);
+    // Telas públicas de entrada: o que o servidor oferece e se um @ está livre (com limite por endereço).
+    if (req.method === 'GET' && pathname.replace(/\/$/, '') === '/api/community') {
+      const sp = new URL(req.url, 'http://local').searchParams, view = sp.get('view');
+      if (view === 'public' || view === 'username_available') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        if (view === 'public') return res.end(JSON.stringify({ recoveryAvailable: providerConfigured(), termsVersion: TERMS_VERSION }));
+        const ip = clientIp(req);
+        if (tooMany('ua:' + ip, 60, 60_000)) fail(429, 'Muitas verificações. Espere um instante.');
+        note('ua:' + ip, 60_000);
+        const check = usernameCheck((await readState()).data, null, sp.get('u'));
+        return res.end(JSON.stringify({ ok: !!check.ok, reason: check.ok ? '' : check.reason }));
+      }
+    }
     if (req.method === 'GET' || (req.method === 'HEAD' && pathname.startsWith('/live/recordings/'))) {
       const state = (await readState()).data;
       const account = sessionAccount(state, session);
@@ -606,13 +632,49 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       return res.end('{}');
     }
+    // Recuperação de senha por código (sem sessão). Sempre responde igual, exista a conta ou não, para não revelar quem tem conta.
+    if (body.action === 'recover_request' || body.action === 'recover_confirm') {
+      const identity = loginIdentity(body.identity ?? body.username);
+      const ip = clientIp(req), WIN = 3600e3;
+      if (tooMany('rcip:' + ip, 20, WIN) || tooMany('rcid:' + identity, 8, WIN)) fail(429, 'Muitos pedidos. Tente de novo daqui a pouco.');
+      note('rcip:' + ip, WIN); note('rcid:' + identity, WIN);
+      const accountsNow = (await readState()).data.accounts || [];
+      const found = findByIdentity(accountsNow, identity);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      if (body.action === 'recover_request') {
+        if (providerConfigured() && found && eligibleForRecovery(found)) {
+          let code = '';
+          await transact(state => { const a = accountsOf(state).find(x => x.id === found.id); if (a && Date.now() - (a.codes?.recover?.sentAt || 0) >= 60e3) code = issueCode(a, 'recover', secret); });
+          if (code) deliverCode({ ...contactOf(found), code, purpose: 'recover' }).catch(() => {});
+        }
+        return res.end(JSON.stringify({ ok: true, available: providerConfigured() }));
+      }
+      const newPassword = passwordOf(body.newPassword);
+      const hashed = await hashPasswordAsync(newPassword);
+      let outcome = 'none';
+      if (found && eligibleForRecovery(found)) {
+        await transact(state => {
+          const a = accountsOf(state).find(x => x.id === found.id); if (!a) return;
+          outcome = checkCode(a, 'recover', body.code, secret);
+          if (outcome !== 'ok') return;
+          a.password = hashed; delete a.legacyPassword; delete a.mustChangePassword; delete a.tempPasswordExpiresAt; a.sessions = []; a.contactVerified = true;
+        });
+      }
+      if (outcome !== 'ok') fail(400, 'Código inválido ou vencido. Peça um código novo.');
+      return res.end(JSON.stringify({ ok: true }));
+    }
     if (body.action === 'register' || body.action === 'login') {
       const password = passwordOf(body.password);
       if (body.action === 'register') {
         const username = usernameOf(body.username);
         const name = personName(body.name);
-        const googleKey = googleKeyOf(body.googleKey);
-        const phone = phoneOf(body.phone);
+        // Um só campo de contato (e-mail ou celular) basta; os campos antigos googleKey e phone seguem aceitos.
+        const contact = typeof body.contact === 'string' ? body.contact.trim() : '';
+        let googleKey = '', phone = '';
+        if (contact) { if (contact.includes('@')) googleKey = googleKeyOf(contact); else phone = phoneOf(contact); }
+        if (body.googleKey) googleKey = googleKeyOf(body.googleKey);
+        if (body.phone) phone = phoneOf(body.phone);
+        if (!googleKey && !phone) fail(400, 'Informe um e-mail ou um celular. É por ele que você recupera a senha.');
         if (process.env.OPY_REQUIRE_CONSENT !== '0' && body.acceptTerms !== true) fail(400, 'Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.');
         // Contas em massa: no máximo N cadastros por hora por endereço (Caddy grava o IP real no fim de X-Forwarded-For).
         if (!registerAllowed(req)) fail(429, 'Muitos cadastros deste endereço. Tente de novo mais tarde.');
@@ -624,6 +686,7 @@ export default async function handler(req, res) {
           const accounts = accountsOf(state);
           if (capacity('contas', accounts.length, Number(process.env.OPY_MAX_ACCOUNTS) || 100000)) fail(429, 'A rede chegou ao limite de contas deste servidor. Entre com uma conta já criada.');
           if (accounts.some(item => item.username === username)) fail(409, 'Esse usuário já existe. Entre ou escolha outro.');
+          if (googleKey && accounts.some(item => item.googleKey === googleKey)) fail(409, 'Esse e-mail já tem conta. Entre, ou recupere a senha.');
           if (!usernameCheck(state, null, username).ok) fail(409, 'Esse usuário não está disponível. Escolha outro.');
           const account = { id: accountId, username, name, password: passwordHash, googleKey, phone, createdAt: Date.now() };
           recordConsent(account, 'terms', true, account.createdAt);
@@ -644,7 +707,7 @@ export default async function handler(req, res) {
       if (tooMany(ipKey, 30, WINDOW) || tooMany(pairKey, 8, WINDOW) || tooMany(idKey, 80, WINDOW)) fail(429, 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');
       const current = (await readState()).data;
       const accounts = Array.isArray(current.accounts) ? current.accounts : [];
-      const account = accounts.find(item => item.username === identity || item.googleKey === identity);
+      const account = findByIdentity(accounts, identity);
       // Tempo constante: sempre confere scrypt e bcrypt (contra valores falsos quando a conta não existe), para o tempo não revelar quem tem conta.
       const legacyHash = account && !account.password && typeof account.legacyPassword === 'string' ? account.legacyPassword : dummyBcrypt;
       const [scryptOk, bcryptOk] = await Promise.all([checkPasswordAsync(password, account?.password || dummyPassword), bcrypt.compare(password, legacyHash)]);
@@ -1095,6 +1158,7 @@ export default async function handler(req, res) {
     for (const id of removedIds) await deleteMedia(id).catch(() => {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     // Desativar ou pedir exclusão encerra todas as sessões, inclusive esta.
+    if (accountResult?.deliver) deliverCode(accountResult.deliver).catch(() => {});
     if (accountResult?.exportData) { res.setHeader('Cache-Control', 'no-store'); return res.end(JSON.stringify({ export: accountResult.exportData })); }
     if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureCookie()}`); return res.end(JSON.stringify({ signedOut: true })); }
     if (boostResult?.silent) return res.end('{"ok":true}');
