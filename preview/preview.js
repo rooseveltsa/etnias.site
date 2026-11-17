@@ -15,6 +15,7 @@ let state, filter='all', view='news', videoAttachment=null, fileAttachment=null,
 const feed={key:'',posts:[],hasMore:false,loading:false};
 const profileData={key:'',person:null,posts:[],hasMore:false,loading:false};
 const communityPosts={id:'',posts:[],hasMore:false,loading:false};
+const communityAttach={communityId:'',photo:null,video:null,file:null};
 const searchData={q:null,people:[],posts:[],loading:false};
 const notifData={loaded:false,items:[],loading:true};
 const exploreData={loaded:false,posts:[]};
@@ -1081,10 +1082,36 @@ function renderCommunities(){
     const cSubmit=make('button','Publicar na comunidade','opy-primary');cSubmit.type='submit';
     cRow.append(cSubmit);
     const cStatus=make('p',undefined,'preview-feedback');cStatus.setAttribute('role','status');
-    cForm.append(cLabel,cText,cRow,cStatus);
+    // Anexos da publicação na comunidade: uma foto ou um vídeo (o último escolhido vale) e um arquivo, com os mesmos limites do compositor geral.
+    if(communityAttach.communityId!==current.id)Object.assign(communityAttach,{communityId:current.id,photo:null,video:null,file:null});
+    const cTools=make('div',undefined,'community-attach');cTools.setAttribute('role','group');cTools.setAttribute('aria-label','Anexar à publicação');
+    const cChips=make('ul',undefined,'community-attach-chips');
+    const paintAttach=()=>{cChips.replaceChildren();for(const [kind,label] of [['photo','Foto'],['video','Vídeo'],['file','Arquivo']]){const a=communityAttach[kind];if(!a)continue;const li=make('li');li.append(make('span',label+': '+a.name));const x=make('button','✕');x.type='button';x.setAttribute('aria-label','Remover '+label.toLowerCase()+' anexado');x.onclick=()=>{communityAttach[kind]=null;paintAttach();};li.append(x);cChips.append(li);}cChips.hidden=!cChips.children.length;};
+    const pickFile=(kind,label,accept,icon,capture)=>{
+     const input=make('input');input.type='file';input.accept=accept;input.hidden=true;if(capture)input.setAttribute('capture',capture);
+     const b=make('button',icon+' '+label,'community-attach-btn');b.type='button';b.setAttribute('aria-label','Anexar '+label.toLowerCase());b.onclick=()=>input.click();
+     input.onchange=async()=>{
+      const file=input.files[0];input.value='';if(!file)return;cStatus.textContent='Lendo o anexo…';
+      try{
+       if(kind==='video'){const info=await inspectVideo(file);if(info.duration>MAX_VIDEO_SECONDS+0.5)throw Error('Este vídeo tem '+clipClock(info.duration)+'. O limite é de 4 minutos (240 segundos).');const next=await readSlot(file);if(!/^data:video\/(mp4|webm);/.test(next.data))throw Error('O vídeo precisa ser MP4, MOV ou WebM.');next.poster=info.poster;communityAttach.video=next;communityAttach.photo=null;}
+       else if(kind==='photo'){const next=await readSlot(file);if(!/^data:image\/(png|jpeg|gif|webp);/.test(next.data))throw Error('A foto precisa ser PNG, JPG, GIF ou WebP.');communityAttach.photo=next;communityAttach.video=null;}
+       else{if(!/\.(pdf|txt|docx|doc)$/i.test(file.name))throw Error('O arquivo precisa ser PDF, TXT, DOC ou DOCX.');communityAttach.file=await readSlot(file);}
+       cStatus.textContent='';paintAttach();
+      }catch(err){cStatus.textContent=err.message;}
+     };
+     cTools.append(b,input);
+    };
+    pickFile('photo','Foto','image/png,image/jpeg,image/gif,image/webp','🖼');
+    pickFile('video','Vídeo','video/mp4,video/quicktime,video/webm','🎬');
+    pickFile('file','Arquivo','.pdf,.txt,.doc,.docx,application/pdf,text/plain','📎');
+    const cHint=make('small','Foto ou vídeo (até 40 MB e 4 minutos) e um arquivo PDF, TXT, DOC ou DOCX de até 2 MB.','community-attach-hint');
+    cForm.append(cLabel,cText,cTools,cChips,cHint,cRow,cStatus);paintAttach();
     cForm.onsubmit=async e=>{
      e.preventDefault();cSubmit.disabled=true;cStatus.textContent='Publicando…';
-     try{await change({action:'publish',text:cText.value,audience:'public',communityId:current.id});cText.value='';cStatus.textContent='Publicação compartilhada na comunidade.';}
+     try{
+      const m=communityAttach.video||communityAttach.photo;
+      await change({action:'publish',text:cText.value,audience:'public',communityId:current.id,...(communityAttach.video?.poster?{poster:{name:'capa.jpg',data:communityAttach.video.poster}}:{}),media:m?{name:m.name,data:m.data}:null,file:communityAttach.file?{name:communityAttach.file.name,data:communityAttach.file.data}:null});
+      cText.value='';Object.assign(communityAttach,{photo:null,video:null,file:null});paintAttach();cStatus.textContent='Publicação compartilhada na comunidade.';}
      catch(err){cStatus.textContent=err.message;}finally{cSubmit.disabled=false;}
     };
     if(keepDraft&&keepDraft.id===current.id){cText.value=keepDraft.value;if(keepDraft.focus)queueMicrotask(()=>{cText.focus({preventScroll:true});try{cText.setSelectionRange(keepDraft.start,keepDraft.end);}catch{}});}

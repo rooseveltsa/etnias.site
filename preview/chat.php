@@ -46,7 +46,7 @@ $chatIcon = function ($name) {
     <div id="chat-reply"></div><p id="chat-attachment"></p>
     <div id="chat-recording" class="chat-recording" hidden><span class="chat-rec-dot" aria-hidden="true"></span><span id="chat-rec-time" class="chat-rec-time" role="timer">0:00</span><span class="chat-rec-label">Gravando</span><button type="button" id="chat-rec-cancel" class="chat-rec-cancel">Cancelar</button></div>
     <div class="chat-compose-row">
-     <button id="chat-plus" type="button" class="chat-icon-btn" aria-label="Anexar" aria-haspopup="dialog" aria-controls="chat-sheet"><?php echo $chatIcon('plus'); ?></button>
+     <button id="chat-plus" type="button" class="chat-icon-btn" aria-label="Anexar foto, vídeo ou arquivo" title="Anexar foto, vídeo ou arquivo" aria-haspopup="dialog" aria-controls="chat-sheet"><?php echo $chatIcon('plus'); ?></button>
      <div class="chat-input-pill">
       <label for="chat-text" class="opy-sr-only">Sua mensagem</label><textarea id="chat-text" maxlength="2000" rows="1" placeholder="Mensagem"></textarea>
       <button id="chat-voice" type="button" class="chat-mic" aria-label="Gravar áudio" aria-pressed="false"><?php echo $chatIcon('microphone'); ?></button>
@@ -61,9 +61,9 @@ $chatIcon = function ($name) {
  <dialog id="chat-sheet" class="chat-sheet" aria-labelledby="chat-sheet-title">
   <span class="chat-sheet-grip" aria-hidden="true"></span><h2 id="chat-sheet-title" class="opy-sr-only">Anexar</h2>
   <div class="chat-sheet-grid">
-   <button type="button" data-pick="document"><span><?php echo $chatIcon('file'); ?></span>Documento</button>
+   <button type="button" data-pick="document"><span><?php echo $chatIcon('file'); ?></span>Arquivo (PDF, TXT)</button>
    <button type="button" data-pick="camera"><span><?php echo $chatIcon('camera'); ?></span>Câmera</button>
-   <button type="button" data-pick="gallery"><span><?php echo $chatIcon('image'); ?></span>Galeria</button>
+   <button type="button" data-pick="gallery"><span><?php echo $chatIcon('image'); ?></span>Foto ou vídeo</button>
    <button type="button" data-pick="audio"><span><?php echo $chatIcon('headphones'); ?></span>Áudio</button>
    <button type="button" id="chat-emoji"><span><?php echo $chatIcon('smile'); ?></span>Emoji</button>
   </div>
