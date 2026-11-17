@@ -1828,3 +1828,8 @@ body:not(.opy-welcome) .install-bar .install-apk.preview-secondary{display:none}
 .community-attach-chips li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .community-attach-chips button{border:0;background:transparent;min-width:28px;min-height:28px;border-radius:50%}
 .community-attach-hint{display:block;color:var(--color-text-secondary);margin-bottom:6px}
+/* PC: a barra lateral acompanha a rolagem e rola por conta própria quando a tela é baixa, para os itens de baixo
+   (Sobre, Doe para o Etnias, Salvos, Sair) continuarem ao alcance sem voltar ao topo da página */
+@media(min-width:1000px){body.opy-preview .leftcol{position:sticky;top:var(--opy-head,64px);align-self:flex-start;max-height:calc(100vh - var(--opy-head,64px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}}
+/* A cor de destaque usada por abas e filtros marcados não estava definida (--opy-green): o texto branco ficava sobre fundo claro e a aba ativa sumia (ex.: "Feed" na comunidade, no PC) */
+body.opy-preview{--opy-green:#b84a27}
