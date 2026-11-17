@@ -115,6 +115,14 @@ function addGeoButton(){
  };
  place.insertAdjacentElement('afterend',note);place.insertAdjacentElement('afterend',b);
 }
-function init(){tuneComposer();tuneChips();addFab();addGeoButton();}
+
+// "Salvos" estava sem entrada no menu: a página existia (/salvos/) mas ninguém chegava nela.
+function addSavedLink(){
+ const cfg=document.querySelector('.opy-account-menu a[href="/configuracoes/"]');
+ if(!cfg||document.querySelector('.opy-account-menu a[href="/salvos/"]'))return;
+ const a=document.createElement('a');a.href='/salvos/';a.setAttribute('role','menuitem');a.textContent='Salvos';
+ cfg.insertAdjacentElement('beforebegin',a);
+}
+function init(){tuneComposer();tuneChips();addFab();addGeoButton();addSavedLink();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
