@@ -79,6 +79,15 @@ assert.equal(pdf.status, 400, 'comentário não aceita documento');
 assert.equal((await api({ action: 'comment_delete', postId: p2.id, commentId: cm.id }, bia.cookie)).status, 200);
 assert.ok(!media.has(mid), 'a foto sai junto com o comentário');
 
+// Segurança (AUD-21): live só para amigos não aparece nem abre para quem não é amigo.
+const anaId = state.accounts.find(a => a.username === 'ana.tupi').id;
+state.posts.unshift({ id: crypto.randomUUID(), authorId: anaId, author: 'ana.tupi', text: 'live fechada', origin: 'preview', createdAt: Date.now(), audience: 'friends', reactions: {}, comments: [], saves: [], shares: 0, live: { startedAt: Date.now(), key: 'k', chat: [], viewers: {}, invites: {} } });
+const liveId = state.posts[0].id;
+assert.equal((await get('view=live', bia.cookie)).lives.some(l => l.postId === liveId), false);
+assert.equal((await get(`view=live&id=${liveId}`, bia.cookie)).error, 'Live não encontrada.');
+assert.equal((await get('view=live', ana.cookie)).lives.some(l => l.postId === liveId), true, 'quem transmite vê a própria live');
+state.posts.shift();
+
 // PRESENÇA-001: quem acabou de usar aparece online; ocupado e não incomodar são escolha da pessoa.
 const snapA = (await api(null, ana.cookie)).data;
 assert.equal(snapA.presence[`id:${snapA.me.id}`], 'online');
@@ -86,4 +95,8 @@ assert.equal((await api({ action: 'availability_set', availability: 'sumido' }, 
 const busy = (await api({ action: 'availability_set', availability: 'dnd' }, ana.cookie)).data;
 assert.equal(busy.me.availability, 'dnd'); assert.equal(busy.presence[`id:${busy.me.id}`], 'dnd');
 assert.equal((await api({ action: 'availability_set', availability: '' }, ana.cookie)).data.me.availability, '');
-console.log('PASS correções: foto em comentário, presença, quem reagiu, denúncias, exclusão pela moderação com registro, @ de admin protegido');
+// AUD-20: limite de 30 ações por minuto conta também as que falham e responde 429 sem gravar nada.
+let last = 0;
+for (let i = 0; i < 31; i++) last = (await api({ action: 'react', postId: 'nao-existe', reaction: 'like' }, bia.cookie)).status;
+assert.equal(last, 429);
+console.log('PASS correções: limite por minuto em memória, foto em comentário, presença, quem reagiu, denúncias, exclusão pela moderação com registro, @ de admin protegido');

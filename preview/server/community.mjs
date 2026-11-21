@@ -21,7 +21,7 @@ import { touchPresence, presenceMap, AVAILABILITY } from './presence.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage, log as adminLog } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
-import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
+import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow , setLiveVisibility } from './live.mjs';
 import { sendFile, sendBuffer } from './files.mjs';
 import { plainText } from './plain-text.mjs';
 import { mp4Seconds, MAX_VIDEO_SECONDS } from './video-meta.mjs';
@@ -524,6 +524,14 @@ function mediaInput(value) {
   }
   return { id: randomUUID(), bytes, type, kind: type.startsWith('image/') ? 'image' : type.startsWith('video/') ? 'video' : type.startsWith('audio/') ? 'audio' : 'file', name };
 }
+setLiveVisibility((post, me, state) => visible(post, me, state));
+// Proxy WHEP (assistir): a sessão precisa existir, não estar revogada, e a pessoa precisa poder ver a live.
+export async function canWatchLive(session, postId) {
+  const state = (await readState()).data;
+  const account = sessionAccount(state, session);
+  const post = account && (state.posts || []).find(p => p.id === postId && p.live);
+  return !!post && visible(post, member(account), state);
+}
 export { mediaInput, googleKeyOf, phoneOf };
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -653,6 +661,14 @@ export default async function handler(req, res) {
     if (!sameOrigin) fail(403, 'Recarregue a página antes de enviar sua alteração.');
     const body = req.body;
     if (!body || typeof body !== 'object' || JSON.stringify(body).length > MAX_BODY_CHARS) fail(413, 'Conteúdo muito grande. Escolha um arquivo menor.');
+    // Limite por pessoa em memória, antes de gravar mídia ou o banco (AUD-20): uma ação que falha também conta,
+    // e um 429 não regrava nem invalida o estado. Ações frequentes por natureza (live, chamada) têm cota própria.
+    if (session) {
+      const frequent = ['live_watch', 'live_react', 'live_signal', 'boost_seen', 'gcall_beat', 'gcall_signal', 'chat_typing'].includes(body.action);
+      const rateKey = `act:${session.accountId}${frequent ? ':f' : ''}`;
+      if (tooMany(rateKey, frequent ? 240 : 30, 60_000)) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
+      note(rateKey, 60_000);
+    }
     if (body.action === 'logout') {
       if (session) await transact(state => {
         const account = sessionAccount(state, session);
@@ -856,14 +872,7 @@ export default async function handler(req, res) {
       if (!currentAccount) fail(401, 'Entre novamente para continuar.');
       const me = member(currentAccount);
       activeMe = me;
-      const minute = Math.floor(Date.now() / 60000);
-      const limit = state.limits[me.id];
-      // Batimento de audiência e reações rápidas da live não contam no limite por minuto (são frequentes por natureza).
-      if (!['live_watch', 'live_react', 'live_signal', 'boost_seen', 'gcall_beat', 'gcall_signal'].includes(body.action)) {
-        if (limit?.minute === minute && limit.count >= 30) fail(429, 'Você enviou muitas ações. Aguarde um minuto para continuar.');
-        state.limits[me.id] = { minute, count: limit?.minute === minute ? limit.count + 1 : 1 };
-      }
-      for (const id of Object.keys(state.limits)) if (state.limits[id].minute < minute - 2) delete state.limits[id];
+      if (state.limits) delete state.limits; // limite por minuto agora fica em memória (antes do transact)
       settleCalls(state);
       settleGroupCalls(state);
       settleLives(state);

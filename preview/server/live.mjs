@@ -44,9 +44,14 @@ export function settleLives(state, now = Date.now()) {
   }
 }
 
+// Quem pode ver a live segue a mesma regra da publicação (público, amigos, só eu, comunidade privada, bloqueio).
+// community.mjs injeta a função `visible` aqui (evita import circular).
+let canSee = () => true;
+export function setLiveVisibility(fn) { canSee = fn; }
+
 function liveOf(state, body, me, { host = false, mustBeActive = true } = {}) {
   const post = (state.posts || []).find(p => p.id === body.postId && p.live);
-  if (!post) fail(404, 'Live não encontrada.');
+  if (!post || !canSee(post, me, state)) fail(404, 'Live não encontrada.');
   if (mustBeActive && !active(post)) fail(409, 'Esta live já terminou.');
   if (host && post.authorId !== me.id) fail(403, 'Só quem transmite pode fazer isso.');
   return post;
@@ -227,7 +232,7 @@ export const projectLive = (p, now = Date.now()) => p.live ? { active: active(p)
 // Lives públicas ativas agora, para descoberta (anel de stories, perfil, seção "Ao vivo agora"). Quem a pessoa segue vem primeiro.
 export function liveNow(state, me, now = Date.now()) {
   const followed = new Set(Array.isArray(state.follows?.[me.id]) ? state.follows[me.id] : []);
-  return (state.posts || []).filter(active).map(p => { const a = personOf(state, p.authorId); const key = `id:${p.authorId}`; return { postId: p.id, authorKey: key, author: p.author, avatar: avatarOf(a), format: p.live.format || 'portrait', viewers: viewersOf(p, now), startedAt: p.live.startedAt, communityId: p.communityId || '', following: followed.has(key), own: p.authorId === me.id, invited: p.live.invites?.[me.id]?.status === 'pending' }; })
+  return (state.posts || []).filter(p => active(p) && canSee(p, me, state)).map(p => { const a = personOf(state, p.authorId); const key = `id:${p.authorId}`; return { postId: p.id, authorKey: key, author: p.author, avatar: avatarOf(a), format: p.live.format || 'portrait', viewers: viewersOf(p, now), startedAt: p.live.startedAt, communityId: p.communityId || '', following: followed.has(key), own: p.authorId === me.id, invited: p.live.invites?.[me.id]?.status === 'pending' }; })
     .sort((a, b) => Number(b.own) - Number(a.own) || Number(b.following) - Number(a.following) || b.viewers - a.viewers);
 }
 
@@ -235,7 +240,7 @@ export function liveNow(state, me, now = Date.now()) {
 export function liveView(state, me, params, env = process.env, now = Date.now()) {
   const id = params.get('id') || '';
   if (!id) return { lives: liveNow(state, me, now) };
-  const post = (state.posts || []).find(p => p.id === id && p.live); if (!post) fail(404, 'Live não encontrada.');
+  const post = (state.posts || []).find(p => p.id === id && p.live); if (!post || !canSee(post, me, state)) fail(404, 'Live não encontrada.');
   const since = Number(params.get('since')) || 0;
   const host = post.authorId === me.id, guest = guestOf(post), amGuest = guest?.userId === me.id;
   const hostAccount = personOf(state, post.authorId), guestAccount = guest ? personOf(state, guest.userId) : null;

@@ -3,7 +3,7 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep, basename } from 'node:path';
-import handler, { MAX_BODY_CHARS, purgeDueAccounts } from '../preview/server/community.mjs';
+import handler, { MAX_BODY_CHARS, purgeDueAccounts, canWatchLive } from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 import { sendFile } from '../preview/server/files.mjs';
@@ -16,7 +16,10 @@ const liveUrl = process.env.OPY_LIVE_URL || '';
 const livePath = /^\/live\/[a-f0-9-]{36}\/(?:whip|whep)(?:\/[A-Za-z0-9_-]{1,120})?$/;
 async function proxyLive(req, res, pathname) {
   if (!liveUrl || !livePath.test(pathname) || !['POST', 'PATCH', 'DELETE', 'OPTIONS'].includes(req.method)) { res.writeHead(404); return res.end(); }
-  if (!await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET)) { res.writeHead(401); return res.end(); }
+  const session = await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET);
+  if (!session) { res.writeHead(401); return res.end(); }
+  // Assistir (WHEP) só quem pode ver a publicação da live; transmitir (WHIP) já exige a chave da live no MediaMTX.
+  if (/\/whep(?:\/|$)/.test(pathname) && !await canWatchLive(session, pathname.split('/')[2])) { res.writeHead(404); return res.end(); }
   const headers = {};
   for (const name of ['content-type', 'authorization', 'if-match']) if (req.headers[name]) headers[name] = req.headers[name];
   const upstream = http.request(new URL(pathname.slice('/live'.length), liveUrl), { method: req.method, headers }, up => {

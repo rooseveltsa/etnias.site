@@ -30,6 +30,7 @@ registerHooks({
 });
 process.env.OPY_SESSION_SECRET = 'integration-test-secret-isolated-2026-only';
 const { default: handler } = await import('../../preview/server/community.mjs');
+const { _reset: resetLimits, _resetPrefix } = await import('../../preview/server/throttle.mjs');
 const { default: middleware } = await import('../../preview/middleware.js');
 const root = resolve('preview/dist/public');
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' };
@@ -49,6 +50,7 @@ const server = http.createServer(async (req, res) => {
 const port = Number(process.env.OPY_TEST_PORT || 8101);
 const base = 'http://127.0.0.1:' + port;
 async function api(body, cookie = '', origin = base) {
+  _resetPrefix('act:'); // este roteiro faz muitas ações seguidas com a mesma conta; o limite por minuto é testado em correcoes-gerencia.mjs
   const headers = {};
   const response = { statusCode: 200, setHeader: (name, value) => { headers[name.toLowerCase()] = value; }, end: value => { response.output = value; } };
   await handler({ method: body ? 'POST' : 'GET', url: '/api/community', headers: { cookie, origin, host: '127.0.0.1:' + port }, body }, response);
@@ -117,7 +119,7 @@ try {
   assert.equal((await api({ action: 'story_create', media: png }, first.cookie)).status, 409);
   assert.equal(media.size, 0, 'Falha na transação remove o novo upload');
   state.stories = [];
-  state.limits = {};
+  resetLimits();
   assert.equal(JSON.stringify(first.data).includes('sessions'), false);
   const token = first.cookie.slice(12);
   const session = await verifySession(token, process.env.OPY_SESSION_SECRET);

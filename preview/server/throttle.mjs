@@ -17,3 +17,5 @@ export function clientIp(req) {
   return String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket?.remoteAddress || '?';
 }
 export function _reset() { hits.clear(); }
+// Só para testes: zera um grupo de contadores (ex.: 'act:' = ações por minuto) sem mexer nos de login.
+export function _resetPrefix(prefix) { for (const k of [...hits.keys()]) if (k.startsWith(prefix)) hits.delete(k); }
