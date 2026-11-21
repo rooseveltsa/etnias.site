@@ -65,4 +65,25 @@ const usurper = await api({ ...profile('gestao.teste'), googleKey: 'outra@exampl
 assert.equal(usurper.status, 409);
 state.accounts = state.accounts.filter(a => a.username !== 'gestao.teste'); // conta de gestão excluída: o @ fica livre no banco
 assert.equal((await api({ ...profile('gestao.teste'), googleKey: 'outra@example.com' })).status, 409, 'o @ de admin liberado não volta a ficar disponível');
-console.log('PASS correções: quem reagiu, denúncias, exclusão pela moderação com registro, @ de admin protegido');
+// COMENT-003: foto em comentário (só imagem), servida pela mídia da publicação e apagada junto com o comentário.
+const p2 = (await api({ action: 'publish', text: 'post 2', audience: 'public' }, ana.cookie)).data.posts.find(p => p.text === 'post 2');
+const png = Buffer.alloc(2000); Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+const withPhoto = await api({ action: 'comment', postId: p2.id, text: '', media: { name: 'f.png', data: 'data:image/png;base64,' + png.toString('base64') } }, bia.cookie);
+assert.equal(withPhoto.status, 200, withPhoto.data.error);
+const cm = withPhoto.data.posts.find(p => p.id === p2.id).comments[0];
+assert.match(cm.media.url, /^\/api\/media\?id=/);
+const mid = state.posts.find(p => p.id === p2.id).comments[0].media.id;
+assert.ok(media.has(mid));
+const pdf = await api({ action: 'comment', postId: p2.id, text: 'x', media: { name: 'a.pdf', data: 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 teste').toString('base64') } }, bia.cookie);
+assert.equal(pdf.status, 400, 'comentário não aceita documento');
+assert.equal((await api({ action: 'comment_delete', postId: p2.id, commentId: cm.id }, bia.cookie)).status, 200);
+assert.ok(!media.has(mid), 'a foto sai junto com o comentário');
+
+// PRESENÇA-001: quem acabou de usar aparece online; ocupado e não incomodar são escolha da pessoa.
+const snapA = (await api(null, ana.cookie)).data;
+assert.equal(snapA.presence[`id:${snapA.me.id}`], 'online');
+assert.equal((await api({ action: 'availability_set', availability: 'sumido' }, ana.cookie)).status, 400);
+const busy = (await api({ action: 'availability_set', availability: 'dnd' }, ana.cookie)).data;
+assert.equal(busy.me.availability, 'dnd'); assert.equal(busy.presence[`id:${busy.me.id}`], 'dnd');
+assert.equal((await api({ action: 'availability_set', availability: '' }, ana.cookie)).data.me.availability, '');
+console.log('PASS correções: foto em comentário, presença, quem reagiu, denúncias, exclusão pela moderação com registro, @ de admin protegido');

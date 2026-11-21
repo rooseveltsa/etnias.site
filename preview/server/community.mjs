@@ -17,6 +17,7 @@ import { recordConsent, sensitiveChange, purgeAccount, dueForPurge, TERMS_VERSIO
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { groupCallActions, groupCallAction, groupCallsView, settleGroupCalls } from './groupcalls.mjs';
+import { touchPresence, presenceMap, AVAILABILITY } from './presence.mjs';
 import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage, log as adminLog } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
@@ -232,7 +233,7 @@ function projectPost(p, me, state, ctx) {
     repostOf: p.repostOf ? { ...p.repostOf, media: mapMedia(p.repostOf.media), file: mapMedia(p.repostOf.file), images: p.repostOf.photos?.length > 1 ? p.repostOf.photos.map(m => `/api/media?id=${m.id}`) : p.repostOf.images || [], photos: undefined } : null,
     reactions: Object.fromEntries(ctx.reactionIds.map(r => [r, Object.values(p.reactions || {}).filter(v => v === r).length])), reaction: p.reactions?.[me.id] || '',
     reactedBy: reactorNames(p, me, ctx),
-    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, sticker: c.sticker ? { id: c.sticker.id, name: c.sticker.name, url: `/api/media?id=${c.sticker.mediaId}` } : null, mentions: mentionKeys(c.mentions, ctx), createdAt: c.createdAt, editedAt: c.editedAt || 0,
+    comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, media: c.media ? { url: `/api/media?id=${c.media.id}`, kind: 'image' } : null, sticker: c.sticker ? { id: c.sticker.id, name: c.sticker.name, url: `/api/media?id=${c.sticker.mediaId}` } : null, mentions: mentionKeys(c.mentions, ctx), createdAt: c.createdAt, editedAt: c.editedAt || 0,
       parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(ctx.myKey), own: c.authorKey === ctx.myKey })),
     editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
     poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
@@ -460,7 +461,8 @@ function snapshot(state, me) {
   const unreadChatCount = (chatView.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0) + (chatView.invitations || []).length + (chatView.requests || []).length;
   const primaryGroup = communities.find(c => c.id === 'avaliacao-casa-opy');
   if (pick?.inPage) { const inPage = posts.find(p => p.id === pick.post.id); if (inPage) inPage.sponsored = tag; }
-  return { me: { ...me, muted: state.mutes?.[myKey] || [] }, reactionSet: reactionSet(state), reactionAll: reactionConfig(state).map(r => ({ id: r.id, label: r.label, ...(r.mediaId ? { mediaId: r.mediaId } : {}) })), usernameInfo: usernameInfo((state.accounts || []).find(a => a.id === me.id) || {}, state), i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
+  const presence = presenceMap(new Set([myKey, ...posts.map(p => p.authorKey), ...(directory || []).map(d => d.key), ...(chatView.conversations || []).map(c => c.key)]), ctx.accountsById);
+  return { presence, me: { ...me, availability: (ctx.accountsById.get(me.id)?.availability) || '', muted: state.mutes?.[myKey] || [] }, reactionSet: reactionSet(state), reactionAll: reactionConfig(state).map(r => ({ id: r.id, label: r.label, ...(r.mediaId ? { mediaId: r.mediaId } : {}) })), usernameInfo: usernameInfo((state.accounts || []).find(a => a.id === me.id) || {}, state), i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id) };
 }
 function pdfAt(bytes) {
   const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
@@ -538,6 +540,7 @@ export default async function handler(req, res) {
     }
     const session = await verifySession(sessionCookie(req), secret);
     await slideSession(res, session, secret);
+    if (session) touchPresence(session.accountId);
     // Telas públicas de entrada: o que o servidor oferece e se um @ está livre (com limite por endereço).
     if (req.method === 'GET' && pathname.replace(/\/$/, '') === '/api/community') {
       const sp = new URL(req.url, 'http://local').searchParams, view = sp.get('view');
@@ -776,7 +779,7 @@ export default async function handler(req, res) {
     // Senha provisória emitida pela administração: nada funciona até a pessoa trocá-la (a regra vale no servidor, não só na tela).
     if (signedIn.mustChangePassword && body.action !== 'password_change') fail(403, 'Troque a senha provisória para continuar.');
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !pageActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit', 'post_report'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !pageActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit', 'post_report', 'availability_set'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(plainText(body.text || ''), 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -809,6 +812,12 @@ export default async function handler(req, res) {
     }
     if (pageUploadActions.includes(body.action)) upload = await pagesPrepareUpload(body, signedIn, { mediaInput, saveMedia });
     if (extrasUploadActions.includes(body.action)) upload = await extrasPrepareUpload(body, signedIn, { mediaInput, saveMedia });
+    if (body.action === 'comment' && body.media) {
+      // COMENT-003: foto no comentário (o app já reduz a foto; aqui só imagem de até 2 MB).
+      upload = mediaInput(body.media);
+      if (!upload || upload.kind !== 'image') fail(400, 'No comentário, envie uma foto PNG, JPG, GIF ou WebP.');
+      await saveMedia(upload.id, upload.bytes, upload.type);
+    }
     if (body.action === 'dm') {
       upload = mediaInput(body.media);
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
@@ -1022,7 +1031,7 @@ export default async function handler(req, res) {
             if (body.replyTo) { const parent = post.comments.find(c => c.id === body.replyTo); if (!parent) fail(404, 'Comentário não encontrado.'); parentId = parent.parentId || parent.id; }
             const sticker = body.stickerId ? stickerById(state, String(body.stickerId)) : null;
             if (body.stickerId && !sticker) fail(404, 'Figurinha não encontrada.');
-            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: sticker && !String(body.text || '').trim() ? '' : text(plainText(body.text), 500), createdAt: Date.now(), ...(sticker ? { sticker: { id: sticker.id, mediaId: sticker.mediaId, name: sticker.name } } : {}), ...(parentId ? { parentId } : {}) };
+            const comment = { id: randomUUID(), author: me.name, authorKey: `id:${me.id}`, text: (sticker || upload) && !String(body.text || '').trim() ? '' : text(plainText(body.text), 500), createdAt: Date.now(), ...(upload ? { media: { id: upload.id, kind: 'image', type: upload.type, name: upload.name } } : {}), ...(sticker ? { sticker: { id: sticker.id, mediaId: sticker.mediaId, name: sticker.name } } : {}), ...(parentId ? { parentId } : {}) };
             post.comments.push(comment);
             const to = [post.authorId, idOf(post.comments.find(c => c.id === parentId)?.authorKey)].filter(id => id && id !== me.id);
             if (to.length) pushNotice = { to, payload: { title: `${me.name} comentou`, body: comment.text.slice(0, 120), href: `/#post-${post.id}`, tag: `post-${post.id}` } };
@@ -1042,9 +1051,14 @@ export default async function handler(req, res) {
           const staffComment = c.authorKey !== `id:${me.id}` && post.authorId !== me.id && roleOf(currentAccount);
           if (c.authorKey !== `id:${me.id}` && post.authorId !== me.id && !staffComment) fail(403, 'Só quem comentou ou quem publicou pode apagar.');
           if (staffComment) adminLog(state, currentAccount, 'Comentário excluído pela moderação', c.author, '', { postId: post.id, excerpt: c.text.slice(0, 280) });
+          removedIds = post.comments.filter(item => item.id === c.id || item.parentId === c.id).map(item => item.media?.id).filter(Boolean);
           post.comments = post.comments.filter(item => item.id !== c.id && item.parentId !== c.id);
           break;
         }
+        case 'availability_set':
+          if (!AVAILABILITY.includes(body.availability)) fail(400, 'Escolha disponível, ocupado ou não incomodar.');
+          if (body.availability) currentAccount.availability = body.availability; else delete currentAccount.availability;
+          break;
         case 'post_report': {
           // Denúncia de publicação ou de comentário: vai para os alertas do Centro de gestão.
           const comment = body.commentId ? post.comments.find(c => c.id === body.commentId) : null;

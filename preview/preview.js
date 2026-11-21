@@ -114,6 +114,28 @@ function openReactors(post){
    more.hidden=!d.hasMore;}catch(e){list.append(make('li',e.message,'pf-empty'));}finally{more.disabled=false;}};
  more.onclick=load;load();
 }
+// PRESENÇA-001: verde = online (automático); azul = ocupado; vermelho = não incomodar. Offline não mostra nada.
+const PRESENCE_LABEL={online:'Online',busy:'Ocupado',dnd:'Não incomodar'};
+function presenceDot(key){const p=state?.presence?.[key];const d=make('span',undefined,'opy-presence'+(p?' is-'+p:''));if(p){d.title=PRESENCE_LABEL[p];d.setAttribute('aria-label',PRESENCE_LABEL[p]);d.setAttribute('role','img');}else d.hidden=true;return d;}
+// Na caixa de publicação: escolher ocupado ou não incomodar (tocar de novo volta a disponível).
+function paintAvailability(){const row=$('.preview-publish-selectors');if(!row||!state?.me)return;let box=$('#opy-availability');
+ if(!box){box=make('div',undefined,'opy-availability');box.id='opy-availability';box.setAttribute('role','group');box.setAttribute('aria-label','Sua disponibilidade');row.append(box);
+  for(const [v,label] of [['busy','Ocupado'],['dnd','Não incomodar']]){const b=make('button',undefined,'opy-availability-btn is-'+v);b.type='button';b.dataset.availability=v;b.append(make('span',undefined,'opy-presence is-'+v),document.createTextNode(label));
+   b.onclick=async()=>{const next=state.me.availability===v?'':v;try{await change({action:'availability_set',availability:next});toast(next?'Status: '+label:'Status: disponível');}catch(e){showError(e.message);}};box.append(b);}}
+ for(const b of box.querySelectorAll('button'))b.setAttribute('aria-pressed',String(state.me.availability===b.dataset.availability));}
+function notificationCard(i){
+   const followBack=i.kind==='follow'&&i.canFollow&&!i.following;
+   const card=make(i.href&&!i.actionable&&!followBack?'a':'div',undefined,'notification-card'+(i.unread?' is-unread':''));if(card.tagName==='A')card.href=i.href;
+   card.append(avatarNode(i.text.split(' ')[0],i.avatar,44));
+   const body=make('div',undefined,'notification-body');body.append(make('p',i.text));
+   if(!i.actionable&&i.createdAt)body.append(make('small',date(i.createdAt)));
+   if(i.kind==='friend'){const acts=make('div',undefined,'community-member-actions');const acc=button('Aceitar amizade',async()=>{await change({action:'friend',authorKey:i.key});toast('Pedido aceito: agora vocês são amigos.');},acts);acc.className='opy-primary';button('Ver perfil',()=>openProfile(i.key),acts);body.append(acts);}
+   else if(i.kind==='invite'){const acts=make('div',undefined,'community-member-actions');const acc=button('Aceitar convite',()=>change({action:'community_accept_invite',communityId:i.communityId}),acts);acc.className='opy-primary';button('Recusar',()=>change({action:'community_decline_invite',communityId:i.communityId}),acts);body.append(acts);}
+   else if(i.kind==='pending'){const a=make('a','Ver pedidos','preview-text-link');a.href=i.href;body.append(a);}
+   else if(followBack){const acts=make('div',undefined,'community-member-actions');const f=button('Seguir de volta',async()=>{await change({action:'follow',authorKey:i.key});i.following=true;render();},acts);f.className='opy-primary';button('Ver perfil',()=>openProfile(i.key),acts);body.append(acts);}
+   card.append(body);return card;
+}
+function loadNotifications(force){if(notifData.loaded&&!force)return;notifData.loaded=true;notifData.loading=true;apiGet({view:'notifications'}).then(d=>{notifData.items=d.items;notifData.loading=false;render();if(d.items.some(i=>i.unread&&!i.actionable))change({action:'notifications_seen'}).catch(()=>{});}).catch(e=>{notifData.loading=false;showError(e.message);});}
 async function toggleFollow(key){
  if(!key||followPending.has(key))return;followPending.add(key);
  const was=isFollowingKey(key);paintFollowing(key,!was);render();
@@ -417,7 +439,7 @@ function renderPost(post, communityContext=null){
  if(post.sponsored){const tag=make('p',post.sponsored.label+(post.sponsored.test?' · teste':''),'post-sponsored');card.dataset.boost=post.sponsored.boostId;card.classList.add('is-sponsored');card.append(tag);}
  const head=make('div',undefined,'preview-author');
  const pKey=post.authorKey||`name:${post.author}`;
- const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42));avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
+ const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42),presenceDot(post.authorKey));avBtn.classList.add('has-presence');avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
  const who=make('div');
  const nameBtn=make('button',post.author,'author-name-btn');nameBtn.type='button';nameBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
  if(post.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');nameBtn.append(v);}
@@ -463,7 +485,11 @@ function renderPost(post, communityContext=null){
  const emojiBtn=make('button',undefined,'comment-emoji-btn comment-sticker-btn');emojiBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v9l-6 6H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 20v-5a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="14" cy="10" r="1.1" fill="currentColor"/></svg>';emojiBtn.type='button';emojiBtn.setAttribute('aria-label','Enviar figurinha');emojiBtn.title='Figurinhas';emojiBtn.setAttribute('aria-expanded','false');
  const emojiBox=make('div',undefined,'comment-emoji-picker');emojiBox.hidden=true;
  emojiBtn.onclick=()=>{emojiBox.hidden=!emojiBox.hidden;emojiBtn.setAttribute('aria-expanded',String(!emojiBox.hidden));if(!emojiBox.hidden)window.OpyStickers?.open(emojiBox,async st=>{emojiBox.hidden=true;emojiBtn.setAttribute('aria-expanded','false');try{openCommentForms.add(post.id);const replyTo=replyTargets.get(post.id)?.id;replyTargets.delete(post.id);await change({action:'comment',postId:post.id,text:'',stickerId:st.id,...(replyTo?{replyTo}:{})});}catch(err){showError(err.message);}});};
- const box=make('div',undefined,'comment-box');box.append(input,emojiBtn,submit);
+ // COMENT-003: foto no comentário/resposta, reduzida no aparelho antes de enviar (até ~900 KB).
+ const photoBtn=make('label',undefined,'comment-emoji-btn comment-photo-btn');photoBtn.title='Enviar foto';photoBtn.setAttribute('aria-label','Enviar foto no comentário');photoBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="1.6" fill="currentColor"/><path d="M4 17l5-4 3 2 3-3 5 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+ const photoInput=make('input');photoInput.type='file';photoInput.accept='image/png,image/jpeg,image/webp,image/gif';photoInput.hidden=true;photoBtn.append(photoInput);
+ photoInput.onchange=async()=>{const f=photoInput.files[0];photoInput.value='';if(!f)return;try{const slot=await readSlot(f,900*1024);openCommentForms.add(post.id);const replyTo=replyTargets.get(post.id)?.id;replyTargets.delete(post.id);await change({action:'comment',postId:post.id,text:input.value,media:{name:slot.name,data:slot.data},...(replyTo?{replyTo}:{})});input.value='';}catch(err){showError(err.message);}};
+ const box=make('div',undefined,'comment-box');box.append(input,photoBtn,emojiBtn,submit);
  form.append(box,charCount,emojiBox);
  form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{openCommentForms.add(post.id);const draft=input.value;const replyTo=replyTargets.get(post.id)?.id;replyTargets.delete(post.id);try{await change({action:'comment',postId:post.id,text:draft,...(replyTo?{replyTo}:{})});}catch(error){if(replyTo)replyTargets.set(post.id,{id:replyTo,author:''});throw error;}const sent=document.getElementById('post-'+post.id)?.querySelector('.preview-comment-form input');if(sent){sent.value='';const cc=document.getElementById('post-'+post.id)?.querySelector('.comment-char-count');if(cc)cc.textContent='0/500';}}catch(err){showError(err.message);submit.disabled=false;}});
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
@@ -550,11 +576,11 @@ function renderPost(post, communityContext=null){
  const renderComment=(comment,isReply)=>{
   const block=make('div',undefined,'preview-comment'+(isReply?' is-reply':''));
   const cKey=comment.authorKey||`name:${comment.author}`;
-  const avatar=make('button',undefined,'author-trigger comment-avatar');avatar.type='button';avatar.setAttribute('aria-label','Abrir perfil de '+comment.author);avatar.append(avatarNode(comment.author,comment.avatar,isReply?28:36));avatar.onclick=()=>openProfile(cKey,comment.author,comment.avatar||'');
+  const avatar=make('button',undefined,'author-trigger comment-avatar');avatar.type='button';avatar.setAttribute('aria-label','Abrir perfil de '+comment.author);avatar.append(avatarNode(comment.author,comment.avatar,isReply?28:36),presenceDot(comment.authorKey));avatar.classList.add('has-presence');avatar.onclick=()=>openProfile(cKey,comment.author,comment.avatar||'');
   const body=make('div',undefined,'preview-comment-body');
   const bubble=make('div',undefined,'comment-bubble');
   const cAuthor=make('button',comment.author,'author-name-btn');cAuthor.type='button';cAuthor.onclick=()=>openProfile(cKey,comment.author,'');
-  const cText=make('p');cText.append(linkified(comment.text,comment.mentions));bubble.append(cAuthor);if(comment.text)bubble.append(cText);if(comment.sticker){const im=make('img',undefined,'comment-sticker');im.src=comment.sticker.url;im.alt='Figurinha: '+comment.sticker.name;im.width=96;im.height=96;im.loading='lazy';bubble.append(im);}
+  const cText=make('p');cText.append(linkified(comment.text,comment.mentions));bubble.append(cAuthor);if(comment.text)bubble.append(cText);if(comment.media?.kind==='image'){const im=make('img',undefined,'comment-photo');im.src=comment.media.url;im.alt='Foto de '+comment.author;im.loading='lazy';im.tabIndex=0;im.onclick=()=>openLightbox([comment.media.url],0,comment.author);bubble.append(im);}if(comment.sticker){const im=make('img',undefined,'comment-sticker');im.src=comment.sticker.url;im.alt='Figurinha: '+comment.sticker.name;im.width=96;im.height=96;im.loading='lazy';bubble.append(im);}
   if(comment.likes){const n=make('span','❤ '+comment.likes,'comment-likes');n.setAttribute('aria-label',comment.likes+(comment.likes===1?' curtida':' curtidas'));bubble.append(n);}
   const bar=make('div',undefined,'comment-actions');
   const like=button(comment.liked?'Curtido':'Curtir',()=>change({action:'comment_like',postId:post.id,commentId:comment.id}),bar);like.className='comment-act'+(comment.liked?' is-on':'');like.setAttribute('aria-pressed',String(!!comment.liked));
@@ -1458,7 +1484,7 @@ function paintRequests(){
  const act=(label,cls,fn,optimistic)=>{const b=make('button',label,cls);b.type='button';b.dataset.keepOpen='1';b.onclick=async()=>{b.disabled=true;const rowEl=b.closest('.opy-req-row');if(optimistic)optimistic(b);try{await fn();}catch(e){showError(e.message);b.disabled=false;box.dataset.sig='';paintRequests();}};return b;};
  const nodes=[make('p','Pedidos de amizade','opy-pop-title')];
  if(!incoming.length)nodes.push(make('p','Nenhum pedido no momento.','opy-req-empty'));
- for(const p of incoming){const a=make('div',undefined,'opy-req-actions');a.append(act('Aceitar','opy-primary',()=>change({action:'friend',authorKey:p.key})),act('Recusar','preview-secondary',()=>change({action:'friend_decline',authorKey:p.key})));nodes.push(row(p,a));}
+ for(const p of incoming){const a=make('div',undefined,'opy-req-actions');a.append(act('Aceitar','opy-primary',async()=>{await change({action:'friend',authorKey:p.key});toast('Pedido aceito: agora você e '+p.name+' são amigos.');}),act('Recusar','preview-secondary',()=>change({action:'friend_decline',authorKey:p.key})));nodes.push(row(p,a));}
  if(suggest.length){nodes.push(make('p','Pessoas para seguir','opy-pop-title'));for(const p of suggest){const a=make('div',undefined,'opy-req-actions');const gone=b=>{b.closest('.opy-req-row')?.remove();};a.append(act('Seguir','opy-primary',()=>toggleFollow(p.key),gone),act('Agora não','preview-secondary',()=>change({action:'suggestion_dismiss',authorKey:p.key}),gone));nodes.push(row(p,a));}}
  const all_=make('a','Encontrar mais pessoas','opy-req-more');all_.href='/search/';nodes.push(all_);
  box.replaceChildren(...nodes);
@@ -1626,6 +1652,7 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
   else if(badge)badge.remove();
  }
  paintCommunity();
+ paintAvailability();
  paintAnnouncements();
  renderCommunities();
  const stories=$('#story-list');if(stories&&Array.isArray(state.stories)){
@@ -1664,7 +1691,7 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
   const welcome=!key&&!saved?welcomeCard():null;
-  const postSig=p=>JSON.stringify([p.media?.kind==='video'||p.repostOf?.media?.kind==='video'?state.me?.videoAutoplay:'',p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
+  const postSig=p=>JSON.stringify([state.presence?.[p.authorKey]||'',(p.comments||[]).map(c=>state.presence?.[c.authorKey]||'').join(),p.media?.kind==='video'||p.repostOf?.media?.kind==='video'?state.me?.videoAutoplay:'',p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
   // O patrocinado fica o mesmo enquanto a pessoa lê: o rodízio do servidor só vale na próxima abertura do feed (sem redesenhar a lista).
   if(!key&&!saved&&fs.sponsored===undefined&&state.sponsored!==undefined)fs.sponsored=state.sponsored||null;
   const sponsoredPost=!key&&!saved?(fs.sponsored||null):null;
@@ -1759,19 +1786,8 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
  }
  const notices=$('#community-notifications');if(notices){
   // Notificações agregadas vêm do servidor; abrir a página marca as não acionáveis como vistas.
-  if(!notifData.loaded){notifData.loaded=true;notifData.loading=true;apiGet({view:'notifications'}).then(d=>{notifData.items=d.items;notifData.loading=false;render();if(d.items.some(i=>i.unread&&!i.actionable))change({action:'notifications_seen'}).catch(()=>{});}).catch(e=>{notifData.loading=false;showError(e.message);});}
-  const item=i=>{
-   const followBack=i.kind==='follow'&&i.canFollow&&!i.following;
-   const card=make(i.href&&!i.actionable&&!followBack?'a':'div',undefined,'notification-card'+(i.unread?' is-unread':''));if(card.tagName==='A')card.href=i.href;
-   card.append(avatarNode(i.text.split(' ')[0],i.avatar,44));
-   const body=make('div',undefined,'notification-body');body.append(make('p',i.text));
-   if(!i.actionable&&i.createdAt)body.append(make('small',date(i.createdAt)));
-   if(i.kind==='friend'){const acts=make('div',undefined,'community-member-actions');const acc=button('Aceitar amizade',()=>change({action:'friend',authorKey:i.key}),acts);acc.className='opy-primary';button('Ver perfil',()=>openProfile(i.key),acts);body.append(acts);}
-   else if(i.kind==='invite'){const acts=make('div',undefined,'community-member-actions');const acc=button('Aceitar convite',()=>change({action:'community_accept_invite',communityId:i.communityId}),acts);acc.className='opy-primary';button('Recusar',()=>change({action:'community_decline_invite',communityId:i.communityId}),acts);body.append(acts);}
-   else if(i.kind==='pending'){const a=make('a','Ver pedidos','preview-text-link');a.href=i.href;body.append(a);}
-   else if(followBack){const acts=make('div',undefined,'community-member-actions');const f=button('Seguir de volta',async()=>{await change({action:'follow',authorKey:i.key});i.following=true;render();},acts);f.className='opy-primary';button('Ver perfil',()=>openProfile(i.key),acts);body.append(acts);}
-   card.append(body);return card;
-  };
+  loadNotifications();
+  const item=notificationCard;
   notices.replaceChildren(...notifData.items.map(item));
   if(state.pushPublicKey&&'serviceWorker' in navigator&&'PushManager' in window)notices.prepend(pushCard());
   if(notifData.loading&&!notifData.items.length)notices.append(make('div',undefined,'opy-skeleton'),make('div',undefined,'opy-skeleton'));
@@ -1866,7 +1882,9 @@ function restoreFeedFromSession(){
   feed.posts=saved.posts;feed.hasMore=saved.hasMore;feed.restoreY=saved.y||1;feed.restoreAnchor=saved.anchor?{id:saved.anchor,top:saved.anchorTop}:null;}catch{}
 }
 async function refresh(){try{const g=feedGen;const next=await api();if(g!==feedGen||notModified.has(next))return;state=next;restoreFeedFromSession();if(document.body.dataset.previewRoute==='entrar'){location.replace(safeNext(new URLSearchParams(location.search).get('next')));return;}if(state.me?.mustChangePassword)openPasswordDialog(true);if(!all('#preview-feed input, #preview-feed textarea').some(el=>el.value))render();}catch(e){if(e.status===401&&document.body.dataset.previewRoute!=='entrar'){location.replace('/entrar/?next='+encodeURIComponent(location.pathname+location.search));return;}if(document.body.dataset.previewRoute==='entrar')return;showError(e.message);if($('#community-connection'))$('#community-connection').textContent='Conexão indisponível · tente atualizar';}}
-all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();});$('#feed-location-query')?.addEventListener('input',()=>render());
+all('[data-community-refresh]').forEach(b=>b.onclick=refresh);all('[data-feed-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.feedFilter;all('[data-feed-filter]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));render();});all('[data-feed-view]').forEach(b=>b.onclick=()=>{view=b.dataset.feedView;all('[data-feed-view]').forEach(v=>v.setAttribute('aria-pressed',String(v===b)));b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});render();if(view==='videos')openVideosPlayer();});$('#feed-location-query')?.addEventListener('input',()=>render());
+// VIDEO-002: a aba Vídeos entra direto no reprodutor em tela cheia (MOMENTOS); ao fechar, a grade continua embaixo.
+async function openVideosPlayer(){if(!window.OpyVideos)return;try{const d=await apiGet({view:'posts',kind:'videos',limit:30});const list=(d.posts||[]).filter(p=>p.media?.kind==='video'||p.repostOf?.media?.kind==='video');if(list.length)window.OpyVideos.openClip(list[0],list);else toast('Ainda não há vídeos para assistir.');}catch(e){showError(e.message);}}
 // Barra de modalidades fixa sob o cabeçalho; ganha sombra quando os Stories saem da tela (doc. 5.1 e 6.1).
 (()=>{const bar=$('.feed-chips'),stories=$('.story-section'),top=$('.opy-topbar');if(!bar)return;
  const setTop=()=>document.documentElement.style.setProperty('--opy-head',(top?top.getBoundingClientRect().height:0)+'px');

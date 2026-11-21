@@ -141,7 +141,7 @@ function notifPanel(body,ctx){
      const txt=mk('div',undefined,'opy-notif-body');txt.append(mk('p',i.text));if(!i.actionable&&i.createdAt)txt.append(mk('small',ago(i.createdAt)));
      const act=(label,primary,fn)=>{const b=mk('button',label,primary?'opy-primary':'preview-secondary');b.type='button';b.onclick=async()=>{b.disabled=true;try{await fn();items.splice(items.indexOf(i),1);paint();}catch(e){S().showError(e.message);b.disabled=false;}};return b;};
      const acts=mk('div',undefined,'opy-notif-actions');
-     if(i.kind==='friend'){acts.append(act('Aceitar',true,()=>S().change({action:'friend',authorKey:i.key})),act('Recusar',false,()=>S().change({action:'friend_decline',authorKey:i.key})));}
+     if(i.kind==='friend'){acts.append(act('Aceitar',true,async()=>{await S().change({action:'friend',authorKey:i.key});S().toast('Pedido aceito: agora vocês são amigos.');}),act('Recusar',false,()=>S().change({action:'friend_decline',authorKey:i.key})));}
      else if(i.kind==='invite'){acts.append(act('Aceitar',true,()=>S().change({action:'community_accept_invite',communityId:i.communityId})),act('Recusar',false,()=>S().change({action:'community_decline_invite',communityId:i.communityId})));}
      else if(followBack){acts.append(act('Seguir de volta',true,async()=>{await S().change({action:'follow',authorKey:i.key,following:true});}));}
      if(acts.children.length)txt.append(acts);row.append(txt);return row;});
@@ -179,7 +179,8 @@ function etniaPanel(body,ctx){
 /* ---------- ligação com os botões ---------- */
 const PANELS={
  chat:{title:'Mensagens',href:'/chat/',build:chatPanel,page:'messages',sel:'.messages-notification-container a'},
- notif:{title:'Notificações',href:'/notificacoes/',build:notifPanel,page:'notifications',sel:'.notification-container a'},
+ // NOTIF-001: notificações só na janela flutuante (sem "Abrir completo"); a página /notificacoes/ fica para links de push.
+ notif:{title:'Notificações',href:null,build:notifPanel,page:'notifications',sel:'.notification-container a'},
  etnia:{title:'EtnIA',href:'/etnia/',hrefLabel:'Tela cheia',build:etniaPanel,page:'etnia',sel:'.opy-bottom [data-opy-destination=etnia]'}
 };
 function bind(){
