@@ -274,7 +274,9 @@ export function communityAction(state, me, body) {
   const list = ensureCommunities(state);
 
   if (body.action === 'community_create') {
-    if (list.length >= 2000) fail(409, 'A rede atingiu o limite de comunidades. Fale com a equipe Etnias.');
+    // AUD-14: cota por pessoa; o teto geral só protege o servidor.
+    if (list.filter(c => c.createdBy === mine || (!c.createdBy && c.admins?.[0] === mine)).length >= 10) fail(409, 'Você já criou 10 comunidades. Fale com a equipe Etnias se precisar de mais.');
+    if (list.length >= 5000) fail(409, 'A rede atingiu o limite de comunidades. Fale com a equipe Etnias.');
     const name = text(body.name, 60);
     if (name.length < 3) fail(400, 'O nome da comunidade precisa ter pelo menos 3 caracteres.');
     const category = communityCategories.includes(body.category) ? body.category : communityCategories[0];
@@ -300,6 +302,7 @@ export function communityAction(state, me, body) {
       entryQuestions: visibility === 'private' ? (questionsOf(body.entryQuestions) || []) : [],
       postingMode: postingModes.includes(body.postingMode) ? body.postingMode : 'open',
       createdAt: Date.now(),
+      createdBy: mine,
       members: [mine],
       admins: [mine],
       moderators: [],

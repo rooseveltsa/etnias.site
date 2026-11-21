@@ -176,7 +176,9 @@ export function chatAction(state, me, body, upload) {
       // Responder a uma solicitação (ou reabrir uma recusada por você) aceita a conversa.
       if(relation==='request_in'||relation==='declined_in')consent(state,mine,body.toKey,'accepted');
     }
-    if(state.dms.length>=10000)fail(409,'A prévia atingiu o limite de mensagens. O histórico foi preservado.');
+    // AUD-14: cota por pessoa (uma conta não esgota o chat de todos); o teto geral só protege o arquivo do banco até a migração para SQLite.
+    const dayAgo=Date.now()-864e5;if(state.dms.filter(m=>m.fromKey===mine&&m.createdAt>dayAgo).length>=500)fail(429,'Você enviou muitas mensagens hoje. Tente de novo amanhã.');
+    if(state.dms.length>=100000)fail(409,'O chat atingiu o limite do servidor. A equipe já foi avisada.');
     if(body.replyTo){const reply=messageOf(state,me,body.replyTo);if(reply.deleted || reply.call || messageKey(me,reply)!==body.toKey)fail(400,'Escolha uma mensagem desta conversa para responder.');}
     const bucket=typingBucketKey(mine,body.toKey);
     if(state.chatTyping?.[bucket]) delete state.chatTyping[bucket][mine];
@@ -226,10 +228,11 @@ export function chatAction(state, me, body, upload) {
   }
   if(body.action==='chat_group_create') {
     const name=text(body.name,60);state.chatGroups ||= [];
-    if(state.chatGroups.length>=100)fail(409,'Limite de grupos da prévia atingido.');
+    if(state.chatGroups.filter(g=>g.createdBy===mine||(!g.createdBy&&g.admins?.[0]===mine)).length>=20)fail(409,'Você já criou 20 grupos. Saia ou apague algum para criar outro.');
+    if(state.chatGroups.length>=5000)fail(409,'O chat atingiu o limite de grupos do servidor.');
     if(!Array.isArray(body.members) || body.members.length<1 || body.members.length>11)fail(400,'Convide de 1 a 11 pessoas.');
     const invited=[...new Set(body.members)];for(const k of invited){person(state,k);if(k===mine || blocked(state,mine,k))fail(403,'Não é possível convidar esta pessoa.');if(relationOf(state,mine,k)!=='accepted')fail(403,'Convide só pessoas com quem você já conversa.');}
-    state.chatGroups.push({id:randomUUID(),name,description:'',members:[mine],admins:[mine],invited,joinedAt:{[mine]:Date.now()}});return {};
+    state.chatGroups.push({id:randomUUID(),createdBy:mine,name,description:'',members:[mine],admins:[mine],invited,joinedAt:{[mine]:Date.now()}});return {};
   }
   const g=groupOf(state,key);
   if(!g)fail(404,'Grupo não encontrado.');

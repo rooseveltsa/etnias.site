@@ -25,8 +25,12 @@ test('reenvio após perda de resposta não duplica e limite preserva histórico'
  const s=fresh(), clientId=randomUUID(); send(s,alice,bob,{clientId}); send(s,alice,bob,{clientId});
  assert.equal(s.dms.length,1);
  rejects(()=>send(s,alice,bob,{clientId,text:'Outro texto'}),409);
- s.dms=Array.from({length:10000},(_,i)=>({...s.dms[0],id:String(i),clientId:String(i)}));
- rejects(()=>send(s),409); assert.equal(s.dms.length,10000); assert.equal(s.dms[0].id,'0');
+ // Cota por pessoa: 500 mensagens em 24 h; recusar não apaga nada do histórico.
+ s.dms=Array.from({length:500},(_,i)=>({...s.dms[0],id:String(i),clientId:String(i),createdAt:Date.now()}));
+ rejects(()=>send(s),429); assert.equal(s.dms.length,500); assert.equal(s.dms[0].id,'0');
+ // Teto geral do servidor (mensagens antigas de outras pessoas): 409.
+ s.dms=Array.from({length:100000},(_,i)=>({...s.dms[0],id:String(i),clientId:String(i),fromKey:'id:outra',createdAt:1}));
+ rejects(()=>send(s),409); assert.equal(s.dms.length,100000);
 });
 test('paginação, busca, preferências e leitura são privadas por conta',()=>{
  const s=fresh(); for(let i=0;i<35;i++)send(s,alice,bob,{text:'mensagem '+i});
