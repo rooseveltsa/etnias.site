@@ -63,13 +63,22 @@ export async function extrasPrepareUpload(body, account, { mediaInput, saveMedia
 }
 
 /* ---------- troca de @ ---------- */
+const staffUsernames = () => String(process.env.OPY_ADMIN_USERNAMES || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+// Marca um @ da administração como já usado: a partir daí só a conta que o tem fica com ele.
+export function markStaffUsername(state, username) {
+  if (!staffUsernames().includes(username)) return;
+  state.staffUsernamesUsed ||= [];
+  if (!state.staffUsernamesUsed.includes(username)) state.staffUsernamesUsed.push(username);
+}
 export function usernameCheck(state, account, raw) {
   const username = String(raw || '').trim().replace(/^@+/, '').toLowerCase();
   if (!/^[a-z0-9][a-z0-9._]{2,23}$/.test(username) || /[._]{2}/.test(username) || /[._]$/.test(username)) return { ok: false, reason: 'Use de 3 a 24 caracteres: letras, números, ponto ou _ (sem repetir símbolos nem terminar com eles).' };
-  // Os @ da administração (OPY_ADMIN_USERNAMES) podem existir mesmo sendo reservados: é como a conta de gestão nasce.
-  const staff = String(process.env.OPY_ADMIN_USERNAMES || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
-  if (RESERVED.has(username) && !staff.includes(username)) return { ok: false, reason: 'Este @ é reservado.' };
   if (account && username === account.username) return { ok: false, reason: 'Este já é o seu @.' };
+  // Os @ da administração (OPY_ADMIN_USERNAMES) dão papel de admin: a conta de gestão nasce com ele uma vez,
+  // e depois que ele é liberado (troca de @ ou exclusão) nunca mais fica disponível (senão quem o pegasse viraria admin).
+  const staff = staffUsernames();
+  if (staff.includes(username) && (state.staffUsernamesUsed || []).includes(username)) return { ok: false, reason: 'Este @ é reservado.' };
+  if (RESERVED.has(username) && !staff.includes(username)) return { ok: false, reason: 'Este @ é reservado.' };
   if ((state.accounts || []).some(a => a.username === username && a.id !== account?.id)) return { ok: false, reason: 'Este @ já está em uso.' };
   const held = (state.usernameHistory || []).find(h => h.username === username && h.accountId !== account?.id && h.changedAt + USERNAME_HOLD_DAYS * DAY > Date.now());
   if (held) return { ok: false, reason: 'Este @ foi usado há pouco e está reservado.' };
@@ -106,6 +115,7 @@ export function extrasAction(state, account, body, upload) {
       if (next > now) fail(429, `Você já trocou o @ há pouco. A próxima troca é possível em ${new Date(next).toLocaleDateString('pt-BR')}.`);
       const check = usernameCheck(state, account, body.username);
       if (!check.ok) fail(409, check.reason);
+      markStaffUsername(state, account.username); markStaffUsername(state, check.username);
       state.usernameHistory ||= [];
       state.usernameHistory.push({ username: account.username, accountId: account.id, changedAt: now });
       state.usernameHistory = state.usernameHistory.filter(h => h.changedAt + USERNAME_HOLD_DAYS * DAY > now).slice(-5000);

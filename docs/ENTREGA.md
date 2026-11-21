@@ -25,7 +25,7 @@ A frase do `segredos.tar.enc` vai por outro canal (ligação ou pessoalmente). *
 | Serviço | O que é | O que fazer (você, no painel) |
 |---|---|---|
 | GitHub `rooseveltsa/etnias.site` (repositório público) | Código | Settings → Collaborators (adicionar) ou Transfer ownership |
-| Hostinger (VPS srv2135798, 179.66.136.125) | Produção | hPanel → convidar o e-mail dele como membro ou transferir o serviço; depois ele cria o próprio token de API |
+| Hostinger (VPS de produção) | Produção | hPanel → convidar o e-mail dele como membro ou transferir o serviço; depois ele cria o próprio token de API |
 | HostGator | DNS do domínio etnias.site | Adicionar o e-mail dele ou transferir o domínio |
 | Vercel (casa-opy-preview, Blob dos backups) | Prévia e cópia dos backups | Team → convidar como Owner |
 | Google Play Console (quando houver) | App Android | Usuários e permissões → Admin |

@@ -66,6 +66,8 @@ function toastFor(body){
  if(body.action==='community_leave')return 'Você saiu da comunidade';
  return TOASTS[body.action]||'';
 }
+// Denúncia de publicação ou comentário: vai para os alertas do Centro de gestão.
+async function reportContent(post,comment){const reason=prompt('O que há de errado '+(comment?'neste comentário':'nesta publicação')+'? (opcional)','');if(reason===null)return;try{await change({action:'post_report',postId:post.id,...(comment?{commentId:comment.id}:{}),reason:reason||'Conteúdo impróprio'});toast('Denúncia enviada. A equipe vai analisar.');}catch(e){showError(e.message);}}
 function closePostMenus(){all('.post-menu').forEach(m=>{m.hidden=true;m.previousElementSibling?.setAttribute('aria-expanded','false');});}
 document.addEventListener('click',closePostMenus);document.addEventListener('keydown',e=>{if(e.key==='Escape')closePostMenus();});
 // Uma atualização periódica que começou antes de uma ação não pode sobrescrever o resultado dela.
@@ -96,6 +98,21 @@ function paintFollowing(key,following){
  const d=(state?.directory||[]).find(p=>p.key===key);if(d&&d.following!==following){d.following=following;d.followersCount=Math.max(0,(d.followersCount||0)+(following?1:-1));}
  for(const l of [feed.posts,profileData.posts,communityPosts.posts])(l||[]).forEach(p=>{if(p.authorKey===key)p.following=following;});
  const person=profileData.key===key?profileData.person:null;if(person&&person.following!==following){person.following=following;person.followersCount=Math.max(0,(person.followersCount||0)+(following?1:-1));profileSignature='';}
+}
+// Quem reagiu: janela com foto, nome, a reação e o botão de seguir (40 por vez, "Ver mais" carrega o resto).
+function openReactors(post){
+ const dlg=make('dialog');dlg.className='opy-dialog live-dialog reactors-dialog';dlg.setAttribute('aria-label','Reações');
+ const head=make('div',undefined,'reactors-head');head.append(make('h2','Reações'));const x=make('button','✕','post-more-btn');x.type='button';x.setAttribute('aria-label','Fechar');x.onclick=()=>dlg.close();head.append(x);
+ const list=make('ul',undefined,'reactors-list');const more=make('button','Ver mais','preview-secondary');more.type='button';more.hidden=true;
+ dlg.append(head,list,more);document.body.append(dlg);dlg.addEventListener('close',()=>dlg.remove());dlg.showModal();
+ const label=id=>(reactions.find(([r])=>r===id)||[])[2]||'';
+ let offset=0;
+ const load=async()=>{more.disabled=true;try{const d=await apiGet({view:'reactors',postId:post.id,offset});offset+=d.people.length;
+   for(const p of d.people){const li=make('li',undefined,'reactors-item');const a=make('a',undefined,'reactors-who');a.href=p.me?'/conta/':'/perfil/?u='+encodeURIComponent(p.key);a.append(avatarNode(p.name,p.avatar,40));const t=make('span');t.append(make('strong',p.name),make('small',label(p.reaction)));a.append(t);li.append(a);
+    if(!p.me){let on=!!p.following;const f=make('button');f.type='button';const paint=()=>{f.textContent=on?'Seguindo':'Seguir';f.className=on?'preview-secondary':'opy-primary';};paint();f.onclick=async()=>{f.disabled=true;try{await change({action:'follow',authorKey:p.key,following:!on});on=!on;paintFollowing(p.key,on);paint();}catch(e){showError(e.message);}finally{f.disabled=false;}};li.append(f);}
+    list.append(li);}
+   more.hidden=!d.hasMore;}catch(e){list.append(make('li',e.message,'pf-empty'));}finally{more.disabled=false;}};
+ more.onclick=load;load();
 }
 async function toggleFollow(key){
  if(!key||followPending.has(key))return;followPending.add(key);
@@ -274,11 +291,21 @@ function openLightbox(urls,index,author){
   const next=make('button','›','opy-lightbox-nav is-next');next.type='button';next.setAttribute('aria-label','Próxima imagem');
   const img=make('img');const cap=make('p',undefined,'opy-lightbox-caption');
   dlg.append(close,prev,img,next,cap);document.body.append(dlg);
-  dlg._show=i=>{const list=dlg._list;dlg._i=(i+list.length)%list.length;img.src=list[dlg._i];img.alt=`Imagem ${dlg._i+1} de ${list.length}`+(dlg._who?' de '+dlg._who:'');cap.textContent=list.length>1?`${dlg._i+1} / ${list.length}`:'';prev.hidden=next.hidden=list.length<2;};
+  // Zoom (FOTO-001): duplo toque/clique alterna 2,5x, roda do mouse e pinça ampliam (até 4x); arrastar move a foto ampliada.
+  let zs=1,zx=0,zy=0;const pts=new Map();let pinch0=0,zs0=1,pan=null;
+  const apply=()=>{zs=Math.min(4,Math.max(1,zs));if(zs===1){zx=zy=0;}img.style.transform=zs===1?'':`translate(${zx}px,${zy}px) scale(${zs})`;img.style.cursor=zs>1?'grab':'zoom-in';dlg.classList.toggle('is-zoomed',zs>1);};
+  dlg._resetZoom=()=>{zs=1;apply();};
+  img.addEventListener('dblclick',e=>{e.preventDefault();zs=zs>1?1:2.5;apply();});
+  img.addEventListener('wheel',e=>{e.preventDefault();zs*=e.deltaY<0?1.15:1/1.15;apply();},{passive:false});
+  img.addEventListener('pointerdown',e=>{pts.set(e.pointerId,e);img.setPointerCapture?.(e.pointerId);if(pts.size===2){const [a,b]=[...pts.values()];pinch0=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);zs0=zs;}else if(zs>1)pan={x:e.clientX-zx,y:e.clientY-zy};});
+  img.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,e);if(pts.size===2&&pinch0){const [a,b]=[...pts.values()];zs=zs0*Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)/pinch0;apply();}else if(pan&&zs>1){zx=e.clientX-pan.x;zy=e.clientY-pan.y;apply();}});
+  const lift=e=>{pts.delete(e.pointerId);if(pts.size<2)pinch0=0;if(!pts.size)pan=null;};img.addEventListener('pointerup',lift);img.addEventListener('pointercancel',lift);
+  img.style.touchAction='none';
+  dlg._show=i=>{dlg._resetZoom();const list=dlg._list;dlg._i=(i+list.length)%list.length;img.src=list[dlg._i];img.alt=`Imagem ${dlg._i+1} de ${list.length}`+(dlg._who?' de '+dlg._who:'');cap.textContent=list.length>1?`${dlg._i+1} / ${list.length}`:'';prev.hidden=next.hidden=list.length<2;};
   prev.onclick=()=>dlg._show(dlg._i-1);next.onclick=()=>dlg._show(dlg._i+1);
   dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close();});
   dlg.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'){e.preventDefault();prev.click();}else if(e.key==='ArrowRight'){e.preventDefault();next.click();}});
-  let sx=0;dlg.addEventListener('pointerdown',e=>{sx=e.clientX;},{passive:true});dlg.addEventListener('pointerup',e=>{const dx=e.clientX-sx;if(Math.abs(dx)>60&&dlg._list.length>1)dlg._show(dlg._i+(dx<0?1:-1));},{passive:true});
+  let sx=0;dlg.addEventListener('pointerdown',e=>{sx=e.clientX;},{passive:true});dlg.addEventListener('pointerup',e=>{const dx=e.clientX-sx;if(!dlg.classList.contains('is-zoomed')&&Math.abs(dx)>60&&dlg._list.length>1)dlg._show(dlg._i+(dx<0?1:-1));},{passive:true});
  }
  dlg._list=urls;dlg._who=author;dlg._show(index);if(!dlg.open)dlg.showModal();
 }
@@ -442,9 +469,10 @@ function renderPost(post, communityContext=null){
  const repostForm=make('form',undefined,'preview-repost-form');repostForm.hidden=true;
  const repostInput=make('input');repostInput.maxLength=1000;repostInput.placeholder='Adicione um comentário ao repostar (opcional)…';repostInput.setAttribute('aria-label','Comentário do repost');
  const repostSubmit=make('button','Repostar agora','opy-primary');repostSubmit.type='submit';
- if(navigator.share){const shareNative=make('button','Compartilhar…','preview-secondary');shareNative.type='button';shareNative.onclick=()=>navigator.share({title:'Etnias · '+post.author,text:(post.text||'').slice(0,140),url:location.origin+'/#post-'+post.id}).catch(()=>{});repostForm.append(shareNative);}
+ const shareUrl=location.origin+(post.audience==='public'?'/p/'+encodeURIComponent(post.id)+'/':'/#post-'+post.id);
+ if(navigator.share){const shareNative=make('button','Enviar pelo celular…','preview-secondary');shareNative.type='button';shareNative.onclick=()=>navigator.share({title:post.author+' no Etnias',text:(post.text||'').slice(0,140),url:shareUrl}).catch(()=>{});repostForm.append(shareNative);}
  const copyLink=make('button','Copiar link','preview-secondary');copyLink.type='button';
- copyLink.onclick=async()=>{const url=location.origin+'/#post-'+post.id;try{await navigator.clipboard.writeText(url);copyLink.textContent='Link copiado ✓';setTimeout(()=>{copyLink.textContent='Copiar link';},1800);}catch{prompt('Link da publicação:',url);}};
+ copyLink.onclick=async()=>{const url=shareUrl;try{await navigator.clipboard.writeText(url);copyLink.textContent='Link copiado ✓';setTimeout(()=>{copyLink.textContent='Copiar link';},1800);}catch{prompt('Link da publicação:',url);}};
  repostForm.append(repostInput,repostSubmit,copyLink);
  repostForm.addEventListener('submit',async e=>{e.preventDefault();repostSubmit.disabled=true;try{await change({action:'repost',postId:post.id,text:repostInput.value});repostInput.value='';repostForm.hidden=true;}catch(err){showError(err.message);}finally{repostSubmit.disabled=false;}});
  if(total||post.comments.length||sharesCount){
@@ -455,6 +483,7 @@ function renderPost(post, communityContext=null){
    const names=!who.length?String(total):rest>0?`${who.join(', ')} e mais ${rest}`:who.join(' e ');
    left.setAttribute('aria-label',total+(total===1?' reação':' reações')+': '+reacted.map(([, ,label])=>label).join(', ')+(who.length?' · '+names:''));left.replaceChildren(...reacted.map(([id,icon])=>{if(id!=='like')return document.createTextNode(icon+' ');const m=make('span',undefined,'post-react-maraca');m.innerHTML=svg('like');return m;}),document.createTextNode(names));
   }
+  if(total){left.classList.add('post-reactors-link');left.setAttribute('role','button');left.tabIndex=0;left.title='Ver quem reagiu';left.onclick=()=>openReactors(post);left.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openReactors(post);}};}
   summary.append(left);
   const right=make('div',undefined,'post-summary-right');
   if(post.comments.length){
@@ -479,15 +508,10 @@ function renderPost(post, communityContext=null){
  reactWrap.append(like,tray);
  const commentBtn=postAction('comment','Comentar',()=>{form.hidden=!form.hidden;if(form.hidden)openCommentForms.delete(post.id);else openCommentForms.add(post.id);commentBtn.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)input.focus();});
  commentBtn.setAttribute('aria-expanded',String(!form.hidden));commentBtn.setAttribute('aria-controls',form.id);
- const shareBtn=postAction('share','Repostar',()=>{repostForm.hidden=!repostForm.hidden;shareBtn.setAttribute('aria-expanded',String(!repostForm.hidden));if(!repostForm.hidden)repostInput.focus();});
+ const shareBtn=postAction('share','Compartilhar',()=>{repostForm.hidden=!repostForm.hidden;shareBtn.setAttribute('aria-expanded',String(!repostForm.hidden));if(!repostForm.hidden)repostInput.focus();});
  shareBtn.setAttribute('aria-expanded','false');
- const save=postAction('save','',()=>optimistic(post,{saved:!post.saved},{action:'save',postId:post.id}));save.classList.add('post-action-quiet');save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
- // Enviar link: só publicações públicas (o link mostra título, texto e foto da própria publicação no WhatsApp).
- const linkBtn=post.audience==='public'?postAction('send','',async()=>{const url=location.origin+'/p/'+encodeURIComponent(post.id)+'/';const text=(post.text||'').slice(0,120);
-  if(navigator.share){try{await navigator.share({title:post.author+' no Etnias',text,url});}catch(e){if(e&&e.name==='AbortError')return;throw e;}return;}
-  try{await navigator.clipboard.writeText(url);toast('Link copiado. Cole no WhatsApp ou onde quiser.');}catch{window.prompt('Copie o link:',url);}}):null;
- if(linkBtn){linkBtn.classList.add('post-action-quiet');linkBtn.setAttribute('aria-label','Compartilhar link');linkBtn.title='Compartilhar link';}
- actions.append(reactWrap,commentBtn,shareBtn);if(linkBtn)actions.append(linkBtn);actions.append(save);card.append(actions,repostForm);
+ const save=postAction('save',post.saved?'Salvo':'Salvar',()=>optimistic(post,{saved:!post.saved},{action:'save',postId:post.id}));save.setAttribute('aria-label',post.saved?'Remover dos salvos':'Salvar publicação');save.setAttribute('aria-pressed',String(!!post.saved));
+ actions.append(reactWrap,commentBtn,save,shareBtn);card.append(actions,repostForm);
  // Ações da própria pessoa (e da moderação) ficam num menu ⋯ no cabeçalho, como nas redes que as pessoas já usam.
  const menuItems=[];
  if(post.own){
@@ -500,7 +524,11 @@ function renderPost(post, communityContext=null){
   }]);
   if(post.audience==='public'&&!post.communityId&&!post.live)menuItems.push(['Impulsionar publicação',()=>openBoostDialog(post)]);
   menuItems.push(['Excluir publicação',async()=>{if(!confirm('Excluir esta publicação?'))return;try{await change({action:'delete',postId:post.id});}catch(e){showError(e.message);}}]);
- }else if(communityContext?.canModerate&&post.communityId===communityContext.id){
+ }else{
+  menuItems.push(['Denunciar publicação',()=>reportContent(post)]);
+  if(state.me.role)menuItems.push(['Excluir publicação (moderação)',async()=>{const reason=prompt('Excluir esta publicação de '+post.author+'? Escreva o motivo (fica no histórico da moderação):');if(reason===null)return;try{await change({action:'delete',postId:post.id,reason});toast('Publicação excluída');}catch(e){showError(e.message);}}]);
+ }
+ if(!post.own&&communityContext?.canModerate&&post.communityId===communityContext.id){
   menuItems.push(['Remover da comunidade (moderação)',async()=>{if(!confirm('Remover esta publicação da comunidade?'))return;try{await change({action:'community_moderate_post',communityId:communityContext.id,postId:post.id});}catch(e){showError(e.message);}}]);
  }
  if(menuItems.length){
@@ -531,8 +559,13 @@ function renderPost(post, communityContext=null){
   const bar=make('div',undefined,'comment-actions');
   const like=button(comment.liked?'Curtido':'Curtir',()=>change({action:'comment_like',postId:post.id,commentId:comment.id}),bar);like.className='comment-act'+(comment.liked?' is-on':'');like.setAttribute('aria-pressed',String(!!comment.liked));
   const reply=button('Responder',()=>{replyTargets.set(post.id,{id:comment.id,author:comment.author});openCommentForms.add(post.id);render();document.getElementById('comment-'+post.id)?.querySelector('input')?.focus();},bar);reply.className='comment-act';
-  if(comment.own||post.own){const del=button('Apagar',async()=>{if(!confirm('Apagar este comentário'+(isReply?'':' e as respostas')+'?'))return;await change({action:'comment_delete',postId:post.id,commentId:comment.id});},bar);del.className='comment-act';}
   bar.append(make('small',date(comment.createdAt)));
+  const cItems=[];
+  if(comment.own||post.own||state.me.role)cItems.push(['Excluir comentário',async()=>{if(!confirm('Excluir este comentário'+(isReply?'':' e as respostas')+'?'))return;try{await change({action:'comment_delete',postId:post.id,commentId:comment.id});}catch(e){showError(e.message);}}]);
+  if(!comment.own)cItems.push(['Denunciar comentário',()=>reportContent(post,comment)]);
+  if(cItems.length){const more=make('div',undefined,'post-more comment-more');const mb=make('button','⋯','post-more-btn');mb.type='button';mb.setAttribute('aria-label','Opções do comentário');mb.setAttribute('aria-haspopup','menu');mb.setAttribute('aria-expanded','false');const menu=make('div',undefined,'post-menu');menu.setAttribute('role','menu');menu.hidden=true;
+   for(const [label,fn] of cItems){const it=make('button',label,'post-menu-item'+(label.startsWith('Excluir')?' is-danger':''));it.type='button';it.setAttribute('role','menuitem');it.onclick=()=>{closePostMenus();fn();};menu.append(it);}
+   mb.onclick=e=>{e.stopPropagation();const open=menu.hidden;closePostMenus();menu.hidden=!open;mb.setAttribute('aria-expanded',String(open));};more.append(mb,menu);bar.append(more);}
   body.append(bubble,bar);block.append(avatar,body);card.append(block);
  };
  for(const top of visibleTops){renderComment(top,false);for(const r of post.comments.filter(c=>c.parentId===top.id))renderComment(r,true);}
@@ -1602,7 +1635,9 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
   // Quem está ao vivo aparece primeiro no anel, com o selo, e abre a transmissão.
   for(const l of (state.lives||[]).filter(l=>!l.own)){const card=button('',()=>openLiveViewer({id:l.postId,author:l.author,avatar:l.avatar,live:{format:l.format}}),stories);card.classList.add('story-pill','is-live');const ring=make('span',undefined,'story-ring');ring.append(avatarNode(l.author,l.avatar,56),make('b','AO VIVO','story-live'));card.append(ring,make('strong',l.author.split(' ')[0]));card.setAttribute('aria-label',`Assistir à live de ${l.author}`);}
   const byAuthor=new Map();for(const item of state.stories){const k=item.authorKey||item.author;if(!byAuthor.has(k))byAuthor.set(k,[]);byAuthor.get(k).push(item);}
-  for(const [,group] of byAuthor){
+  // Quem ainda tem story não visto vem primeiro; quem já foi assistido vai para o fim da fila (ordem estável dentro de cada grupo).
+  const groups=[...byAuthor.values()].map(g=>[g,g.every(x=>seenStories.has(x.id))]).sort((a,b)=>a[1]-b[1]);
+  for(const [group] of groups){
    const item=group[0];const allSeen=group.every(s=>seenStories.has(s.id));
    const card=button('',()=>window.OpyStories?.open((group.find(s=>!seenStories.has(s.id))||item).id),stories);card.classList.add('story-pill');if(allSeen)card.classList.add('is-seen');
    const ring=make('span',undefined,'story-ring');ring.append(avatarNode(item.author,item.avatar,56));if(group.length>1)ring.append(make('b',String(group.length),'story-count'));

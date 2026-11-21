@@ -58,6 +58,10 @@ function alertsOf(state) {
     out.push({ id: 'community:' + r.id, kind: p ? 'Publicação denunciada em comunidade' : 'Comunidade denunciada', severity: 'alta', at: r.createdAt, reason: r.reason, reporter: nameOf(r.authorKey),
       targetKey: p ? `id:${p.authorId}` : '', targetName: p ? p.author : (c?.name || 'Comunidade'), postId: p?.id || '', community: c?.name || '', excerpt: p ? (p.text || 'Publicação com mídia').slice(0, 280) : '' });
   }
+  for (const r of state.postReports || []) {
+    const p = (state.posts || []).find(x => x.id === r.postId);
+    out.push({ id: 'post:' + r.id, kind: r.commentId ? 'Comentário denunciado' : 'Publicação denunciada', severity: 'alta', at: r.createdAt, reason: r.reason, reporter: nameOf(r.authorKey), targetKey: r.targetKey, targetName: nameOf(r.targetKey), postId: p && !r.commentId ? p.id : '', excerpt: r.excerpt || '' });
+  }
   for (const r of state.storyReports || []) out.push({ id: 'story:' + r.id, kind: 'Story denunciado', severity: 'alta', at: r.createdAt, reason: r.reason, reporter: nameOf(r.authorKey), targetKey: r.targetKey, targetName: nameOf(r.targetKey), excerpt: r.excerpt || '' });
   // Sinais automáticos: pessoas bloqueadas ou recusadas por várias outras costumam indicar assédio.
   const blockedBy = new Map();

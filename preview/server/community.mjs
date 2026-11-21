@@ -17,7 +17,7 @@ import { recordConsent, sensitiveChange, purgeAccount, dueForPurge, TERMS_VERSIO
 import { chatActions, chatSnapshot, chatAction, chatMedia } from './chat.mjs';
 import { callActions, callAction, callsView, settleCalls } from './calls.mjs';
 import { groupCallActions, groupCallAction, groupCallsView, settleGroupCalls } from './groupcalls.mjs';
-import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage } from './admin.mjs';
+import { adminActions, adminAction, adminView, announcementsFor, roleOf, isSuspended, suspensionMessage, log as adminLog } from './admin.mjs';
 import { i18nActions, i18nAction, i18nView, i18nFor } from './i18n.mjs';
 import { pushActions, pushAction, sendPush, pushPublicKey } from './push.mjs';
 import { liveActions, liveAction, liveAuth, liveEnabled, settleLives, projectLive, attachRecordings, recordingFile, liveView, liveNow } from './live.mjs';
@@ -32,7 +32,7 @@ import { areaView } from './areas.mjs';
 import { saberesActions, saberesAction, saberesView, saberMedia } from './saberes.mjs';
 import { marketActions, marketAction, marketMedia, MAX_MARKET_PHOTOS } from './mercado.mjs';
 import { pageActions, pageUploadActions, pageAction, pagesPrepareUpload, pagesList, pageView, pageMedia } from './pages.mjs';
-import { extrasActions, extrasUploadActions, extrasAction, extrasPrepareUpload, extrasMedia, reactionConfig, reactionIds, reactionSet, reactionAllowed, usernameCheck, usernameCheckAllowed, usernameInfo, reverseGeocode, stickerCatalog, stickerById } from './extras.mjs';
+import { markStaffUsername, extrasActions, extrasUploadActions, extrasAction, extrasPrepareUpload, extrasMedia, reactionConfig, reactionIds, reactionSet, reactionAllowed, usernameCheck, usernameCheckAllowed, usernameInfo, reverseGeocode, stickerCatalog, stickerById } from './extras.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction, syncCommunityChat } from './communities.mjs';
 
@@ -381,6 +381,19 @@ function notificationItems(state, me, ctx) {
   items.sort((a, b) => Number(!!b.actionable) - Number(!!a.actionable) || b.createdAt - a.createdAt);
   return items.slice(0, 60).map(i => ({ ...i, unread: !!i.actionable || i.createdAt > seenAt }));
 }
+// Quem reagiu a uma publicação (ao tocar no número de reações), 40 por vez, com o vínculo de quem está vendo.
+function reactorsView(state, me, params) {
+  const post = state.posts.find(p => p.id === params.get('postId'));
+  if (!post || !visible(post, me, state)) fail(404, 'Publicação não encontrada.');
+  const ctx = feedContext(state, me);
+  const all = Object.entries(post.reactions || {}).filter(([id, r]) => r && ctx.accountsById.has(id) && !isBlockedPair(state, ctx.myKey, `id:${id}`));
+  const offset = Math.max(0, Number(params.get('offset')) || 0);
+  const people = all.slice(offset, offset + 40).map(([id, reaction]) => {
+    const acc = ctx.accountsById.get(id), key = `id:${id}`;
+    return { key, name: acc.name, username: acc.username || '', avatar: personAvatar(acc), verified: !!acc.verified, reaction, me: id === me.id, following: ctx.followed.has(key), friendStatus: friendStatusOf(state, ctx.myKey, key) };
+  });
+  return { total: all.length, people, hasMore: offset + 40 < all.length };
+}
 function searchView(state, me, params) {
   const ctx = feedContext(state, me);
   const counts = socialCounts(state, me);
@@ -592,7 +605,7 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(callsView(state, me, path.searchParams)));
       }
-      if (['posts', 'search', 'profile', 'notifications', 'link', 'username_check', 'geo', 'stickers', 'extras', 'pages', 'page'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
+      if (['posts', 'search', 'profile', 'notifications', 'reactors', 'link', 'username_check', 'geo', 'stickers', 'extras', 'pages', 'page'].includes(path.searchParams.get('view')) && path.pathname.replace(/\/$/, '') === '/api/community') {
         const view = path.searchParams.get('view');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         if (view === 'username_check') { if (!usernameCheckAllowed(me.id)) fail(429, 'Muitas verificações. Aguarde um minuto.'); const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ ...usernameCheck(state, acc, path.searchParams.get('u')), ...usernameInfo(acc, state) })); }
@@ -602,6 +615,7 @@ export default async function handler(req, res) {
         if (view === 'stickers') return res.end(JSON.stringify(stickerCatalog(state, path.searchParams.get('all') === '1' && roleOf((state.accounts || []).find(a => a.id === me.id)) === 'admin')));
         if (view === 'extras') { const acc = (state.accounts || []).find(a => a.id === me.id); return res.end(JSON.stringify({ usernameInfo: usernameInfo(acc, state), location: acc.location || null, reactions: roleOf(acc) === 'admin' ? reactionConfig(state) : undefined })); }
         if (view === 'link') return res.end(JSON.stringify({ preview: await linkPreview(me.id, path.searchParams.get('url')) }));
+        if (view === 'reactors') return res.end(JSON.stringify(reactorsView(state, me, path.searchParams)));
         if (view === 'notifications') return res.end(JSON.stringify({ items: notificationItems(state, me, feedContext(state, me)) }));
         return res.end(JSON.stringify(view === 'posts' ? postsPage(state, me, path.searchParams) : view === 'search' ? (searchBudget(me), searchView(state, me, path.searchParams)) : profileView(state, me, path.searchParams)));
       }
@@ -702,6 +716,7 @@ export default async function handler(req, res) {
           if (googleKey && accounts.some(item => item.googleKey === googleKey)) fail(409, 'Esse e-mail já tem conta. Entre, ou recupere a senha.');
           if (!usernameCheck(state, null, username).ok) fail(409, 'Esse usuário não está disponível. Escolha outro.');
           const account = { id: accountId, username, name, password: passwordHash, googleKey, phone, createdAt: Date.now() };
+          markStaffUsername(state, username);
           recordConsent(account, 'terms', true, account.createdAt);
           addSession(account, issued.session);
           accounts.push(account);
@@ -761,7 +776,7 @@ export default async function handler(req, res) {
     // Senha provisória emitida pela administração: nada funciona até a pessoa trocá-la (a regra vale no servidor, não só na tela).
     if (signedIn.mustChangePassword && body.action !== 'password_change') fail(403, 'Troque a senha provisória para continuar.');
     let activeMe = member(signedIn);
-    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !pageActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action)) fail(400, 'Ação desconhecida.');
+    if (!chatActions.includes(body.action) && !extrasActions.includes(body.action) && !pageActions.includes(body.action) && !communityActions.includes(body.action) && !callActions.includes(body.action) && !groupCallActions.includes(body.action) && !adminActions.includes(body.action) && !i18nActions.includes(body.action) && !pushActions.includes(body.action) && !liveActions.includes(body.action) && !accountActions.includes(body.action) && !planActions.includes(body.action) && !boostActions.includes(body.action) && !saberesActions.includes(body.action) && !marketActions.includes(body.action) && !['announcement_dismiss', 'notifications_seen', 'password_change', 'publish', 'repost', 'react', 'comment', 'vote', 'save', 'delete', 'dm', 'join', 'follow', 'friend', 'friend_decline', 'profile_update', 'enroll_saber', 'like_music', 'module_submit', 'module_delete', 'etnia', 'iara_request', 'iara_cancel', 'story_create', 'story_delete', 'story_report', 'story_seen', 'story_react', 'story_reply', 'profile_media', 'comment_like', 'comment_delete', 'post_edit', 'post_report'].includes(body.action)) fail(400, 'Ação desconhecida.');
     if (body.action === 'publish') {
       body.text = text(plainText(body.text || ''), 5000, false);
       if (!['public', 'friends', 'private'].includes(body.audience)) fail(400, 'Escolha quem pode ver a publicação.');
@@ -876,7 +891,7 @@ export default async function handler(req, res) {
         return;
       }
       const post = state.posts.find(p => p.id === body.postId);
-      if (['repost', 'react', 'comment', 'vote', 'save', 'delete', 'comment_like', 'comment_delete', 'post_edit'].includes(body.action) && (!post || !visible(post, me, state))) fail(404, 'Publicação não encontrada.');
+      if (['repost', 'react', 'comment', 'vote', 'save', 'delete', 'comment_like', 'comment_delete', 'post_edit', 'post_report'].includes(body.action) && (!post || !visible(post, me, state))) fail(404, 'Publicação não encontrada.');
       switch (body.action) {
         case 'profile_update': {
           const nextName = personName(body.name);
@@ -1024,8 +1039,22 @@ export default async function handler(req, res) {
         }
         case 'comment_delete': {
           const c = post.comments.find(item => item.id === body.commentId); if (!c) fail(404, 'Comentário não encontrado.');
-          if (c.authorKey !== `id:${me.id}` && post.authorId !== me.id) fail(403, 'Só quem comentou ou quem publicou pode apagar.');
+          const staffComment = c.authorKey !== `id:${me.id}` && post.authorId !== me.id && roleOf(currentAccount);
+          if (c.authorKey !== `id:${me.id}` && post.authorId !== me.id && !staffComment) fail(403, 'Só quem comentou ou quem publicou pode apagar.');
+          if (staffComment) adminLog(state, currentAccount, 'Comentário excluído pela moderação', c.author, '', { postId: post.id, excerpt: c.text.slice(0, 280) });
           post.comments = post.comments.filter(item => item.id !== c.id && item.parentId !== c.id);
+          break;
+        }
+        case 'post_report': {
+          // Denúncia de publicação ou de comentário: vai para os alertas do Centro de gestão.
+          const comment = body.commentId ? post.comments.find(c => c.id === body.commentId) : null;
+          if (body.commentId && !comment) fail(404, 'Comentário não encontrado.');
+          const targetKey = comment ? comment.authorKey : `id:${post.authorId}`;
+          if (targetKey === `id:${me.id}`) fail(400, 'Você não pode denunciar o que você mesmo publicou.');
+          state.postReports ||= [];
+          const mine = state.postReports.filter(r => r.authorKey === `id:${me.id}`);
+          if (mine.length >= 50) fail(409, 'Limite de denúncias atingido. A equipe já está analisando as anteriores.');
+          if (!mine.some(r => r.postId === post.id && (r.commentId || '') === (comment?.id || ''))) state.postReports.push({ id: randomUUID(), authorKey: `id:${me.id}`, postId: post.id, commentId: comment?.id || '', targetKey, reason: text(String(body.reason || 'Conteúdo impróprio'), 300, false) || 'Conteúdo impróprio', excerpt: (comment ? comment.text : post.text || 'Publicação com mídia').slice(0, 280), createdAt: Date.now() });
           break;
         }
         case 'post_edit': {
@@ -1042,7 +1071,10 @@ export default async function handler(req, res) {
         case 'save':
           post.saves = post.saves.includes(me.id) ? post.saves.filter(id => id !== me.id) : [...post.saves, me.id]; break;
         case 'delete': {
-          if (post.authorId !== me.id) fail(403, 'Somente quem publicou pode excluir esta publicação.');
+          // Quem publicou ou a equipe (administração/moderação, validado aqui no servidor); a ação da equipe fica no histórico.
+          const staff = post.authorId !== me.id && roleOf(currentAccount);
+          if (post.authorId !== me.id && !staff) fail(403, 'Somente quem publicou pode excluir esta publicação.');
+          if (staff) adminLog(state, currentAccount, 'Publicação excluída pela moderação', post.author, text(String(body.reason || ''), 300, false), { postId: post.id, excerpt: (post.text || 'Publicação com mídia').slice(0, 280) });
           const remaining = state.posts.filter(p => p.id !== post.id);
           removedIds = orphanMediaIds(post, remaining);
           state.posts = remaining; break;
@@ -1195,6 +1227,7 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify(out));
   } catch (error) {
     if (upload) await deleteMedia(upload.id).catch(() => {});
+    if (posterUpload) await deleteMedia(posterUpload.id).catch(() => {});
     if (fileUpload) await deleteMedia(fileUpload.id).catch(() => {});
     for (const p of photoUploads) if (p) await deleteMedia(p.id).catch(() => {});
     res.statusCode = error.status || 503;

@@ -1,6 +1,7 @@
 // LGPD (art. 18): exportação dos dados da própria pessoa, consentimentos e eliminação definitiva da conta.
 // RASCUNHO técnico: os textos jurídicos e os prazos precisam de revisão de advogado antes de valerem como compromisso.
 import { ownMediaIds } from './post-media.mjs';
+import { markStaffUsername } from './extras.mjs';
 
 export const TERMS_VERSION = '2026-11-rascunho';
 const key = id => `id:${id}`;
@@ -128,7 +129,9 @@ export function purgeAccount(state, accountId) {
   });
   state.verificationRequests = (state.verificationRequests || []).filter(v => v.userId !== accountId);
   for (const b of state.boosts || []) if (b.userId === accountId) b.userId = '';
-  for (const e of state.adminLog || []) { if (e.by === accountId) { e.by = ''; e.byName = 'Conta excluída'; } if (e.target === name) e.target = 'Conta excluída'; }
+  for (const e of state.adminLog || []) { if (e.by === accountId || e.by === `id:${accountId}`) { e.by = ''; e.byName = 'Conta excluída'; } if (e.target === name) e.target = 'Conta excluída'; }
+  const purged = state.accounts.find(a => a.id === accountId);
+  if (purged?.username) markStaffUsername(state, purged.username);
   state.accounts = state.accounts.filter(a => a.id !== accountId);
   return { mediaIds: [...media].filter(id => UUID.test(id)), recordingPostIds: recordings.filter(id => UUID.test(id)) };
 }

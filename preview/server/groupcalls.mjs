@@ -64,7 +64,7 @@ export function groupCallAction(state, me, body, now = Date.now()) {
     return { callId: c.id };
   }
   // gcall_signal: oferta ou resposta para outra pessoa da sala.
-  if (!c.members[body.to] || body.to === mine) fail(404, 'Esta pessoa saiu da chamada.');
+  if (typeof body.to !== 'string' || !Object.hasOwn(c.members, body.to) || body.to === mine) fail(404, 'Esta pessoa saiu da chamada.');
   if (!['offer', 'answer'].includes(body.type) || typeof body.sdp !== 'string' || !body.sdp.startsWith('v=0') || body.sdp.length > SDP_MAX) fail(400, 'Sinal de chamada inválido.');
   c.members[mine].seen = now;
   c.signals = c.signals.filter(s => !(s.from === mine && s.to === body.to && s.type === body.type));

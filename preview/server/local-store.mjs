@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
+import { mkdir, readFile, open, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -17,7 +17,8 @@ export function createLocalStore(directory, initialState) {
   async function atomicWrite(path, value) {
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const temporary = path + '.' + randomUUID() + '.tmp';
-    try { await writeFile(temporary, value, { mode: 0o600 }); await rename(temporary, path); }
+    // fsync antes do rename: uma queda de energia não deixa o arquivo de estado vazio.
+    try { const fh = await open(temporary, 'w', 0o600); try { await fh.writeFile(value); await fh.sync(); } finally { await fh.close(); } await rename(temporary, path); }
     finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
   }
   function transact(update) {
