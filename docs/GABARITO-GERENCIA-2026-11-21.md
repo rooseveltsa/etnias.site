@@ -2,7 +2,7 @@
 
 Conferência de cada documento contra o código. **FEITO** = existe e foi testado; **PARCIAL** = existe uma parte; **FALTA** = não existe; **DECISÃO** = precisa da direção antes de construir (dinheiro, dados pessoais, contas de terceiros, cultura).
 
-Commits desta rodada: `0ec467a9` e `9cf01f44` (testes: `tests/opy/correcoes-gerencia.mjs`; todos os arquivos de `tests/opy/` passando).
+Commits desta rodada: `0ec467a9`, `9cf01f44`, `d27751f3`, `bc5166d1`, `837518eb`, `b7111ff1` (testes: `tests/opy/correcoes-gerencia.mjs`; todos os arquivos de `tests/opy/` passando).
 
 ## 1. Correção de alguns erros (Documento Mestre v1.8): 17 itens
 
@@ -34,17 +34,20 @@ Commits desta rodada: `0ec467a9` e `9cf01f44` (testes: `tests/opy/correcoes-gere
 | Backdoor ofuscado (WoWonder) e `_diag.php` no código legado | REMOVIDOS do repositório. **Conferir o servidor antigo**, onde o arquivo pode existir |
 | Capa de vídeo órfã, exclusão LGPD incompleta no registro, `__proto__`, gravação sem fsync | CORRIGIDOS |
 | Repositório público com senha antiga do banco e dados de infraestrutura | **DECISÃO**: tornar o repositório privado e trocar a senha |
-| Lives sem checagem de quem pode ver; limite de taxa dentro da gravação; tetos globais; uploads simultâneos | FALTA (próxima rodada) |
+| Lives sem checagem de quem pode ver (lista, ações e vídeo WHEP) | CORRIGIDO |
+| Limite por minuto dentro da gravação do banco | CORRIGIDO (em memória, antes de gravar) |
+| Tetos globais (o chat parava para todos com 10 mil mensagens) | CORRIGIDO (cotas por pessoa: 500 msg/dia, 20 grupos, 10 comunidades) |
+| Uploads simultâneos sem limite; sessão revogada no /legado | FALTA (próxima rodada) |
 | Banco em JSON único, tempo real (WebSocket/SSE), API para o app nativo | Projeto: migração SQLite já planejada (`docs/PLANO-SQLITE.md`) |
 
 ## 3. Demais documentos
 
 | Documento | Situação | O que já existe | Maior lacuna | Decisões necessárias |
 |---|---|---|---|---|
-| Cadastro | PARCIAL | Cadastro por e-mail/celular, limites anti-robô, recuperação com código, LGPD, idiomas | Telefone internacional (+DDI), trocar e-mail/telefone, aviso de senha trocada, textos do login pelo painel | CPF/documento, CAPTCHA de terceiro, provedor de e-mail/WhatsApp |
-| Comunidade | PARCIAL | Públicas/privadas, pedidos, convites e links, papéis, denúncia, quem publica, conversa do grupo | Dono separado do admin, banir participante, histórico completo, fixar post, desligar comentários, suspender pelo painel | Aprovação central obrigatória; categorias |
+| Cadastro | PARCIAL | Cadastro por e-mail/celular, limites anti-robô, recuperação com código, LGPD, idiomas; **novo:** aviso de senha trocada | Telefone internacional (+DDI), trocar e-mail/telefone, textos do login pelo painel | CPF/documento, CAPTCHA de terceiro, provedor de e-mail/WhatsApp |
+| Comunidade | PARCIAL | Públicas/privadas, pedidos, convites e links, papéis, denúncia, quem publica, conversa do grupo; **novo:** só o dono nomeia a equipe, remover e bloquear, histórico, fixar publicação, desligar comentários | Suspender pelo painel central, foto de capa, permissões finas por pessoa, estatísticas | Aprovação central obrigatória; categorias |
 | Página | PARCIAL | Criar, foto/capa, contatos, seguir, equipe, agenda | Publicar como Página (feed próprio), eventos em /eventos/, suspender/denunciar | Loja na Página; fluxo de aprovação; categorias |
-| Vídeos curtos (MOMENTOS) | PARCIAL | Tela cheia, 9:16, limite de 4 min, capa + ▶ | Visual do print (seguir no avatar, abas, atalho LIVE), live no mesmo formato, sem pré-carregar o próximo | — |
+| Vídeos curtos (MOMENTOS) | PARCIAL | Tela cheia, 9:16, limite de 4 min, capa + ▶; **novo:** + para seguir no avatar, próximo vídeo não é baixado antes | Abas Seguindo/Para você, atalho LIVE, live no mesmo formato | — |
 | Conexão | FALTA | Busca geral, cidade no perfil, pedido de conversa, bloqueio | Tela de cartões, favoritos, curtir perfil, visitas, sair das buscas | Busca por raio em km exige guardar localização aproximada |
 | Mercado | PARCIAL | Classificados com fotos, avaliações, conversa pelo chat | Lojas, aprovação comercial, suspender produto, gestor de marketing | Pagamento, comissões, divulgadores, documentos (RG/CPF/RANI) |
 | Modo Livros | FALTA | — | Catálogo, autores, didáticos, busca | Direitos autorais, PDF próprio, autoria |
