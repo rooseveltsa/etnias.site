@@ -355,6 +355,8 @@ function notificationItems(state, me, ctx) {
     if (c.invited) items.push({ id: `invite:${c.id}`, kind: 'invite', communityId: c.id, text: `Você foi convidada(o) para a comunidade "${c.name}".`, href: `/grupos/?c=${encodeURIComponent(c.id)}`, createdAt: Date.now(), actionable: true });
     if (c.canModerate && c.pendingRequests?.length) items.push({ id: `pending:${c.id}`, kind: 'pending', communityId: c.id, text: `${c.pendingRequests.length} ${c.pendingRequests.length === 1 ? 'pedido de entrada pendente' : 'pedidos de entrada pendentes'} em "${c.name}".`, href: `/grupos/?c=${encodeURIComponent(c.id)}`, createdAt: Date.now(), actionable: true });
   }
+  const pwAt = ctx.accountsById.get(me.id)?.passwordChangedAt;
+  if (pwAt && Date.now() - pwAt < 30 * 864e5) items.push({ id: `password:${pwAt}`, kind: 'security', text: 'Sua senha foi alterada. Se não foi você, fale com a equipe Etnias agora.', href: '/configuracoes/', createdAt: pwAt });
   for (const ev of (state.followEvents || [])) if (ev.to === ctx.myKey && profileAccess(state, me.id, ev.from) !== 'none') items.push({ id: `follow:${ev.from}:${ev.at}`, kind: 'follow', key: `id:${ev.from}`, following: ctx.followed.has(`id:${ev.from}`), canFollow: true, text: `${nameOf(`id:${ev.from}`)} começou a seguir você.`, avatar: avatarOfKey(ctx, `id:${ev.from}`), href: `/perfil/?u=${encodeURIComponent(`id:${ev.from}`)}`, createdAt: ev.at });
   for (const p of state.posts) if (p.live && !p.live.endedAt && p.authorId !== me.id && ctx.followed.has(authorKeyOf(p))) items.push({ id: `live:${p.id}`, kind: 'live', text: `${p.author} está ao vivo agora.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.startedAt });
   for (const p of state.posts) if (p.live && !p.live.endedAt && p.live.invites?.[me.id]?.status === 'pending') items.push({ id: `live-invite:${p.id}`, kind: 'live_invite', text: `${p.author} convidou você para participar da live.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.invites[me.id].at, actionable: true });
@@ -703,7 +705,7 @@ export default async function handler(req, res) {
           const a = accountsOf(state).find(x => x.id === found.id); if (!a) return;
           outcome = checkCode(a, 'recover', body.code, secret);
           if (outcome !== 'ok') return;
-          a.password = hashed; delete a.legacyPassword; delete a.mustChangePassword; delete a.tempPasswordExpiresAt; a.sessions = []; a.contactVerified = true;
+          a.password = hashed; delete a.legacyPassword; delete a.mustChangePassword; delete a.tempPasswordExpiresAt; a.sessions = []; a.contactVerified = true; a.passwordChangedAt = Date.now();
         });
       }
       if (outcome !== 'ok') fail(400, 'Código inválido ou vencido. Peça um código novo.');
@@ -1029,6 +1031,9 @@ export default async function handler(req, res) {
           currentAccount.password = hashPassword(next); delete currentAccount.legacyPassword; delete currentAccount.mustChangePassword; delete currentAccount.tempPasswordExpiresAt;
           // Os outros aparelhos saem: só este continua, já com a senha nova.
           currentAccount.sessions = (currentAccount.sessions || []).filter(item => item.id === session.id);
+          // Aviso de segurança (cadastro): notificação no Maracá e push nos aparelhos da pessoa.
+          currentAccount.passwordChangedAt = Date.now();
+          pushNotice = { to: [me.id], payload: { title: 'Sua senha foi alterada', body: 'Se não foi você, fale com a equipe Etnias agora.', href: '/configuracoes/', tag: 'senha' } };
           activeMe = member(currentAccount);
           break;
         }

@@ -118,8 +118,12 @@ assert.equal(view.pinnedPostId, cpost.id); assert.equal(view.commentsOff, true);
 assert.deepEqual(view.history.map(h => h.type).sort(), ['ban', 'comments_off', 'pin', 'role'].sort());
 assert.equal((await api(null, dani.cookie)).data.communities.find(c => c.id === cid).history.length, 0, 'histórico só para a equipe');
 
+// Cadastro: trocar a senha gera aviso no Maracá.
+assert.equal((await api({ action: 'password_change', current: 'Test-only-2026', next: 'Outra-senha-2026' }, dani.cookie)).status, 200);
+assert.ok((await get('view=notifications', dani.cookie)).items.some(i => i.kind === 'security'));
+
 // AUD-20: limite de 30 ações por minuto conta também as que falham e responde 429 sem gravar nada.
 let last = 0;
 for (let i = 0; i < 31; i++) last = (await api({ action: 'react', postId: 'nao-existe', reaction: 'like' }, bia.cookie)).status;
 assert.equal(last, 429);
-console.log('PASS correções: limite por minuto em memória, foto em comentário, presença, quem reagiu, denúncias, exclusão pela moderação com registro, @ de admin protegido');
+console.log('PASS correções: aviso de senha trocada, governança de comunidade, limite por minuto em memória, foto em comentário, presença, quem reagiu, denúncias, exclusão pela moderação com registro, @ de admin protegido');

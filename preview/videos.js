@@ -73,14 +73,15 @@ function open(list, start) {
   list.forEach(p => track.append(slide(p, dlg)));
   if (!dlg.open) { dlg.showModal(); document.documentElement.classList.add('sv-lock'); }
   paintSound();
-  // Carrega só o vídeo da tela e, em segundo plano, o próximo (preload). Os demais ficam sem arquivo, para não gastar dados.
+  // Carrega só o vídeo da tela; do próximo, só os metadados. Os demais ficam sem arquivo, para não gastar dados.
   const slides = [...track.querySelectorAll('.vp-slide')]; let current = -1;
   const load = (i, preload) => { const v = slides[i]?.querySelector('video'); if (!v) return; if (!v.getAttribute('src')) v.src = v.dataset.src; v.preload = preload; };
   const unload = i => { const v = slides[i]?.querySelector('video'); if (v && v.getAttribute('src')) { v.pause(); v.removeAttribute('src'); v.load(); } };
   const activate = i => {
     if (i === current) return; current = i;
     slides.forEach((_, j) => { if (j !== i && j !== i + 1) unload(j); });
-    load(i, 'auto'); load(i + 1, 'auto');
+    // O próximo só busca os metadados (capa e duração), não o vídeo: economia de dados (doc. Vídeos curtos).
+    load(i, 'auto'); load(i + 1, 'metadata');
     slides.forEach((sl, j) => { const v = sl.querySelector('video'); if (j !== i) v.pause(); });
     const v = slides[i].querySelector('video'); v.muted = muted;
     v.play().catch(() => { muted = true; paintSound(); v.play().catch(() => {}); });
@@ -103,6 +104,12 @@ function slide(p, dlg) {
   const who = make('button', undefined, 'vp-author'); who.type = 'button'; who.append(avatarNode(p.author, p.avatar, 36), make('strong', p.author));
   who.onclick = () => { dlg.close(); openProfile(p.authorKey, p.author, p.avatar); };
   info.append(who); if (p.text) info.append(make('p', p.text, 'vp-text'));
+  // Seguir direto do vídeo: "+" no avatar, como nos apps de vídeo curto (some depois de seguir e nos próprios vídeos).
+  if (!p.own && String(p.authorKey || '').startsWith('id:') && !p.following) {
+    const plus = make('button', '+', 'vp-follow'); plus.type = 'button'; plus.setAttribute('aria-label', 'Seguir ' + p.author);
+    plus.onclick = async e => { e.stopPropagation(); plus.disabled = true; try { await change({ action: 'follow', authorKey: p.authorKey, following: true }); p.following = true; plus.remove(); toast('Você agora segue ' + p.author + '.'); } catch (err) { plus.disabled = false; showError(err.message); } };
+    who.after(plus);
+  }
   const side = make('div', undefined, 'vp-actions');
   const act = (icon, label, fn) => { const b = make('button', undefined, 'vp-act'); b.type = 'button'; b.setAttribute('aria-label', label); const n = make('span', '', 'vp-count'); b.append(make('span', icon, 'vp-icon'), n); b.onclick = fn; side.append(b); return [b, n]; };
   const [like, likeN] = act('♥', 'Curtir', async () => {

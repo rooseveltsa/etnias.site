@@ -2094,3 +2094,6 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable
 .community-history summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
 .community-history ul{margin:0;padding-left:18px;color:var(--color-text-secondary);font-size:14px;display:grid;gap:6px}
 .community-check{display:flex;align-items:center;gap:8px}
+
+/* MOMENTOS: seguir pelo avatar */
+.vp-follow{position:absolute;left:24px;top:26px;width:20px;height:20px;min-height:0;padding:0;border:2px solid #fff;border-radius:50%;background:var(--color-terracotta,#b84a27);color:#fff;font-size:14px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer}
