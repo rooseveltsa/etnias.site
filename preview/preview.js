@@ -554,6 +554,7 @@ function renderPost(post, communityContext=null){
   menuItems.push(['Denunciar publicação',()=>reportContent(post)]);
   if(state.me.role)menuItems.push(['Excluir publicação (moderação)',async()=>{const reason=prompt('Excluir esta publicação de '+post.author+'? Escreva o motivo (fica no histórico da moderação):');if(reason===null)return;try{await change({action:'delete',postId:post.id,reason});toast('Publicação excluída');}catch(e){showError(e.message);}}]);
  }
+ if(communityContext?.canModerate&&post.communityId===communityContext.id){const pinned=communityContext.pinnedPostId===post.id;menuItems.push([pinned?'Desafixar da comunidade':'Fixar na comunidade',async()=>{try{await change({action:'community_pin',communityId:communityContext.id,postId:pinned?'':post.id});}catch(e){showError(e.message);}}]);}
  if(!post.own&&communityContext?.canModerate&&post.communityId===communityContext.id){
   menuItems.push(['Remover da comunidade (moderação)',async()=>{if(!confirm('Remover esta publicação da comunidade?'))return;try{await change({action:'community_moderate_post',communityId:communityContext.id,postId:post.id});}catch(e){showError(e.message);}}]);
  }
@@ -595,7 +596,7 @@ function renderPost(post, communityContext=null){
   body.append(bubble,bar);block.append(avatar,body);card.append(block);
  };
  for(const top of visibleTops){renderComment(top,false);for(const r of post.comments.filter(c=>c.parentId===top.id))renderComment(r,true);}
- card.append(form);return card;
+ if(communityContext?.commentsOff&&!communityContext.canModerate&&post.communityId===communityContext.id)card.append(make('p','Os comentários estão desligados nesta comunidade.','pf-empty'));else card.append(form);return card;
 }
 function paintCommunity(){
  // Coluna lateral: comunidades por tema. Pessoas aparecem no contexto delas (comunidade, publicação, busca), não numa lista solta.
@@ -1256,8 +1257,8 @@ function renderCommunities(){
    }
    if(canViewContent){
     if(communityPosts.id!==current.id){communityPosts.id=current.id;communityPosts.posts=[];communityPosts.hasMore=false;communityPosts.loading=true;apiGet({view:'posts',community:current.id}).then(d=>{if(communityPosts.id!==current.id)return;communityPosts.posts=d.posts;communityPosts.hasMore=d.hasMore;communityPosts.loading=false;renderCommunities();}).catch(e=>{communityPosts.loading=false;showError(e.message);});}
-    const cPosts=communityPosts.posts;
-    if(cPosts.length)panel.append(...cPosts.map(p=>renderPost(p,current)));
+    const cPosts=current.pinnedPostId?[...communityPosts.posts].sort((a,b)=>(b.id===current.pinnedPostId)-(a.id===current.pinnedPostId)):communityPosts.posts;
+    if(cPosts.length)panel.append(...cPosts.map(p=>{const el=renderPost(p,current);if(p.id===current.pinnedPostId){el.classList.add('is-pinned');el.prepend(make('p','📌 Publicação fixada','post-pinned-label'));}return el;}));
     else if(communityPosts.loading)panel.append(make('p','Carregando publicações…','pf-empty'));
     else panel.append(emptyState('Nenhuma publicação ainda','Seja a primeira pessoa a compartilhar algo com esta comunidade.'));
     if(communityPosts.hasMore){const more=button('Ver publicações anteriores',async()=>{const last=cPosts.at(-1);const d=await apiGet({view:'posts',community:current.id,before:last.createdAt,beforeId:last.id});if(communityPosts.id!==current.id)return;communityPosts.posts=mergePage(communityPosts.posts,d.posts);communityPosts.hasMore=d.hasMore;renderCommunities();},panel);more.className='feed-more';}
@@ -1287,16 +1288,22 @@ function renderCommunities(){
     whoBtn.append(avatarNode(m.name,m.avatar,38),make('strong',m.name));
     const roleBadge=make('span',m.role==='admin'?'Administrador':m.role==='moderator'?'Moderador':'Membro','community-role-badge is-'+m.role);
     row.append(whoBtn,roleBadge);
-    if((current.role==='admin'||current.canManage)&&m.key!==`id:${state.me.id}`){
+    if((current.isOwner||current.canModerate)&&m.key!==`id:${state.me.id}`&&m.key!==current.ownerKey){
      const acts=make('div',undefined,'community-member-actions');
-     const nextRole=m.role==='moderator'?'member':'moderator';
-     button(m.role==='moderator'?'Tornar membro':'Tornar moderador',()=>change({action:'community_role',communityId:current.id,memberKey:m.key,role:nextRole}),acts);
-     button('Remover',()=>change({action:'community_remove_member',communityId:current.id,memberKey:m.key}),acts);
+     // Só quem criou nomeia administração e moderação; a equipe remove ou remove e bloqueia.
+     if(current.isOwner){const nextRole=m.role==='moderator'?'member':'moderator';button(m.role==='moderator'?'Tornar membro':'Tornar moderador',()=>change({action:'community_role',communityId:current.id,memberKey:m.key,role:nextRole}),acts);
+      if(m.role!=='admin')button('Tornar administrador',()=>{if(confirm('Dar administração da comunidade a '+m.name+'?'))change({action:'community_role',communityId:current.id,memberKey:m.key,role:'admin'});},acts);}
+     button('Remover',()=>{if(confirm('Remover '+m.name+' da comunidade?'))change({action:'community_remove_member',communityId:current.id,memberKey:m.key});},acts);
+     button('Remover e bloquear',()=>{if(confirm(m.name+' sai e não poderá entrar de novo (nem por link ou convite). Confirmar?'))change({action:'community_remove_member',communityId:current.id,memberKey:m.key,ban:true});},acts);
      row.append(acts);
     }
     memBox.append(row);
    }
    panel.append(memBox);
+   if(current.canModerate&&current.banned?.length){const bBox=make('section',undefined,'community-members');bBox.append(make('h3','Bloqueados nesta comunidade'));for(const b of current.banned){const row=make('div',undefined,'community-member-row');row.append(make('strong',b.name));const acts=make('div',undefined,'community-member-actions');button('Desbloquear',()=>change({action:'community_unban',communityId:current.id,memberKey:b.key}),acts);row.append(acts);bBox.append(row);}panel.append(bBox);}
+   // Histórico da comunidade (só administração e moderação): quem fez o quê e quando.
+   if(current.canModerate&&current.history?.length){const H={role:'mudou o papel de',ban:'removeu e bloqueou',remove:'removeu',unban:'desbloqueou',approve:'aprovou a entrada de',reject:'recusou a entrada de',post_removed:'removeu uma publicação de',pin:'fixou uma publicação',unpin:'desafixou a publicação',comments_off:'desligou os comentários',comments_on:'ligou os comentários',link_created:'criou um link de convite',link_revoked:'revogou um link de convite'};
+    const hBox=make('details',undefined,'community-history');hBox.append(make('summary','Histórico da comunidade'));const ul=make('ul');for(const h of current.history){ul.append(make('li',`${date(h.at)} · ${h.whoName} ${H[h.type]||h.type}${h.targetName?' '+h.targetName:''}${h.role?' ('+({admin:'administração',moderator:'moderação',member:'membro'}[h.role]||h.role)+')':''}`));}hBox.append(ul);panel.append(hBox);}
   }else if(activeCommunityTab==='rules'){
    const rulesCard=make('article',undefined,'community-rules-card');
    rulesCard.append(
@@ -1326,7 +1333,9 @@ function renderCommunities(){
    const sBtn=make('button','Salvar configurações','opy-primary');sBtn.type='submit';
    const sStatus=make('p',undefined,'preview-feedback');sStatus.setAttribute('role','status');
    const qBox=entryQuestionFields(sPriv,current.entryQuestions);
-   sForm.append(lName,lCat,lPriv,lPost,qBox,lDesc,lRules,sBtn,sStatus);
+   const lCom=make('label',undefined,'community-check');const cCom=make('input');cCom.type='checkbox';cCom.checked=!!current.commentsOff;lCom.append(cCom,document.createTextNode(' Desligar comentários nas publicações da comunidade'));
+   cCom.onchange=async()=>{try{await change({action:'community_comments',communityId:current.id,off:cCom.checked});}catch(e){cCom.checked=!cCom.checked;showError(e.message);}};
+   sForm.append(lName,lCat,lPriv,lPost,lCom,qBox,lDesc,lRules,sBtn,sStatus);
    sForm.onsubmit=async e=>{
     e.preventDefault();sBtn.disabled=true;
     try{await change({action:'community_update',communityId:current.id,name:iName.value,category:sCat.value,visibility:sPriv.value,postingMode:sPost.value,description:tDesc.value,rules:tRules.value,entryQuestions:entryQuestionsOf(sForm)});sStatus.textContent='Configurações atualizadas.';}

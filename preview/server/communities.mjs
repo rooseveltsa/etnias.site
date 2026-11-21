@@ -18,7 +18,10 @@ export const communityActions = [
   'community_chat',
   'community_link_create',
   'community_link_revoke',
-  'community_join_link'
+  'community_join_link',
+  'community_pin',
+  'community_unban',
+  'community_comments'
 ];
 
 export const communityCategories = [
@@ -233,6 +236,12 @@ export function projectCommunities(state, me) {
       createdAt: c.createdAt,
       membersCount: c.members.length,
       postsCount,
+      ownerKey: ownerOf(c),
+      isOwner: ownerOf(c) === mine,
+      pinnedPostId: c.pinnedPostId || '',
+      commentsOff: !!c.commentsOff,
+      banned: staff ? (c.banned || []).map(k => accountSummary(byKey, k, c)) : [],
+      history: staff ? (c.history || []).slice(-50).reverse().map(h => ({ ...h, whoName: byKey.get(h.who)?.name || 'Alguém', targetName: h.target ? (byKey.get(h.target)?.name || 'Alguém') : '' })) : [],
       joined,
       chatKey: joined ? chatKeyOf(state, c) : '',
       pending,
@@ -269,6 +278,11 @@ export function syncCommunityChat(state, c) {
   return g;
 }
 
+// Dono: quem criou (comunidades antigas: a primeira pessoa administradora). Só o dono nomeia ou tira administração e moderação.
+export const ownerOf = c => c.createdBy || c.admins?.[0] || '';
+// Histórico da comunidade: quem fez o quê, visível para a administração e moderação (últimos 300 registros).
+function remember(c, who, type, target = '', extra = {}) { c.history ||= []; c.history.push({ at: Date.now(), type, who, target, ...extra }); if (c.history.length > 300) c.history = c.history.slice(-300); }
+const isBanned = (c, key) => (c.banned || []).includes(key);
 export function communityAction(state, me, body) {
   const mine = keyOf(me);
   const list = ensureCommunities(state);
@@ -317,6 +331,7 @@ export function communityAction(state, me, body) {
     const target = token.length >= 20 && token.length <= 64 ? list.find(item => (item.inviteLinks || []).some(l => l.token === token)) : null;
     const link = target && activeLinks(target).find(l => l.token === token);
     if (!link) fail(404, 'Este convite não vale mais. Peça um novo link a quem convidou.');
+    if (isBanned(target, mine)) fail(403, 'Você não pode entrar nesta comunidade. Fale com a administração dela.');
     target.members ||= []; target.admins ||= []; target.moderators ||= []; target.pendingRequests ||= []; target.invited ||= [];
     if (!target.members.includes(mine)) {
       target.members.push(mine);
@@ -376,6 +391,7 @@ export function communityAction(state, me, body) {
       syncLegacyInterest(state, c, mine, false);
       return {};
     }
+    if (isBanned(c, mine)) fail(403, 'Você não pode entrar nesta comunidade. Fale com a administração dela.');
     if (c.visibility === 'private' && !c.invited.includes(mine)) {
       c.requestAnswers ||= {};
       if (c.pendingRequests.includes(mine)) {
@@ -417,6 +433,7 @@ export function communityAction(state, me, body) {
     if (!c.invited.includes(mine)) fail(404, 'Convite não encontrado.');
     c.invited = c.invited.filter(k => k !== mine);
     c.pendingRequests = c.pendingRequests.filter(k => k !== mine);
+    if (body.action === 'community_accept_invite' && isBanned(c, mine)) fail(403, 'Você não pode entrar nesta comunidade. Fale com a administração dela.');
     if (body.action === 'community_accept_invite' && !c.members.includes(mine)) {
       c.members.push(mine);
       syncLegacyInterest(state, c, mine, true);
@@ -426,6 +443,7 @@ export function communityAction(state, me, body) {
 
   if (body.action === 'community_invite') {
     if (!c.members.includes(mine)) fail(403, 'Apenas participantes podem convidar pessoas.');
+    if (isBanned(c, body.memberKey)) fail(409, 'Esta pessoa foi bloqueada nesta comunidade.');
     if (c.visibility === 'private' && !isStaff(c, mine)) {
       fail(403, 'Em comunidades privadas, apenas a administração ou moderação envia convites diretos.');
     }
@@ -444,6 +462,7 @@ export function communityAction(state, me, body) {
     if (!c.pendingRequests.includes(target)) fail(404, 'Solicitação não encontrada.');
     c.pendingRequests = c.pendingRequests.filter(k => k !== target);
     if (c.requestAnswers) delete c.requestAnswers[target];
+    remember(c, mine, body.action === 'community_approve' ? 'approve' : 'reject', target);
     if (body.action === 'community_approve' && !c.members.includes(target)) {
       c.members.push(target);
       syncLegacyInterest(state, c, target, true);
@@ -452,8 +471,9 @@ export function communityAction(state, me, body) {
   }
 
   if (body.action === 'community_role') {
-    if (!c.admins.includes(mine)) fail(403, 'Apenas administradores alteram permissões da comunidade.');
+    if (ownerOf(c) !== mine) fail(403, 'Só quem criou a comunidade nomeia administração e moderação.');
     const target = body.memberKey;
+    if (target === ownerOf(c)) fail(409, 'Quem criou a comunidade continua na administração.');
     personAccount(state, target);
     if (!c.members.includes(target)) fail(404, 'Participante não encontrado na comunidade.');
     if (!['admin', 'moderator', 'member'].includes(body.role)) fail(400, 'Papel inválido.');
@@ -464,6 +484,7 @@ export function communityAction(state, me, body) {
     c.moderators = c.moderators.filter(k => k !== target);
     if (body.role === 'admin') c.admins.push(target);
     if (body.role === 'moderator') c.moderators.push(target);
+    remember(c, mine, 'role', target, { role: body.role });
     return {};
   }
 
@@ -474,6 +495,10 @@ export function communityAction(state, me, body) {
     if (c.admins.includes(target) && !c.admins.includes(mine)) {
       fail(403, 'Moderadores não podem remover administradores.');
     }
+    if (target === ownerOf(c)) fail(403, 'Quem criou a comunidade não pode ser removido.');
+    // Remover e bloquear: a pessoa não entra de novo (nem por link, pedido ou convite) até ser desbloqueada.
+    if (body.ban) { c.banned ||= []; if (!c.banned.includes(target)) c.banned.push(target); c.pendingRequests = c.pendingRequests.filter(k => k !== target); c.invited = c.invited.filter(k => k !== target); }
+    remember(c, mine, body.ban ? 'ban' : 'remove', target);
     c.members = c.members.filter(k => k !== target);
     c.admins = c.admins.filter(k => k !== target);
     c.moderators = c.moderators.filter(k => k !== target);
@@ -505,7 +530,31 @@ export function communityAction(state, me, body) {
     const remaining = state.posts.filter(p => p.id !== post.id);
     const removedIds = orphanMediaIds(post, remaining);
     state.posts = remaining;
+    if (c.pinnedPostId === post.id) delete c.pinnedPostId;
+    remember(c, mine, 'post_removed', `id:${post.authorId}`, { excerpt: (post.text || 'Publicação com mídia').slice(0, 120) });
     return { removedIds };
+  }
+
+  if (body.action === 'community_unban') {
+    if (!isStaff(c, mine)) fail(403, 'Apenas administração ou moderação desbloqueia.');
+    c.banned = (c.banned || []).filter(k => k !== body.memberKey);
+    remember(c, mine, 'unban', body.memberKey);
+    return {};
+  }
+
+  if (body.action === 'community_pin') {
+    if (!isStaff(c, mine)) fail(403, 'Apenas administração ou moderação fixa publicações.');
+    if (body.postId) { if (!(state.posts || []).some(p => p.id === body.postId && p.communityId === c.id)) fail(404, 'Publicação não encontrada nesta comunidade.'); c.pinnedPostId = body.postId; }
+    else delete c.pinnedPostId;
+    remember(c, mine, body.postId ? 'pin' : 'unpin');
+    return {};
+  }
+
+  if (body.action === 'community_comments') {
+    if (!c.admins.includes(mine)) fail(403, 'Apenas a administração liga ou desliga comentários.');
+    c.commentsOff = !!body.off;
+    remember(c, mine, c.commentsOff ? 'comments_off' : 'comments_on');
+    return {};
   }
 
   if (body.action === 'community_report') {

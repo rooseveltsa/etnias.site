@@ -95,6 +95,29 @@ assert.equal((await api({ action: 'availability_set', availability: 'sumido' }, 
 const busy = (await api({ action: 'availability_set', availability: 'dnd' }, ana.cookie)).data;
 assert.equal(busy.me.availability, 'dnd'); assert.equal(busy.presence[`id:${busy.me.id}`], 'dnd');
 assert.equal((await api({ action: 'availability_set', availability: '' }, ana.cookie)).data.me.availability, '');
+// Comunidades: só o dono nomeia equipe; remover e bloquear impede voltar; histórico; fixar; desligar comentários.
+const carla = await api(profile('carla.terena'));
+assert.equal((await api({ action: 'community_create', name: 'Roda de Saberes', category: 'Saberes & Educação', visibility: 'public', description: 'Comunidade de teste para saberes.' }, ana.cookie)).status, 200);
+const cid = state.communities.find(c => c.name === 'Roda de Saberes').id;
+await api({ action: 'community_join', communityId: cid }, bia.cookie);
+await api({ action: 'community_join', communityId: cid }, carla.cookie);
+const biaKey = `id:${state.accounts.find(a => a.username === 'bia_guarani').id}`, carlaKey = `id:${state.accounts.find(a => a.username === 'carla.terena').id}`;
+assert.equal((await api({ action: 'community_role', communityId: cid, memberKey: biaKey, role: 'admin' }, ana.cookie)).status, 200);
+assert.equal((await api({ action: 'community_role', communityId: cid, memberKey: carlaKey, role: 'moderator' }, bia.cookie)).status, 403, 'admin que não criou não nomeia');
+assert.equal((await api({ action: 'community_remove_member', communityId: cid, memberKey: carlaKey, ban: true }, bia.cookie)).status, 200);
+assert.equal((await api({ action: 'community_join', communityId: cid }, carla.cookie)).status, 403, 'bloqueada não volta');
+const cpost = (await api({ action: 'publish', text: 'aviso fixo', audience: 'public', communityId: cid }, ana.cookie)).data.posts.find(p => p.text === 'aviso fixo');
+assert.equal((await api({ action: 'community_pin', communityId: cid, postId: cpost.id }, bia.cookie)).status, 200);
+assert.equal((await api({ action: 'community_comments', communityId: cid, off: true }, ana.cookie)).status, 200);
+const dani = await api(profile('dani.xavante'));
+await api({ action: 'community_join', communityId: cid }, dani.cookie);
+assert.equal((await api({ action: 'comment', postId: cpost.id, text: 'oi' }, dani.cookie)).status, 403, 'comentários desligados');
+assert.equal((await api({ action: 'comment', postId: cpost.id, text: 'oi equipe' }, ana.cookie)).status, 200, 'a administração ainda comenta');
+const view = (await api(null, ana.cookie)).data.communities.find(c => c.id === cid);
+assert.equal(view.pinnedPostId, cpost.id); assert.equal(view.commentsOff, true); assert.equal(view.isOwner, true);
+assert.deepEqual(view.history.map(h => h.type).sort(), ['ban', 'comments_off', 'pin', 'role'].sort());
+assert.equal((await api(null, dani.cookie)).data.communities.find(c => c.id === cid).history.length, 0, 'histórico só para a equipe');
+
 // AUD-20: limite de 30 ações por minuto conta também as que falham e responde 429 sem gravar nada.
 let last = 0;
 for (let i = 0; i < 31; i++) last = (await api({ action: 'react', postId: 'nao-existe', reaction: 'like' }, bia.cookie)).status;

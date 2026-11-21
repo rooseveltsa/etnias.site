@@ -1033,6 +1033,8 @@ export default async function handler(req, res) {
           break;
         }
         case 'comment':
+          { const cc = post.communityId && (state.communities || []).find(x => x.id === post.communityId);
+            if (cc?.commentsOff && !(cc.admins || []).includes(`id:${me.id}`) && !(cc.moderators || []).includes(`id:${me.id}`)) fail(403, 'Os comentários estão desligados nesta comunidade.'); }
           if (post.comments.length >= 60) fail(409, 'Esta publicação atingiu o limite de comentários na homologação.');
           {
             // Respostas ficam em um nível só, presas ao comentário principal, como nas redes sociais.
