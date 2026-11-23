@@ -98,7 +98,7 @@ function open(list, start) {
 function slide(p, dlg) {
   const s = make('section', undefined, 'vp-slide'); s.setAttribute('aria-label', 'Vídeo de ' + p.author);
   const v = document.createElement('video'); v.dataset.src = clip(p).url; if (clip(p).poster) v.poster = clip(p).poster; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'none'; v.muted = muted;
-  v.addEventListener('loadedmetadata', () => { s.dataset.orient = v.videoWidth > v.videoHeight ? 'landscape' : 'portrait'; });
+  v.addEventListener('loadedmetadata', () => { s.dataset.orient = v.videoHeight / v.videoWidth >= 1.6 ? 'portrait' : 'landscape'; /* só 9:16 preenche; quadrado/4:5 aparece inteiro */ });
   v.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
   const info = make('div', undefined, 'vp-info');
   const who = make('button', undefined, 'vp-author'); who.type = 'button'; who.append(avatarNode(p.author, p.avatar, 36), make('strong', p.author));

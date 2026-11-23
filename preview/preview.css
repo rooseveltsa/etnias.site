@@ -1532,6 +1532,13 @@ body.opy-preview .preview-comment-form .comment-box:focus-within{border-color:va
 .vp-form input{flex:1;min-width:0;min-height:44px!important;padding:8px 14px;border:1px solid var(--color-border-strong);border-radius:999px;font:inherit}
 .vp-form .vp-emoji-box{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:5}
 @media(prefers-reduced-motion:reduce){.vp-track{scroll-behavior:auto}}
+/* Desktop: vídeo num cartão 9:16 centralizado, igual aos stories, em vez de ocupar a tela toda */
+@media (min-width:768px){
+ #opy-vplayer{display:grid;place-items:center;background:rgba(0,0,0,.92)}
+ #opy-vplayer:not([open]){display:none}
+ .vp-track{width:min(calc((100dvh - 48px) * 9 / 16),460px);height:min(calc(100dvh - 48px),calc(460px * 16 / 9));border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+ .vp-slide{height:100%}
+}
 /* Chamada em grupo: grade de participantes */
 .gcall-screen .call-top{top:calc(14px + env(safe-area-inset-top));gap:2px}
 .gcall-grid{position:absolute;top:calc(84px + env(safe-area-inset-top));left:8px;right:8px;bottom:calc(130px + env(safe-area-inset-bottom));display:grid;gap:6px;grid-template-columns:1fr;grid-auto-rows:1fr}
