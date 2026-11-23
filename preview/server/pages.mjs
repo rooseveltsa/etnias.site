@@ -34,6 +34,11 @@ const canEvents = (page, account) => !!pageRole(page, account) || isPlatformAdmi
 const avatarUrl = id => id ? `/api/media?id=${id}` : '';
 const person = (state, id) => { const a = accountById(state, id); return a ? { key: keyOf(a.id), name: a.name, username: a.username || '', avatar: a.avatarUrl || avatarUrl(a.avatarId) } : null; };
 
+// Coluna lateral do desktop: próximos eventos das Páginas ativas, do mais perto ao mais longe.
+export function upcomingEvents(state, limit = 3, now = Date.now()) {
+  return pagesOf(state).filter(p => !p.suspended).flatMap(p => (p.events || []).filter(e => e.startsAt > now).map(e => ({ id: e.id, title: e.title, startsAt: e.startsAt, place: e.place || '', page: p.name, href: `/paginas/?p=${encodeURIComponent(p.id)}` })))
+    .sort((a, b) => a.startsAt - b.startsAt).slice(0, limit);
+}
 export const pageMedia = (state, id) => (state.pages || []).some(p => p.avatarId === id || p.coverId === id) ? { kind: 'image', name: 'pagina' } : null;
 
 function summary(state, page, me) {

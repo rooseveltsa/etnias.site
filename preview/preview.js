@@ -602,6 +602,16 @@ function renderPost(post, communityContext=null){
  for(const top of visibleTops){renderComment(top,false);for(const r of post.comments.filter(c=>c.parentId===top.id))renderComment(r,true);}
  if(communityContext?.commentsOff&&!communityContext.canModerate&&post.communityId===communityContext.id)card.append(make('p','Os comentários estão desligados nesta comunidade.','pf-empty'));else if(post.commentsClosed)card.append(make('p','Quem publicou limitou quem pode comentar.','pf-empty'));else card.append(form);return card;
 }
+// Coluna direita (desktop): pessoas para conectar, próximos eventos das Páginas e trilhas de Saberes. Seção vazia fica escondida.
+function paintRail(){
+ const fill=(id,items,row)=>{const ul=$('#'+id);if(!ul)return;ul.closest('section').hidden=!items.length;ul.replaceChildren(...items.map(row));};
+ const people=(state.directory||[]).filter(p=>!p.own&&!p.me&&p.key?.startsWith('id:')&&!p.following&&!['friends','outgoing'].includes(p.friendStatus)).slice(0,4);
+ fill('rail-people',people,p=>{const li=make('li',undefined,'rail-item');const a=make('a',undefined,'rail-item-link');a.href='/perfil/?u='+encodeURIComponent(p.key);a.append(avatarNode(p.name,p.avatar,40));const info=make('span',undefined,'rail-item-info');info.append(make('strong',p.name),make('small',p.username?'@'+p.username:(p.povo||'')));a.append(info);li.append(a);
+  const b=make('button','Conectar','rail-community-join');b.type='button';b.onclick=async()=>{b.disabled=true;try{await change({action:'friend',authorKey:p.key});toast('Pedido de amizade enviado para '+p.name+'.');}catch(e){b.disabled=false;showError(e.message);}};li.append(b);return li;});
+ const day=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}),hour=new Intl.DateTimeFormat('pt-BR',{weekday:'short',hour:'2-digit',minute:'2-digit'});
+ fill('rail-events',state.rail?.events||[],e=>{const li=make('li',undefined,'rail-item');const a=make('a',undefined,'rail-item-link');a.href=e.href;const d=new Date(e.startsAt);a.append(make('span',day.format(d).replace('.',''),'rail-date'));const info=make('span',undefined,'rail-item-info');info.append(make('strong',e.title),make('small',hour.format(d)+(e.place?' · '+e.place:' · '+e.page)));a.append(info);li.append(a);return li;});
+ fill('rail-saberes',state.rail?.saberes||[],t=>{const li=make('li',undefined,'rail-item');const a=make('a',undefined,'rail-item-link');a.href='/saberes/?t='+encodeURIComponent(t.id);const img=make('span',undefined,'rail-thumb');if(t.cover)img.style.backgroundImage='url("'+t.cover+'")';a.append(img);const info=make('span',undefined,'rail-item-info');info.append(make('strong',t.title),make('small',(t.povo?t.povo+' · ':'')+plural(t.lessonsCount||0,'aula','aulas')));a.append(info);li.append(a);return li;});
+}
 function paintCommunity(){
  // Coluna lateral: comunidades por tema. Pessoas aparecem no contexto delas (comunidade, publicação, busca), não numa lista solta.
  const list=$('#community-people');if(!list)return;
@@ -1680,7 +1690,7 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
   if(notifCount>0){if(!badge){badge=make('span',undefined,'opy-header-badge');notifHeaderLink.append(badge);}badge.textContent=notifCount>99?'99+':String(notifCount);}
   else if(badge)badge.remove();
  }
- paintCommunity();
+ paintCommunity();paintRail();
  paintAvailability();
  paintAnnouncements();
  renderCommunities();
