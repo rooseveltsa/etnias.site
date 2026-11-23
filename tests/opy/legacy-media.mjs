@@ -40,5 +40,8 @@ try {
   assert.equal(await (await fetch(base + '/legado/thumbs/upload/photos/grande.jpg', { headers: { cookie } })).text(), 'original-sem-miniatura', 'sem miniatura, serve o original');
   assert.equal((await fetch(base + '/legado/thumbs/upload/photos/%2e%2e/%2e%2e/%2e%2e/fora.jpg', { headers: { cookie } })).status, 404, 'miniaturas também não saem da pasta');
   assert.equal((await fetch(base + '/legado/thumbs/upload/photos/segredo.txt', { headers: { cookie } })).status, 404);
-  console.log('PASS /legado/: sessão obrigatória, tipos permitidos, Range 206/416, pasta fechada e miniaturas com reserva no original.');
+  const out = await fetch(base + '/api/community', { method: 'POST', headers: { 'Content-Type': 'application/json', origin: base, cookie }, body: JSON.stringify({ action: 'logout' }) });
+  assert.equal(out.status, 200);
+  assert.equal((await fetch(base + '/legado/upload/photos/foto.jpg', { headers: { cookie } })).status, 401, 'sessão encerrada não vê mais');
+  console.log('PASS /legado/: sessão obrigatória (e encerrada deixa de valer), tipos permitidos, Range 206/416, pasta fechada e miniaturas com reserva no original.');
 } finally { server.kill(); await rm(directory, { recursive: true, force: true }); }

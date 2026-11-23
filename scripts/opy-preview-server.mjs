@@ -3,13 +3,16 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname, sep, basename } from 'node:path';
-import handler, { MAX_BODY_CHARS, purgeDueAccounts, canWatchLive } from '../preview/server/community.mjs';
+import handler, { MAX_BODY_CHARS, purgeDueAccounts, canWatchLive, sessionActive } from '../preview/server/community.mjs';
 import middleware from '../preview/middleware.js';
 import { verifySession, sessionCookie } from '../preview/server/session.mjs';
 import { sendFile } from '../preview/server/files.mjs';
 import shareHandler from '../preview/server/share.mjs';
 const root = resolve('preview/dist/public');
 const MAX_PUBLIC_BODY = 64 * 1024; // corpo máximo de quem ainda não entrou
+const UPLOADS_PER_ACCOUNT = Number(process.env.OPY_UPLOADS_PER_ACCOUNT) || 2;
+const UPLOADS_TOTAL = Number(process.env.OPY_UPLOADS_TOTAL) || 16;
+const uploading = new Map(); let uploadingTotal = 0;
 // Live (Fase 4): a sinalização WHIP/WHEP do navegador vai por aqui ao MediaMTX (OPY_LIVE_URL), com sessão obrigatória.
 // A mídia em si não passa pelo app (UDP/TCP 8189 direto no MediaMTX). Sem OPY_LIVE_URL o recurso fica desligado.
 const liveUrl = process.env.OPY_LIVE_URL || '';
@@ -17,7 +20,7 @@ const livePath = /^\/live\/[a-f0-9-]{36}\/(?:whip|whep)(?:\/[A-Za-z0-9_-]{1,120}
 async function proxyLive(req, res, pathname) {
   if (!liveUrl || !livePath.test(pathname) || !['POST', 'PATCH', 'DELETE', 'OPTIONS'].includes(req.method)) { res.writeHead(404); return res.end(); }
   const session = await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET);
-  if (!session) { res.writeHead(401); return res.end(); }
+  if (!await sessionActive(session)) { res.writeHead(401); return res.end(); }
   // Assistir (WHEP) só quem pode ver a publicação da live; transmitir (WHIP) já exige a chave da live no MediaMTX.
   if (/\/whep(?:\/|$)/.test(pathname) && !await canWatchLive(session, pathname.split('/')[2])) { res.writeHead(404); return res.end(); }
   const headers = {};
@@ -43,7 +46,7 @@ async function serveLegacy(req, res, pathname) {
   const notFound = () => { res.writeHead(404); res.end(); };
   if (!legacyRoot) return notFound();
   // As páginas eram públicas no site antigo, mas a rede nova pede entrada: só quem tem sessão vê a mídia.
-  if (!await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET)) { res.writeHead(401); return res.end(); }
+  if (!await sessionActive(await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET))) { res.writeHead(401); return res.end(); }
   const relative = decodeURIComponent(pathname.slice('/legado'.length));
   const thumb = relative.startsWith('/thumbs/');
   const candidates = thumb ? [[thumbsRoot, relative.slice('/thumbs'.length)], [legacyRoot, relative.slice('/thumbs'.length)]] : [[legacyRoot, relative]];
@@ -122,7 +125,19 @@ const server = http.createServer(async (req, res) => {
       // Sem sessão válida (login, cadastro, verificação de @) o corpo é pequeno: só quem entrou pode mandar vídeo (até ~54 MB).
       const signed = await verifySession(sessionCookie(req), process.env.OPY_SESSION_SECRET);
       const limit = signed ? MAX_BODY_CHARS : MAX_PUBLIC_BODY;
-      if (Number(req.headers['content-length'] || 0) > limit) { res.writeHead(413, { Connection: 'close' }); return res.end(); }
+      const length = Number(req.headers['content-length'] || 0);
+      if (length > limit) { res.writeHead(413, { Connection: 'close' }); return res.end(); }
+      // Envios grandes (foto, vídeo, arquivo) ficam inteiros na memória até gravar: no máximo 2 por conta e 16 no servidor ao mesmo tempo.
+      if (signed && length > MAX_PUBLIC_BODY) {
+        const mine = uploading.get(signed.accountId) || 0;
+        if (mine >= UPLOADS_PER_ACCOUNT || uploadingTotal >= UPLOADS_TOTAL) {
+          for await (const _ of req); // descarta o corpo sem guardar, para o navegador receber a mensagem
+          res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '30' });
+          return res.end(JSON.stringify({ error: mine >= UPLOADS_PER_ACCOUNT ? 'Espere o envio anterior terminar antes de mandar outro arquivo.' : 'Muitos envios agora. Tente de novo em alguns segundos.' }));
+        }
+        uploading.set(signed.accountId, mine + 1); uploadingTotal++;
+        res.on('close', () => { const n = (uploading.get(signed.accountId) || 1) - 1; if (n > 0) uploading.set(signed.accountId, n); else uploading.delete(signed.accountId); uploadingTotal--; });
+      }
       const parts = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > limit) { res.writeHead(413, { Connection: 'close' }); res.end(); return req.destroy(); } parts.push(chunk); }
       try { req.body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { res.writeHead(400); return res.end(); }

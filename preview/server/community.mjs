@@ -535,6 +535,10 @@ function mediaInput(value) {
 }
 setLiveVisibility((post, me, state) => visible(post, me, state));
 // Proxy WHEP (assistir): a sessão precisa existir, não estar revogada, e a pessoa precisa poder ver a live.
+// Sessão assinada E ainda ativa na conta (encerrada em "Sair de todos os aparelhos" ou troca de senha deixa de valer).
+export async function sessionActive(session) {
+  return !!session && !!sessionAccount((await readState()).data, session);
+}
 export async function canWatchLive(session, postId) {
   const state = (await readState()).data;
   const account = sessionAccount(state, session);
