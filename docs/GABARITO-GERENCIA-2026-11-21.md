@@ -23,7 +23,7 @@ Commits desta rodada: `0ec467a9`, `9cf01f44`, `d27751f3`, `bc5166d1`, `837518eb`
 | FOTO-001 | Zoom nas fotos | FEITO | Duplo toque, pinça ou roda do mouse; arrastar com zoom |
 | PRESENÇA-001 | Verde/azul/vermelho | FEITO | Verde automático; ocupado e não incomodar na caixa de publicação |
 | GEO-001 | Geolocalização com permissão | FEITO (anterior) | Configurações > Localização; só cidade, revogável |
-| VIDEO-001 | Upload maior e compressão | PARCIAL | Até 40 MB, MOV do iPhone aceito, compressão no servidor quando há ffmpeg. Falta fila de processamento com "processando" |
+| VIDEO-001 | Upload maior e compressão | FEITO | Até 40 MB, MOV do iPhone aceito, fila de compressão no servidor; o feed mostra "Processando o vídeo" enquanto a versão leve não fica pronta |
 | VIDEO-002 | Aba Vídeos abre o reprodutor | FEITO | Tocar em Vídeos entra direto no MOMENTOS em tela cheia |
 
 ## 2. Segurança (auditorias da Lari e do Ramon)
@@ -37,7 +37,7 @@ Commits desta rodada: `0ec467a9`, `9cf01f44`, `d27751f3`, `bc5166d1`, `837518eb`
 | Lives sem checagem de quem pode ver (lista, ações e vídeo WHEP) | CORRIGIDO |
 | Limite por minuto dentro da gravação do banco | CORRIGIDO (em memória, antes de gravar) |
 | Tetos globais (o chat parava para todos com 10 mil mensagens) | CORRIGIDO (cotas por pessoa: 500 msg/dia, 20 grupos, 10 comunidades) |
-| Uploads simultâneos sem limite; sessão revogada no /legado | FALTA (próxima rodada) |
+| Uploads simultâneos sem limite; sessão revogada no /legado | CORRIGIDO (2 envios grandes por conta e 16 no servidor; /legado e live conferem a sessão ativa) |
 | Banco em JSON único, tempo real (WebSocket/SSE), API para o app nativo | Projeto: migração SQLite já planejada (`docs/PLANO-SQLITE.md`) |
 
 ## 3. Demais documentos
@@ -45,9 +45,9 @@ Commits desta rodada: `0ec467a9`, `9cf01f44`, `d27751f3`, `bc5166d1`, `837518eb`
 | Documento | Situação | O que já existe | Maior lacuna | Decisões necessárias |
 |---|---|---|---|---|
 | Cadastro | PARCIAL | Cadastro por e-mail/celular, limites anti-robô, recuperação com código, LGPD, idiomas; **novo:** aviso de senha trocada | Telefone internacional (+DDI), trocar e-mail/telefone, textos do login pelo painel | CPF/documento, CAPTCHA de terceiro, provedor de e-mail/WhatsApp |
-| Comunidade | PARCIAL | Públicas/privadas, pedidos, convites e links, papéis, denúncia, quem publica, conversa do grupo; **novo:** só o dono nomeia a equipe, remover e bloquear, histórico, fixar publicação, desligar comentários | Suspender pelo painel central, foto de capa, permissões finas por pessoa, estatísticas | Aprovação central obrigatória; categorias |
-| Página | PARCIAL | Criar, foto/capa, contatos, seguir, equipe, agenda | Publicar como Página (feed próprio), eventos em /eventos/, suspender/denunciar | Loja na Página; fluxo de aprovação; categorias |
-| Vídeos curtos (MOMENTOS) | PARCIAL | Tela cheia, 9:16, limite de 4 min, capa + ▶; **novo:** + para seguir no avatar, próximo vídeo não é baixado antes | Abas Seguindo/Para você, atalho LIVE, live no mesmo formato | — |
+| Comunidade | PARCIAL | Públicas/privadas, pedidos, convites e links, papéis, denúncia, quem publica, conversa do grupo; **novo:** só o dono nomeia a equipe, remover e bloquear, histórico, fixar publicação, desligar comentários | ~~Suspender pelo painel central~~ (feito), foto de capa, permissões finas por pessoa, estatísticas | Aprovação central obrigatória; categorias |
+| Página | PARCIAL | Criar, foto/capa, contatos, seguir, equipe, agenda | ~~Publicar como Página (feed próprio)~~ e ~~suspender~~ (feitos); eventos em /eventos/, denunciar | Loja na Página; fluxo de aprovação; categorias |
+| Vídeos curtos (MOMENTOS) | PARCIAL | Tela cheia, 9:16, limite de 4 min, capa + ▶; **novo:** + para seguir no avatar, próximo vídeo não é baixado antes | ~~Abas Seguindo/Para você, atalho LIVE~~ (feitos); live no mesmo formato | — |
 | Conexão | FALTA | Busca geral, cidade no perfil, pedido de conversa, bloqueio | Tela de cartões, favoritos, curtir perfil, visitas, sair das buscas | Busca por raio em km exige guardar localização aproximada |
 | Mercado | PARCIAL | Classificados com fotos, avaliações, conversa pelo chat | Lojas, aprovação comercial, suspender produto, gestor de marketing | Pagamento, comissões, divulgadores, documentos (RG/CPF/RANI) |
 | Modo Livros | FALTA | — | Catálogo, autores, didáticos, busca | Direitos autorais, PDF próprio, autoria |
