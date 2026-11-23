@@ -56,7 +56,33 @@ async function openClip(p, posts) {
   open(list, i);
 }
 
-function open(list, start) {
+// Abas do MOMENTOS (Seguindo / Para você) e atalho para as lives, no topo do reprodutor como nos apps de vídeo curto.
+const TABS = [['following', 'Seguindo'], ['foryou', 'Para você']];
+let tab = 'foryou';
+async function loadTab(which) {
+  const d = await S.apiGet({ view: 'posts', kind: 'videos', limit: 30, ...(which === 'following' ? { feed: 'following' } : {}) });
+  return (d.posts || []).filter(clip);
+}
+async function openTabs(which = tab) {
+  tab = which;
+  try {
+    const list = await loadTab(which);
+    open(list, 0, { tabs: true });
+  } catch (e) { showError(e.message); }
+}
+function tabBar(dlg) {
+  const bar = make('div', undefined, 'vp-tabs'); bar.setAttribute('role', 'tablist');
+  for (const [id, label] of TABS) {
+    const b = make('button', label, 'vp-tab'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(tab === id));
+    b.onclick = () => { if (tab !== id) openTabs(id); }; bar.append(b);
+  }
+  const live = make('button', 'LIVE', 'vp-tab vp-tab-live'); live.type = 'button'; live.setAttribute('aria-label', 'Ver lives');
+  live.onclick = () => { dlg.close(); document.querySelector('[data-feed-view="live"]')?.click(); };
+  bar.append(live);
+  return bar;
+}
+
+function open(list, start, opts = {}) {
   let dlg = document.getElementById('opy-vplayer');
   if (!dlg) {
     dlg = make('dialog'); dlg.id = 'opy-vplayer'; dlg.setAttribute('aria-label', 'Vídeos');
@@ -70,6 +96,8 @@ function open(list, start) {
   const paintSound = () => { sound.textContent = muted ? '🔇' : '🔊'; sound.setAttribute('aria-label', muted ? 'Ativar som' : 'Desativar som'); track.querySelectorAll('video').forEach(v => { v.muted = muted; }); };
   sound.onclick = () => { muted = !muted; paintSound(); };
   dlg.replaceChildren(track, close, sound);
+  if (opts.tabs) dlg.append(tabBar(dlg));
+  if (!list.length) track.append(make('p', tab === 'following' ? 'Quem você segue ainda não publicou vídeos. Veja os da aba Para você.' : 'Ainda não há vídeos para assistir.', 'vp-empty-tab'));
   list.forEach(p => track.append(slide(p, dlg)));
   if (!dlg.open) { dlg.showModal(); document.documentElement.classList.add('sv-lock'); }
   paintSound();
@@ -162,5 +190,5 @@ function comments(p, s, counter) {
   paintList(); sheet.append(head, list, form); s.append(sheet); input.focus({ preventScroll: true });
 }
 
-window.OpyVideos = { grid, open, openClip };
+window.OpyVideos = { grid, open, openClip, openTabs };
 }());
