@@ -437,7 +437,7 @@ function appendPostBody(item, parent){
  else if(item.live&&!item.media)parent.append(make('small',item.live.recording==='none'?'A live terminou e a gravação não ficou disponível.':'A live terminou. A gravação está sendo preparada.','post-live-note'));
  if(item.media&&item.media.kind==='audio')mountAudio(item.media,parent);
  else if(item.media&&item.media.kind==='file')appendFile(item.media,parent);
- else if(item.media&&item.media.kind==='video'){if(item.live)parent.append(make('small','Gravação da live','post-live-note'));parent.append(videoBlock(item));}
+ else if(item.media&&item.media.kind==='video'){if(item.live)parent.append(make('small','Gravação da live','post-live-note'));if(item.media.processing)parent.append(make('small','Processando o vídeo… já dá para assistir; a versão leve fica pronta em instantes.','post-live-note is-processing'));parent.append(videoBlock(item));}
  if(item.file)appendFile(item.file,parent);
  if(item.location)parent.append(make('p','Localização · '+item.location,'post-place'));
 }
@@ -1735,7 +1735,7 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
   const locBox=$('.feed-location');if(locBox)locBox.hidden=view!=='location';
   // Redesenhar o feed só quando algo mudou: evita pausar áudio e vídeo e fechar menus a cada atualização periódica.
   const welcome=!key&&!saved?welcomeCard():null;
-  const postSig=p=>JSON.stringify([state.presence?.[p.authorKey]||'',(p.comments||[]).map(c=>state.presence?.[c.authorKey]||'').join(),p.media?.kind==='video'||p.repostOf?.media?.kind==='video'?state.me?.videoAutoplay:'',p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
+  const postSig=p=>JSON.stringify([state.presence?.[p.authorKey]||'',(p.comments||[]).map(c=>state.presence?.[c.authorKey]||'').join(),p.media?.kind==='video'||p.repostOf?.media?.kind==='video'?state.me?.videoAutoplay:'',p.sponsored?.boostId,p.reaction,p.comments?.length,p.comments?.map(c=>[c.id,c.likes,c.liked,c.text]),p.saved,p.editedAt,p.live?.active,p.live?.recording,p.following,p.shares,p.reactions,p.media?.url,p.media?.processing,p.text,p.poll?.counts,p.repostOf?.id,expandedComments.has(p.id),replyTargets.has(p.id)]);
   // O patrocinado fica o mesmo enquanto a pessoa lê: o rodízio do servidor só vale na próxima abertura do feed (sem redesenhar a lista).
   if(!key&&!saved&&fs.sponsored===undefined&&state.sponsored!==undefined)fs.sponsored=state.sponsored||null;
   const sponsoredPost=!key&&!saved?(fs.sponsored||null):null;

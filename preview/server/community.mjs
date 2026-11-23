@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import bcrypt from 'bcryptjs';
 import { createHash } from 'node:crypto';
 import { readState, transact, saveMedia as storeSaveMedia, readMedia, deleteMedia, archiveAvatar } from './store.mjs';
-import { scheduleTranscode } from './transcode.mjs';
+import { scheduleTranscode, transcoding } from './transcode.mjs';
 // Vídeo novo é guardado como veio e, em segundo plano, trocado por uma versão leve (720p, MP4 com início rápido) quando o ffmpeg existe.
 const saveMedia = async (id, bytes, type) => { await storeSaveMedia(id, bytes, type); if (/^video\//.test(type)) scheduleTranscode(id, { readMedia, saveMedia: storeSaveMedia }); };
 import { answerEtnia } from './etnia.mjs';
@@ -180,7 +180,7 @@ function friendStatusOf(state, myKey, targetKey) {
 }
 const PAGE_SIZE = 30;
 const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '', ...(m.parts ? { parts: m.parts } : {}), ...(m.posterId ? { poster: `/api/media?id=${m.posterId}` } : {}) } : null;
+const mapMedia = m => m ? { url: m.url || `/api/media?id=${m.id}`, kind: m.kind, name: m.name || '', ...(m.parts ? { parts: m.parts } : {}), ...(m.posterId ? { poster: `/api/media?id=${m.posterId}` } : {}), ...(m.kind === 'video' && m.id && transcoding(m.id) ? { processing: true } : {}) } : null;
 const personAvatar = acc => acc?.avatarUrl || profileUrl(acc?.avatarId);
 // Povos já declarados na rede, para sugerir na edição do perfil (sem lista fechada: a pessoa escreve como se nomeia).
 function povosOf(state) { const count = new Map(); for (const a of state.accounts || []) if (a.belonging === 'indigena' && a.povo) count.set(a.povo, (count.get(a.povo) || 0) + 1); return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 80).map(([name]) => name); }

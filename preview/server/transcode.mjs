@@ -8,6 +8,8 @@ import { join } from 'node:path';
 let available;
 export const ffmpegAvailable = () => available ??= spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 const queue = []; let running = false;
+const pending = new Set(); // ids na fila ou em andamento: o feed mostra "processando"
+export const transcoding = id => pending.has(id);
 export const transcodeStats = { done: 0, skipped: 0, failed: 0 };
 
 function run(args, timeoutMs) {
@@ -41,11 +43,11 @@ async function work({ id, store }) {
 }
 async function drain() {
   if (running) return; running = true;
-  try { while (queue.length) await work(queue.shift()); } finally { running = false; }
+  try { while (queue.length) { const job = queue.shift(); try { await work(job); } finally { pending.delete(job.id); } } } finally { running = false; }
 }
 export function scheduleTranscode(id, store) {
   if (process.env.OPY_TRANSCODE === '0' || !ffmpegAvailable()) return false;
-  queue.push({ id, store }); setImmediate(drain);
+  pending.add(id); queue.push({ id, store }); setImmediate(drain);
   return true;
 }
 export const idle = async () => { while (running || queue.length) await new Promise(r => setTimeout(r, 50)); };

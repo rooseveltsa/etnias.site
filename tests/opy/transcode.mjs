@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ffmpegAvailable, scheduleTranscode, idle, transcodeStats } from '../../preview/server/transcode.mjs';
+import { ffmpegAvailable, scheduleTranscode, idle, transcodeStats, transcoding } from '../../preview/server/transcode.mjs';
 
 const has = ffmpegAvailable();
 test('transcodificação: vídeo grande vira MP4 leve; sem ffmpeg o original fica', { skip: !has && 'ffmpeg não instalado' }, async () => {
@@ -15,7 +15,9 @@ test('transcodificação: vídeo grande vira MP4 leve; sem ffmpeg o original fic
   const stored = new Map([['v1', { type: 'video/mp4', buffer: original }]]);
   const store = { readMedia: async id => stored.has(id) ? { statusCode: 200, blob: { contentType: stored.get(id).type }, buffer: stored.get(id).buffer } : null, saveMedia: async (id, bytes, type) => stored.set(id, { type, buffer: bytes }) };
   assert.equal(scheduleTranscode('v1', store), true);
+  assert.equal(transcoding('v1'), true, 'fica marcado como processando');
   await idle();
+  assert.equal(transcoding('v1'), false, 'sai de processando ao terminar');
   const out = stored.get('v1');
   assert.ok(out.buffer.length < original.length * 0.95, `esperava menor: ${out.buffer.length} vs ${original.length}`);
   assert.equal(out.type, 'video/mp4');
