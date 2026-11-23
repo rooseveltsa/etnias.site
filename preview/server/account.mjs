@@ -5,8 +5,9 @@ import { checkPassword } from './session.mjs';
 import { exportAccountData, recordConsent, DELETION_GRACE_DAYS as GRACE } from './lgpd.mjs';
 import { tooMany, note } from './throttle.mjs';
 import { providerConfigured, contactOf, issueCode, checkCode } from './recovery.mjs';
+import { newSecret, otpauthUri, verifyCode, newBackupCodes } from './totp.mjs';
 
-export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'mute_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update', 'contact_verify_request', 'contact_verify_confirm'];
+export const accountActions = ['video_prefs', 'privacy_update', 'session_revoke', 'sessions_revoke_others', 'follower_remove', 'block_set', 'mute_set', 'account_deactivate', 'account_delete_request', 'data_export', 'consent_update', 'contact_verify_request', 'contact_verify_confirm', 'follow_request_accept', 'follow_request_decline', 'notify_prefs', 'totp_setup', 'totp_enable', 'totp_disable'];
 export const DELETION_GRACE_DAYS = GRACE;
 const DAY = 864e5;
 const keyOf = id => `id:${id}`;
@@ -53,6 +54,33 @@ export function canMessage(state, fromId, toKey) {
   return to.privacy?.messages !== 'friends' || areFriends(state, toKey, keyOf(fromId));
 }
 
+// Pedidos da gerência (EtnIA 2): quem comenta, quem vê e responde stories, aprovar seguidores. Padrão = aberto, como antes.
+const PRIVACY = { profile: ['public', 'friends'], messages: ['everyone', 'friends'], comments: ['everyone', 'friends', 'off'], stories: ['everyone', 'friends'], storyReplies: ['everyone', 'friends', 'off'], follows: ['open', 'approve'] };
+export function privacyOf(account) {
+  return Object.fromEntries(Object.entries(PRIVACY).map(([k, opts]) => [k, opts.includes(account?.privacy?.[k]) ? account.privacy[k] : opts[0]]));
+}
+// Avisos que a pessoa pode desligar (no Maracá e no celular). Segurança e convites sempre chegam.
+export const NOTIFY = ['comments', 'reactions', 'mentions', 'follows', 'friends', 'stories', 'lives'];
+const NOTIFY_KIND = { comment: 'comments', reply: 'comments', react: 'reactions', mention: 'mentions', follow: 'follows', friend: 'friends', live: 'lives', live_invite: 'lives' };
+const NOTIFY_TAG = [['mention-', 'mentions'], ['post-', 'comments'], ['follow', 'follows'], ['friend-', 'friends'], ['story-', 'stories'], ['live', 'lives']];
+export const notifyPrefsOf = account => Object.fromEntries(NOTIFY.map(k => [k, account?.notifyPrefs?.[k] !== false]));
+export const wantsNotice = (account, kind) => !NOTIFY_KIND[kind] || notifyPrefsOf(account)[NOTIFY_KIND[kind]];
+// Push: a categoria vem do tag do aviso (menções usam o tag do post, então quem chama informa).
+export function wantsPush(account, tag, category) {
+  const cat = category || NOTIFY_TAG.find(([prefix]) => String(tag || '').startsWith(prefix))?.[1];
+  return !cat || notifyPrefsOf(account)[cat];
+}
+const accountById = (state, id) => (state.accounts || []).find(a => a.id === id);
+// 'everyone' | 'friends' | 'off' aplicado a quem não é o dono.
+function allowed(state, rule, viewerId, ownerId) {
+  if (!ownerId || viewerId === ownerId) return true;
+  return rule === 'everyone' || (rule === 'friends' && areFriends(state, keyOf(ownerId), keyOf(viewerId)));
+}
+export const canComment = (state, viewerId, ownerId) => allowed(state, privacyOf(accountById(state, ownerId)).comments, viewerId, ownerId);
+export const canSeeStory = (state, viewerId, ownerId) => allowed(state, privacyOf(accountById(state, ownerId)).stories, viewerId, ownerId);
+export const canReplyStory = (state, viewerId, ownerId) => allowed(state, privacyOf(accountById(state, ownerId)).storyReplies, viewerId, ownerId);
+export const followNeedsApproval = (state, ownerId) => privacyOf(accountById(state, ownerId)).follows === 'approve';
+
 const deviceOf = ua => {
   const s = String(ua || '');
   const os = /iPhone|iPad/.test(s) ? 'iPhone/iPad' : /Android/.test(s) ? 'Android' : /Mac OS X/.test(s) ? 'Mac' : /Windows/.test(s) ? 'Windows' : /Linux/.test(s) ? 'Linux' : 'Aparelho';
@@ -72,7 +100,10 @@ export function accountView(state, account, currentSessionId, now = Date.now()) 
   const card = k => { const a = byKey.get(k); return a ? { key: k, name: a.name, username: a.username || '', avatar: a.avatarUrl || (a.avatarId ? `/api/media?id=${a.avatarId}` : '') } : null; };
   const followers = Object.entries(state.follows || {}).filter(([, list]) => Array.isArray(list) && list.includes(key)).map(([id]) => card(keyOf(id))).filter(Boolean);
   return {
-    privacy: { profile: account.privacy?.profile === 'friends' ? 'friends' : 'public', messages: account.privacy?.messages === 'friends' ? 'friends' : 'everyone' },
+    privacy: privacyOf(account),
+    followRequests: (state.followRequests?.[key] || []).map(card).filter(Boolean),
+    notifyPrefs: notifyPrefsOf(account),
+    twoFactor: account.totp?.enabledAt ? { enabled: true, backupLeft: (account.totp.backup || []).length } : { enabled: false },
     sessions: (account.sessions || []).filter(s => s.expiresAt > now).map(s => ({ id: s.id, device: s.device || 'Aparelho sem identificação', createdAt: s.createdAt || 0, expiresAt: s.expiresAt, current: s.id === currentSessionId }))
       .sort((a, b) => Number(b.current) - Number(a.current) || b.createdAt - a.createdAt),
     followers,
@@ -85,6 +116,14 @@ export function accountView(state, account, currentSessionId, now = Date.now()) 
     recoveryAvailable: providerConfigured(),
     deletionGraceDays: DELETION_GRACE_DAYS
   };
+}
+
+function approveFollow(state, fromKey, toKey) {
+  const id = fromKey.slice(3);
+  state.follows ||= {};
+  const list = Array.isArray(state.follows[id]) ? state.follows[id] : [];
+  if (!list.includes(toKey)) state.follows[id] = [...list, toKey].slice(-2000);
+  state.followEvents = [...(state.followEvents || []), { from: id, to: toKey, at: Date.now() }].slice(-5000);
 }
 
 // Ao entrar de novo, a conta desativada volta. Um pedido de exclusão só é cancelado se a pessoa confirmar (o login recusa antes disso).
@@ -105,12 +144,57 @@ export function accountAction(state, account, body, currentSessionId, now = Date
       return {};
     }
     case 'privacy_update': {
-      const profile = body.profile ?? account.privacy?.profile ?? 'public';
-      const messages = body.messages ?? account.privacy?.messages ?? 'everyone';
-      if (!['public', 'friends'].includes(profile)) fail(400, 'Escolha quem pode ver seu perfil.');
-      if (!['everyone', 'friends'].includes(messages)) fail(400, 'Escolha quem pode mandar mensagem.');
-      account.privacy = { profile, messages };
+      const next = privacyOf(account);
+      for (const k of Object.keys(PRIVACY)) {
+        if (body[k] === undefined) continue;
+        if (!PRIVACY[k].includes(body[k])) fail(400, 'Opção de privacidade inválida.');
+        next[k] = body[k];
+      }
+      account.privacy = next;
+      // Ao abrir os seguidores, quem estava esperando passa a seguir.
+      if (next.follows === 'open' && state.followRequests?.[key]?.length) {
+        for (const from of state.followRequests[key]) approveFollow(state, from, key);
+        delete state.followRequests[key];
+      }
       rulesVersion++;
+      return {};
+    }
+    // Duas etapas: gera a chave (fica pendente até a pessoa provar que o app gera o código certo).
+    case 'totp_setup': {
+      if (account.totp?.enabledAt) fail(409, 'A verificação em duas etapas já está ligada.');
+      const secret = newSecret();
+      account.totpPending = { secret, at: now };
+      return { totp: { secret, uri: otpauthUri(secret, account.username || account.name) } };
+    }
+    case 'totp_enable': {
+      const pending = account.totpPending;
+      if (!pending || now - pending.at > 15 * 60e3) fail(409, 'Comece de novo: a chave expirou.');
+      const step = verifyCode(pending.secret, body.code, -1, now);
+      if (step < 0) fail(400, 'Código incorreto. Confira o relógio do celular e digite o código atual do app.');
+      const { codes, hashes } = newBackupCodes();
+      account.totp = { secret: pending.secret, enabledAt: now, lastStep: step, backup: hashes };
+      delete account.totpPending;
+      return { totp: { backupCodes: codes } };
+    }
+    case 'totp_disable': {
+      if (!account.totp?.enabledAt) fail(409, 'A verificação em duas etapas já está desligada.');
+      if (!account.password || !checkPassword(String(body.password || ''), account.password)) fail(403, 'A senha não confere.');
+      if (verifyCode(account.totp.secret, body.code, account.totp.lastStep, now) < 0) fail(400, 'Código incorreto.');
+      delete account.totp;
+      return {};
+    }
+    case 'notify_prefs': {
+      const prefs = body.prefs && typeof body.prefs === 'object' ? body.prefs : null;
+      if (!prefs || Object.entries(prefs).some(([k, v]) => !NOTIFY.includes(k) || typeof v !== 'boolean')) fail(400, 'Escolha quais avisos receber.');
+      account.notifyPrefs = { ...notifyPrefsOf(account), ...prefs };
+      return {};
+    }
+    case 'follow_request_accept': case 'follow_request_decline': {
+      const who = String(body.key || '');
+      const list = state.followRequests?.[key] || [];
+      if (!list.includes(who)) fail(404, 'Este pedido para seguir não existe mais.');
+      state.followRequests[key] = list.filter(k => k !== who);
+      if (body.action === 'follow_request_accept') approveFollow(state, who, key);
       return {};
     }
     case 'session_revoke': {

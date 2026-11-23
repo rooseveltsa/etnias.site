@@ -79,12 +79,14 @@ async function optimistic(post,patch,body){
  try{await change(body);}catch(error){Object.assign(post,before);for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,post);render();throw error;}
 }
 function reactPatch(post,next){const reactions={...post.reactions};if(post.reaction)reactions[post.reaction]=Math.max(0,(reactions[post.reaction]||1)-1);if(next)reactions[next]=(reactions[next]||0)+1;return {reaction:next,reactions};}
-async function change(body){const next=await api(body);feedGen++;const touched=next.touched;delete next.touched;state=next;
+async function change(body){const next=await api(body);feedGen++;const touched=next.touched;delete next.touched;const followReq=next.follow;delete next.follow;state=next;
  if(touched){for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,touched);if(feed.pinned?.id===touched.id)feed.pinned=touched;}
  else if(body.action==='delete'||body.action==='community_moderate_post'){dropPost(body.postId);if(feed.pinned?.id===body.postId)feed.pinned=null;}
  if(['friend','follow','community_accept_invite','community_decline_invite','community_approve','community_reject'].includes(body.action))notifData.loaded=false;
  // Só a publicação própria volta ao topo do feed; excluir e repostar já atualizam o que está carregado (sem perder a paginação).
  if(body.action==='publish'||body.action==='mute_set'){feed.key='';profileData.key='';communityPosts.id='';}
+ // Conta que aprova seguidores: o toque vira (ou cancela) um pedido, sem seguir ainda.
+ if(body.action==='follow'&&followReq){for(const l of [feed.posts,profileData.posts,communityPosts.posts])(l||[]).forEach(p=>{if(p.authorKey===body.authorKey)p.following=false;});const person=profileData.key===body.authorKey?profileData.person:null;if(person){person.following=false;person.followRequested=followReq.requested;profileSignature='';}render();toast(followReq.requested?'Pedido para seguir enviado. A pessoa precisa aprovar.':'Pedido para seguir cancelado.');return;}
  if(body.action==='follow'){const d=(state.directory||[]).find(p=>p.key===body.authorKey);const person=profileData.key===body.authorKey?profileData.person:null;
   // A pessoa pode não estar no diretório (top 20): sem ela, a resposta do servidor é o inverso do estado anterior.
   const following=d?d.following:person?!person.following:undefined;
@@ -589,6 +591,8 @@ function renderPost(post, communityContext=null){
   bar.append(make('small',date(comment.createdAt)));
   const cItems=[];
   if(comment.own||post.own||state.me.role)cItems.push(['Excluir comentário',async()=>{if(!confirm('Excluir este comentário'+(isReply?'':' e as respostas')+'?'))return;try{await change({action:'comment_delete',postId:post.id,commentId:comment.id});}catch(e){showError(e.message);}}]);
+  // Compartilhar comentário: leva o trecho e o link da publicação (menu do celular ou cópia).
+  if(comment.text)cItems.push(['Compartilhar comentário',async()=>{const url=location.origin+'/#post-'+post.id,txt=comment.author+': “'+comment.text.slice(0,280)+'”';try{if(navigator.share)await navigator.share({text:txt,url});else{await navigator.clipboard.writeText(txt+' '+url);toast('Comentário copiado com o link.');}}catch(e){if(e.name!=='AbortError')showError('Não foi possível compartilhar agora.');}}]);
   if(!comment.own)cItems.push(['Denunciar comentário',()=>reportContent(post,comment)]);
   if(cItems.length){const more=make('div',undefined,'post-more comment-more');const mb=make('button','⋯','post-more-btn');mb.type='button';mb.setAttribute('aria-label','Opções do comentário');mb.setAttribute('aria-haspopup','menu');mb.setAttribute('aria-expanded','false');const menu=make('div',undefined,'post-menu');menu.setAttribute('role','menu');menu.hidden=true;
    for(const [label,fn] of cItems){const it=make('button',label,'post-menu-item'+(label.startsWith('Excluir')?' is-danger':''));it.type='button';it.setAttribute('role','menuitem');it.onclick=()=>{closePostMenus();fn();};menu.append(it);}
@@ -596,7 +600,7 @@ function renderPost(post, communityContext=null){
   body.append(bubble,bar);block.append(avatar,body);card.append(block);
  };
  for(const top of visibleTops){renderComment(top,false);for(const r of post.comments.filter(c=>c.parentId===top.id))renderComment(r,true);}
- if(communityContext?.commentsOff&&!communityContext.canModerate&&post.communityId===communityContext.id)card.append(make('p','Os comentários estão desligados nesta comunidade.','pf-empty'));else card.append(form);return card;
+ if(communityContext?.commentsOff&&!communityContext.canModerate&&post.communityId===communityContext.id)card.append(make('p','Os comentários estão desligados nesta comunidade.','pf-empty'));else if(post.commentsClosed)card.append(make('p','Quem publicou limitou quem pode comentar.','pf-empty'));else card.append(form);return card;
 }
 function paintCommunity(){
  // Coluna lateral: comunidades por tema. Pessoas aparecem no contexto delas (comunidade, publicação, busca), não numa lista solta.
@@ -674,7 +678,7 @@ function bindPullToRefresh(){
 function feedParams(saved){
  const p={};
  if(saved)p.feed='saved';else if(['following','discover','archive'].includes(view))p.feed=view;
- if(['photos','videos','audio','files'].includes(view))p.kind=view;
+ if(['photos','videos','audio','files','live','text'].includes(view))p.kind=view;
  if(view==='location')p.location=$('#feed-location-query')?.value||'';
  if(filter&&filter!=='all')p.origin=filter;
  return p;
@@ -882,8 +886,20 @@ function renderSettings(){
  const priv=card('Privacidade','Vale para todo mundo, inclusive na busca e no feed.','privacidade');
  priv.append(radioGroup('set-profile','Quem pode ver seu perfil e suas publicações',[['public','Todas as pessoas da rede'],['friends','Só amizades','Quem não é amizade vê só seu nome, foto e apresentação.']],d.privacy.profile,v=>accountChange({action:'privacy_update',profile:v},'Privacidade atualizada.')));
  priv.append(radioGroup('set-messages','Quem pode mandar mensagem',[['everyone','Todas as pessoas da rede'],['friends','Só amizades']],d.privacy.messages,v=>accountChange({action:'privacy_update',messages:v},'Privacidade atualizada.')));
+ const pv=(k,label,opts)=>priv.append(radioGroup('set-'+k,label,opts,d.privacy[k],v=>accountChange({action:'privacy_update',[k]:v},'Privacidade atualizada.')));
+ pv('comments','Quem pode comentar nas suas publicações',[['everyone','Todas as pessoas da rede'],['friends','Só amizades'],['off','Ninguém']]);
+ pv('stories','Quem pode ver seus stories',[['everyone','Todas as pessoas da rede'],['friends','Só amizades']]);
+ pv('storyReplies','Quem pode reagir e responder aos seus stories',[['everyone','Todas as pessoas da rede'],['friends','Só amizades'],['off','Ninguém']]);
+ pv('follows','Quem pode seguir você',[['open','Qualquer pessoa, sem aprovação'],['approve','Eu aprovo cada pedido','Quem pedir aparece em Seguidores até você aceitar ou recusar.']]);
+ const nt=card('Avisos','Escolha o que aparece no Maracá e no celular. Avisos de segurança e convites sempre chegam.','avisos');
+ {const f=make('fieldset',undefined,'set-checks');f.append(make('legend','Receber avisos de'));
+  for(const [k,l] of [['comments','Comentários e respostas'],['reactions','Reações às suas publicações'],['mentions','Menções'],['follows','Novos seguidores'],['friends','Pedidos de amizade'],['stories','Reações aos seus stories'],['lives','Lives e convites para live']]){
+   const lab=make('label');const c=make('input');c.type='checkbox';c.checked=d.notifyPrefs?.[k]!==false;c.onchange=()=>accountChange({action:'notify_prefs',prefs:{[k]:c.checked}},'Avisos atualizados.');lab.append(c,document.createTextNode(' '+l));f.append(lab);}
+  nt.append(f);}
  const sess=card('Segurança','Troque a senha e saia de aparelhos que você não reconhece ou não usa mais.','seguranca');
- const pwRow=make('div',undefined,'set-actions');const pw0=button('Alterar senha',()=>openPasswordDialog(false),pwRow);pw0.className='preview-secondary';sess.append(pwRow,make('h3','Aparelhos conectados'));
+ const pwRow=make('div',undefined,'set-actions');const pw0=button('Alterar senha',()=>openPasswordDialog(false),pwRow);pw0.className='preview-secondary';
+ {const tf=d.twoFactor||{};const b=button(tf.enabled?'Desligar duas etapas':'Ligar verificação em duas etapas',async()=>{if(!tf.enabled)return openTwoFactor();const pw=prompt('Para desligar, digite sua senha:');if(!pw)return;const c=prompt('E o código atual do app autenticador:');if(!c)return;accountChange({action:'totp_disable',password:pw,code:c},'Verificação em duas etapas desligada.');},pwRow);b.className=tf.enabled?'preview-secondary':'opy-primary';
+  if(tf.enabled)sess.append(make('p','Duas etapas ligadas: ao entrar, pedimos o código do app autenticador. Códigos reserva restantes: '+tf.backupLeft+'.','set-desc'));}sess.append(pwRow,make('h3','Aparelhos conectados'));
  const ul=make('ul',undefined,'set-sessions');
  for(const x of d.sessions){const li=make('li');const info=make('div');info.append(make('strong',x.device+(x.current?' (este aparelho)':'')));if(x.createdAt)info.append(make('small','Entrou em '+new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(x.createdAt))));li.append(info);
   if(!x.current){const b=button('Sair deste aparelho',()=>accountChange({action:'session_revoke',sessionId:x.id},'O aparelho saiu da conta.'),li);b.className='preview-secondary';}
@@ -891,6 +907,8 @@ function renderSettings(){
  sess.append(ul);
  if(d.sessions.length>1){const all=button('Sair de todos os outros aparelhos',()=>{if(confirm('Sair de todos os outros aparelhos? Só este continua conectado.'))accountChange({action:'sessions_revoke_others'},'Os outros aparelhos saíram da conta.');},sess);all.className='preview-secondary';}
  const fol=card('Seguidores','Quem segue você vê suas publicações no feed de "Seguindo".');
+ if(d.followRequests?.length){fol.append(make('h3','Pedidos para seguir'));const ul=make('ul',undefined,'set-people');for(const p of d.followRequests){const li=personRow(p,'Aceitar',x=>accountChange({action:'follow_request_accept',key:x.key},x.name+' agora segue você.'));li.querySelector('button').className='opy-primary';const no=button('Recusar',()=>accountChange({action:'follow_request_decline',key:p.key},'Pedido recusado. A pessoa não é avisada.'),li);no.className='preview-secondary';no.setAttribute('aria-label','Recusar '+p.name);ul.append(li);}
+  fol.append(ul,make('h3','Seguidores'));}
  fol.append(peopleList(d.followers,'Ninguém segue você ainda.','Remover',p=>{if(confirm('Remover '+p.name+' dos seus seguidores? A pessoa não é avisada.'))accountChange({action:'follower_remove',key:p.key},'Seguidor removido.');}));
  const fing=card('Seguindo');
  fing.append(peopleList(d.following,'Você ainda não segue ninguém.','Deixar de seguir',p=>accountChange({action:'follow',authorKey:p.key},'Você deixou de seguir '+p.name+'.')));
@@ -962,7 +980,7 @@ function renderProfile(){
  if(own){const e=button('Editar perfil',openProfileEdit,actions);e.className='pf-pill pf-pill-brown';}
  else{
   const liveOn=(state.lives||[]).find(l=>l.authorKey===key);if(liveOn){const w=button('Assistir ao vivo',()=>openLiveViewer({id:liveOn.postId,author:person.name,avatar:person.avatar,live:{format:liveOn.format}}),actions);w.className='pf-pill pf-pill-live live-profile-btn';}
-  const f=button(person.following?'Seguindo':'Seguir',()=>toggleFollow(key),actions);f.className='pf-pill pf-pill-green';f.setAttribute('aria-pressed',String(!!person.following));
+  const f=button(person.following?'Seguindo':person.followRequested?'Pedido enviado':'Seguir',()=>toggleFollow(key),actions);f.className='pf-pill pf-pill-green';f.setAttribute('aria-pressed',String(!!person.following));
   if(key.startsWith('id:')){
    const m=button('Mensagem',()=>openPrivateChat(key),actions);m.className='pf-pill pf-pill-brown';
    const fr=button(friendLabel(person.friendStatus),()=>change({action:'friend',authorKey:key}),actions);fr.className='pf-pill pf-pill-line';fr.setAttribute('aria-pressed',String(person.friendStatus==='friends'));
@@ -1654,6 +1672,8 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
  }
  paintRequests();
  const notifCount=state.unreadNotifications||0;
+ // Número no ícone do app instalado (avisos + conversas), onde o sistema oferece.
+ {const n=notifCount+(state.unreadChatCount||0);try{if(n&&navigator.setAppBadge)navigator.setAppBadge(n).catch(()=>{});else if(!n&&navigator.clearAppBadge)navigator.clearAppBadge().catch(()=>{});}catch{}}
  const notifHeaderLink=$('.notification-container a');
  if(notifHeaderLink){
   let badge=$('.opy-header-badge',notifHeaderLink);
@@ -1731,6 +1751,7 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
    feed.append(saved?emptyState('Nada salvo ainda','Toque no marcador de uma publicação para guardá-la aqui e ler depois.',[['Ir para o feed','/']])
     :view==='following'&&!(state.directory||[]).some(p=>!p.own&&(p.following||p.friendStatus==='friends'))?emptyState('Você ainda não segue ninguém','Siga pessoas para ver aqui o que elas publicam.',[['Descobrir pessoas',()=>showView('discover')]])
     :view==='location'?emptyState('Nenhuma publicação com esse local','As pessoas informam o local ao publicar. Tente outro nome de cidade, região ou território.')
+    :view==='live'?emptyState('Ninguém ao vivo agora','Lives em andamento e gravações de lives aparecem aqui.',[['Ver tudo',()=>showView('news')]])
     :view==='discover'?emptyState('Você já segue todo mundo','Quem publicou por aqui já está no seu feed.',[['Ver tudo',()=>showView('news')]])
     :emptyState('Nada neste filtro','Ainda não há publicações deste tipo.',[['Ver tudo',()=>showView('news')]]));
   }
@@ -1837,6 +1858,24 @@ function pushCard(){
  return card;
 }
 // Troca de senha; obrigatória (sem fechar) quando a pessoa entrou com uma senha provisória emitida pela gestão.
+// Verificação em duas etapas: chave para o app autenticador, confirmação com o código e códigos reserva (mostrados uma vez).
+async function openTwoFactor(){
+ if($('#opy-2fa-dialog'))return;
+ let setup;try{setup=(await api({action:'totp_setup'})).totp;}catch(e){showError(e.message);return;}
+ const dlg=make('dialog',undefined,'community-dialog');dlg.id='opy-2fa-dialog';const form=make('form');
+ form.append(make('h2','Verificação em duas etapas'),make('p','1. Instale um app autenticador (Google Authenticator, Microsoft Authenticator ou Authy).'),make('p','2. No celular, toque no link abaixo. No computador, adicione a conta no app digitando a chave.'));
+ const link=make('a','Abrir no app autenticador','preview-text-link');link.href=setup.uri;const key=make('code',setup.secret.replace(/(.{4})/g,'$1 ').trim(),'twofa-key');form.append(link,key);
+ const l=make('label','3. Digite o código de 6 dígitos que o app mostra');const code=make('input');code.inputMode='numeric';code.autocomplete='one-time-code';code.maxLength=7;code.required=true;l.append(code);
+ const err=make('p',undefined,'welcome-error');err.hidden=true;err.setAttribute('role','alert');
+ const row=make('div',undefined,'set-actions');const cancel=make('button','Cancelar','preview-secondary');cancel.type='button';cancel.onclick=()=>dlg.close();const ok=make('button','Ligar','opy-primary');ok.type='submit';row.append(cancel,ok);
+ form.append(l,err,row);dlg.append(form);document.body.append(dlg);
+ form.onsubmit=async e=>{e.preventDefault();ok.disabled=true;try{const r=await api({action:'totp_enable',code:code.value});settingsData=null;
+   form.replaceChildren(make('h2','Pronto: duas etapas ligadas'),make('p','Guarde estes códigos reserva num lugar seguro. Cada um entra uma vez, se você perder o celular. Eles não serão mostrados de novo.'));
+   const ul=make('ul',undefined,'twofa-backup');for(const c of r.totp.backupCodes)ul.append(make('li',c));const copy=make('button','Copiar códigos','preview-secondary');copy.type='button';copy.onclick=()=>navigator.clipboard?.writeText(r.totp.backupCodes.join('\n')).then(()=>toast('Códigos copiados.'),()=>{});
+   const done=make('button','Já guardei','opy-primary');done.type='button';done.onclick=()=>dlg.close();const r2=make('div',undefined,'set-actions');r2.append(copy,done);form.append(ul,r2);}
+  catch(x){err.textContent=x.message;err.hidden=false;ok.disabled=false;}};
+ dlg.addEventListener('close',()=>{dlg.remove();loadSettings().then(renderSettings);});dlg.showModal();setTimeout(()=>code.focus(),50);
+}
 function openPasswordDialog(forced){
  if($('#opy-password-dialog'))return;
  const dlg=make('dialog',undefined,'community-dialog');dlg.id='opy-password-dialog';
@@ -1860,6 +1899,8 @@ function bindWelcome(){try{navigator.serviceWorker?.controller?.postMessage('cle
  all('[data-toggle-password]').forEach(button=>button.onclick=()=>{const input=document.getElementById(button.dataset.togglePassword);const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Mostrar senha':'Ocultar senha';button.setAttribute('aria-pressed',String(!visible));});
  async function submit(form,action,extra={}){const statusButton=$('[type=submit]',form);statusButton.disabled=true;const original=statusButton.textContent;statusButton.textContent=action==='login'?'Entrando…':'Criando conta…';try{await api({action,name:form.elements.name?.value,username:form.elements.username.value,password:form.elements.password.value,contact:form.elements.contact?.value,acceptTerms:form.elements.acceptTerms?form.elements.acceptTerms.checked:undefined,...extra});location.replace(safeNext(new URLSearchParams(location.search).get('next')));}catch(error){
   // Conta com exclusão pedida: entrar só cancela a exclusão se a pessoa confirmar.
+  // Duas etapas: pede o código do app (ou um código reserva) e tenta de novo.
+  if(error.data?.needsCode){statusButton.disabled=false;statusButton.textContent=original;const c=prompt((extra.code?'Código incorreto. ':'')+'Digite o código de 6 dígitos do app autenticador (ou um código reserva):');if(c&&c.trim())return submit(form,action,{...extra,code:c.trim()});showWelcomeError('Entrada cancelada: falta o código do app autenticador.');return;}
   if(error.data?.deletionPending){const due=new Date(error.data.deletionDueAt).toLocaleDateString('pt-BR');statusButton.disabled=false;statusButton.textContent=original;if(confirm('Esta conta está marcada para ser excluída de vez em '+due+'. Se você entrar agora, a exclusão é cancelada e a conta volta ao normal. Quer cancelar a exclusão e entrar?'))return submit(form,action,{cancelDeletion:true});showWelcomeError('A exclusão continua marcada para '+due+'. Nada foi alterado.');return;}
   showWelcomeError(error.message);statusButton.disabled=false;statusButton.textContent=original;}}
  // @ livre ou ocupado, em tempo real (com pequena espera para não consultar a cada tecla); força da senha e formato do contato.

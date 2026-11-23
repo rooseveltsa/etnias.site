@@ -112,6 +112,8 @@ function paintBottom(it) {
     seen.onclick = () => openSheet(it);
     el.bottom.append(seen, share); return;
   }
+  // Quem publicou fechou reações e respostas: fica só o compartilhar.
+  if (it.canReply === false) { const note = make('p', 'Respostas desativadas', 'sv-closed'); el.bottom.append(note, share); return; }
   const form = make('form', undefined, 'sv-reply');
   const input = make('input'); input.type = 'text'; input.maxLength = 500; input.placeholder = 'Enviar mensagem…'; input.autocomplete = 'off'; input.enterKeyHint = 'send';
   input.setAttribute('aria-label', 'Enviar mensagem para ' + it.author);

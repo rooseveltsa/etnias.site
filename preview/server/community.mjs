@@ -34,7 +34,8 @@ import { saberesActions, saberesAction, saberesView, saberMedia } from './sabere
 import { marketActions, marketAction, marketMedia, MAX_MARKET_PHOTOS } from './mercado.mjs';
 import { pageActions, pageUploadActions, pageAction, pagesPrepareUpload, pagesList, pageView, pageMedia } from './pages.mjs';
 import { markStaffUsername, extrasActions, extrasUploadActions, extrasAction, extrasPrepareUpload, extrasMedia, reactionConfig, reactionIds, reactionSet, reactionAllowed, usernameCheck, usernameCheckAllowed, usernameInfo, reverseGeocode, stickerCatalog, stickerById } from './extras.mjs';
-import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin } from './account.mjs';
+import { verifyCode, useBackup } from './totp.mjs';
+import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin, canComment, canSeeStory, canReplyStory, followNeedsApproval, wantsNotice, wantsPush } from './account.mjs';
 import { communityActions, ensureCommunities, canViewCommunityContent, canPostInCommunity, projectCommunities, communityAction, syncCommunityChat } from './communities.mjs';
 
 const reactions = ['like', 'heart', 'laugh', 'wow', 'sad'];
@@ -235,7 +236,7 @@ function projectPost(p, me, state, ctx) {
     reactedBy: reactorNames(p, me, ctx),
     comments: (p.comments || []).map(c => ({ id: c.id, author: c.author, authorKey: c.authorKey, avatar: avatarOfKey(ctx, c.authorKey), text: c.text, media: c.media ? { url: `/api/media?id=${c.media.id}`, kind: 'image' } : null, sticker: c.sticker ? { id: c.sticker.id, name: c.sticker.name, url: `/api/media?id=${c.sticker.mediaId}` } : null, mentions: mentionKeys(c.mentions, ctx), createdAt: c.createdAt, editedAt: c.editedAt || 0,
       parentId: c.parentId || '', likes: (c.likes || []).length, liked: (c.likes || []).includes(ctx.myKey), own: c.authorKey === ctx.myKey })),
-    editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id),
+    editedAt: p.editedAt || 0, saved: (p.saves || []).includes(me.id), commentsClosed: !!p.authorId && !canComment(state, me.id, p.authorId),
     poll: p.poll ? { options: p.poll.options, counts: p.poll.options.map((_, i) => Object.values(p.poll.votes).filter(v => v === i).length), voted: p.poll.votes[me.id] ?? null } : null
   };
 }
@@ -245,6 +246,9 @@ function matchesKind(p, kind) {
   if (kind === 'photos') return isImage(p) || isImage(p.repostOf);
   if (kind === 'videos') return isKind(p, 'video') || isKind(p.repostOf, 'video');
   if (kind === 'audio') return isKind(p, 'audio') || isKind(p.repostOf, 'audio');
+  // Ao vivo: lives em andamento e gravações de lives. Rápidas: só texto curto, como um microblog.
+  if (kind === 'live') return !!p.live;
+  if (kind === 'text') return !p.media && !p.image && !p.photos?.length && !p.images?.length && !p.file && !p.repostOf && !p.poll && !p.live && String(p.text || '').length <= 500;
   if (kind === 'files') return isKind(p, 'file') || !!p.file || isKind(p.repostOf, 'file') || !!p.repostOf?.file;
   return true;
 }
@@ -296,7 +300,7 @@ function onlineFor(state, ctx, acc, me) {
   return friendStatusOf(state, ctx.myKey, key) === 'friends' || (ctx.followed.has(key) && Array.isArray(state.follows?.[acc.id]) && state.follows[acc.id].includes(ctx.myKey));
 }
 function personFor(state, me, ctx, key, counts) {
-  const base = { key, following: ctx.followed.has(key), friendStatus: friendStatusOf(state, ctx.myKey, key), followersCount: counts.followers.get(key) || 0, followingCount: key.startsWith('id:') && Array.isArray(state.follows?.[key.slice(3)]) ? state.follows[key.slice(3)].length : 0, friendsCount: (state.friends?.[key] || []).length, postsCount: counts.posts.get(key) || 0 };
+  const base = { key, following: ctx.followed.has(key), followRequested: (state.followRequests?.[key] || []).includes(ctx.myKey), friendStatus: friendStatusOf(state, ctx.myKey, key), followersCount: counts.followers.get(key) || 0, followingCount: key.startsWith('id:') && Array.isArray(state.follows?.[key.slice(3)]) ? state.follows[key.slice(3)].length : 0, friendsCount: (state.friends?.[key] || []).length, postsCount: counts.posts.get(key) || 0 };
   if (key.startsWith('id:')) {
     const acc = ctx.accountsById.get(key.slice(3));
     if (!acc) return null;
@@ -356,6 +360,7 @@ function notificationItems(state, me, ctx) {
     if (c.canModerate && c.pendingRequests?.length) items.push({ id: `pending:${c.id}`, kind: 'pending', communityId: c.id, text: `${c.pendingRequests.length} ${c.pendingRequests.length === 1 ? 'pedido de entrada pendente' : 'pedidos de entrada pendentes'} em "${c.name}".`, href: `/grupos/?c=${encodeURIComponent(c.id)}`, createdAt: Date.now(), actionable: true });
   }
   const pwAt = ctx.accountsById.get(me.id)?.passwordChangedAt;
+  for (const ev of ctx.accountsById.get(me.id)?.securityEvents || []) if (Date.now() - ev.at < 30 * 864e5) items.push({ id: `access:${ev.at}`, kind: 'security', text: `Novo acesso à sua conta pelo ${ev.device}. Se não foi você, troque a senha e saia desse aparelho.`, href: '/configuracoes/#seguranca', createdAt: ev.at });
   if (pwAt && Date.now() - pwAt < 30 * 864e5) items.push({ id: `password:${pwAt}`, kind: 'security', text: 'Sua senha foi alterada. Se não foi você, fale com a equipe Etnias agora.', href: '/configuracoes/', createdAt: pwAt });
   for (const ev of (state.followEvents || [])) if (ev.to === ctx.myKey && profileAccess(state, me.id, ev.from) !== 'none') items.push({ id: `follow:${ev.from}:${ev.at}`, kind: 'follow', key: `id:${ev.from}`, following: ctx.followed.has(`id:${ev.from}`), canFollow: true, text: `${nameOf(`id:${ev.from}`)} começou a seguir você.`, avatar: avatarOfKey(ctx, `id:${ev.from}`), href: `/perfil/?u=${encodeURIComponent(`id:${ev.from}`)}`, createdAt: ev.at });
   for (const p of state.posts) if (p.live && !p.live.endedAt && p.authorId !== me.id && ctx.followed.has(authorKeyOf(p))) items.push({ id: `live:${p.id}`, kind: 'live', text: `${p.author} está ao vivo agora.`, avatar: avatarOfKey(ctx, authorKeyOf(p)), href: `/#post-${p.id}`, createdAt: p.live.startedAt });
@@ -381,8 +386,9 @@ function notificationItems(state, me, ctx) {
       if (replies.length) { const last = replies.at(-1); items.push({ id: `reply:${p.id}`, kind: 'reply', text: `${nameOf(last.authorKey)} respondeu seu comentário: "${last.text.slice(0, 80)}"`, avatar: avatarOfKey(ctx, last.authorKey), href, createdAt: last.createdAt }); }
     }
   }
+  const mine = ctx.accountsById.get(me.id);
   items.sort((a, b) => Number(!!b.actionable) - Number(!!a.actionable) || b.createdAt - a.createdAt);
-  return items.slice(0, 60).map(i => ({ ...i, unread: !!i.actionable || i.createdAt > seenAt }));
+  return items.filter(i => i.actionable || wantsNotice(mine, i.kind)).slice(0, 60).map(i => ({ ...i, unread: !!i.actionable || i.createdAt > seenAt }));
 }
 // Quem reagiu a uma publicação (ao tocar no número de reações), 40 por vez, com o vínculo de quem está vendo.
 function reactorsView(state, me, params) {
@@ -452,10 +458,10 @@ function snapshot(state, me) {
     role: item.role, text: item.text, sourceTitle: item.sourceTitle || '', revised: item.revised || '', at: item.createdAt
   }));
   // Stories seguem as mesmas regras de visibilidade do perfil (bloqueio, conta desativada, perfil só para amizades).
-  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now() && (!item.authorId || profileAccess(state, me.id, item.authorId) === 'full')).map(item => {
+  const stories = (state.stories || []).filter(item => item.expiresAt > Date.now() && (!item.authorId || (profileAccess(state, me.id, item.authorId) === 'full' && canSeeStory(state, me.id, item.authorId)))).map(item => {
     const own = item.authorId === me.id, given = Object.values(item.reactions || {}), viewerIds = Object.keys(item.views || {});
     return { id: item.id, author: item.author, authorKey: item.authorId ? `id:${item.authorId}` : `name:${item.author}`, avatar: personAvatar(ctx.accountsById.get(item.authorId)), text: item.text, createdAt: item.createdAt, expiresAt: item.expiresAt, own, media: item.media ? { url: `/api/media?id=${item.media.id}`, kind: item.media.kind, name: item.media.name } : null,
-      reactions: storyReactions.map(r => [r, given.filter(v => v === r).length]).filter(([, n]) => n), reaction: item.reactions?.[me.id] || '',
+      reactions: storyReactions.map(r => [r, given.filter(v => v === r).length]).filter(([, n]) => n), reaction: item.reactions?.[me.id] || '', canReply: !item.authorId || canReplyStory(state, me.id, item.authorId),
       // Quem viu só aparece para quem publicou.
       views: own ? viewerIds.length : 0, viewers: own ? viewerIds.slice(-10).reverse().map(id => ctx.accountsById.get(id)?.name).filter(Boolean) : [] };
   });
@@ -642,7 +648,7 @@ export default async function handler(req, res) {
         const id = path.searchParams.get('id');
         const post = postsWithMedia(state, id).find(p => visible(p, me, state));
         // Story: só quem pode ver o perfil do autor (mesma regra do feed de stories).
-        const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id && (!item.authorId || item.authorId === me.id || profileAccess(state, me.id, item.authorId) === 'full'));
+        const story = (state.stories || []).find(item => item.expiresAt > Date.now() && item.media?.id === id && (!item.authorId || item.authorId === me.id || (profileAccess(state, me.id, item.authorId) === 'full' && canSeeStory(state, me.id, item.authorId))));
         // Foto de perfil e capa são visíveis para quem está na rede, como em qualquer rede social.
         const profileOwner = (state.accounts || []).find(a => a.avatarId === id || a.coverId === id);
         const named = (extrasMedia(state, id)) || pageMedia(state, id) || profileOwner ? { kind: 'image', name: 'perfil' } : ((post && findPostMedia(post, id)) || story?.media || chatMedia(state, me, id) || saberMedia(state, id) || marketMedia(state, me, id));
@@ -772,8 +778,17 @@ export default async function handler(req, res) {
       if (account.deletionRequestedAt && body.cancelDeletion !== true) {
         throw Object.assign(new Error('Esta conta está marcada para exclusão definitiva. Para cancelar a exclusão e entrar, confirme.'), { status: 409, extra: { deletionPending: true, deletionDueAt: account.deletionDueAt || account.deletionRequestedAt + 30 * 864e5 } });
       }
+      // Duas etapas: com a senha certa, pede o código do app (ou um código reserva). Erros contam no mesmo limite de tentativas.
+      let totpStep = -1, backupLeft = null;
+      if (account.totp?.enabledAt) {
+        if (!body.code) throw Object.assign(new Error('Digite o código do app autenticador.'), { status: 401, extra: { needsCode: true } });
+        totpStep = verifyCode(account.totp.secret, body.code, account.totp.lastStep ?? -1);
+        if (totpStep < 0) backupLeft = useBackup(account.totp.backup, body.code);
+        if (totpStep < 0 && !backupLeft) { note(ipKey, WINDOW); note(pairKey, WINDOW); note(idKey, WINDOW); throw Object.assign(new Error('Código incorreto.'), { status: 401, extra: { needsCode: true } }); }
+      }
       const issued = await createSession(account.id, secret);
       stampSession(issued.session, req.headers['user-agent']);
+      let newDevice = '';
       // Hash novo (custo atual) calculado antes da transação: contas do Etnias 1.0 migram do bcrypt; contas com scrypt antigo sobem de custo.
       const upgraded = legacyOk || needsRehash(account.password) ? await hashPasswordAsync(password) : null;
       const { data } = await transact(state => {
@@ -783,9 +798,16 @@ export default async function handler(req, res) {
         else if (stored.password?.hash !== account.password?.hash) fail(401, 'Entre novamente para continuar.');
         else if (upgraded) stored.password = upgraded;
         delete state.authFailures; // contadores antigos que ficavam gravados no banco
+        if (stored.totp) { if (totpStep >= 0) stored.totp.lastStep = totpStep; else if (backupLeft) stored.totp.backup = backupLeft; }
         reactivateOnLogin(stored);
+        // Acesso de aparelho novo: avisa no Maracá e no celular. Guarda só o rótulo (navegador · sistema), nunca o IP.
+        const known = new Set([...(stored.knownDevices || []), ...(stored.sessions || []).map(x => x.device)].filter(Boolean));
+        const device = issued.session.device;
+        if (known.size && device && !known.has(device)) { stored.securityEvents = [...(stored.securityEvents || []), { at: Date.now(), device }].slice(-20); newDevice = device; }
+        stored.knownDevices = [...new Set([...known, device].filter(Boolean))].slice(-20);
         addSession(stored, issued.session);
       });
+      if (newDevice) sendPush({ readState, transact }, [account.id], { title: 'Novo acesso à sua conta', body: `Entraram pelo ${newDevice}. Se não foi você, troque a senha e saia do aparelho em Configurações.`, href: '/configuracoes/#seguranca', tag: 'acesso' }).catch(error => console.error('push:', error.message));
       clear(pairKey);
       res.setHeader('Set-Cookie', cookieHeader(issued.token));
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -866,7 +888,7 @@ export default async function handler(req, res) {
       if (!body.text && !upload) fail(400, 'Escreva um texto ou escolha uma foto ou um vídeo.');
       if (upload) await saveMedia(upload.id, upload.bytes, upload.type);
     }
-    let removedIds = [], saberResult = null, marketResult = null, callResult = null, adminResult = null, pushNotice = null, mentionNotice = null, liveResult = null, accountResult = null, boostResult = null;
+    let removedIds = [], saberResult = null, marketResult = null, callResult = null, adminResult = null, pushNotice = null, mentionNotice = null, liveResult = null, accountResult = null, boostResult = null, followResult = null;
     const idOf = key => /^id:/.test(key || '') ? key.slice(3) : null;
     const { data } = await transact(state => {
       removedIds = [];
@@ -965,7 +987,8 @@ export default async function handler(req, res) {
         }
         case 'story_seen': case 'story_react': case 'story_reply': case 'story_report': {
           const story = (state.stories || []).find(item => item.id === body.storyId && item.expiresAt > Date.now());
-          if (!story || (story.authorId && profileAccess(state, me.id, story.authorId) !== 'full')) fail(404, 'Story não encontrado.');
+          if (!story || (story.authorId && (profileAccess(state, me.id, story.authorId) !== 'full' || !canSeeStory(state, me.id, story.authorId)))) fail(404, 'Story não encontrado.');
+          if (['story_react', 'story_reply'].includes(body.action) && story.authorId && !canReplyStory(state, me.id, story.authorId)) fail(403, 'Quem publicou não recebe respostas neste story.');
           if (body.action === 'story_report') {
             if (story.authorId === me.id) fail(400, 'Você não pode denunciar o próprio story.');
             const reason = text(String(body.reason || 'Conteúdo impróprio'), 300, false);
@@ -1040,6 +1063,7 @@ export default async function handler(req, res) {
         case 'comment':
           { const cc = post.communityId && (state.communities || []).find(x => x.id === post.communityId);
             if (cc?.commentsOff && !(cc.admins || []).includes(`id:${me.id}`) && !(cc.moderators || []).includes(`id:${me.id}`)) fail(403, 'Os comentários estão desligados nesta comunidade.'); }
+          if (post.authorId && !canComment(state, me.id, post.authorId)) fail(403, 'Quem publicou limitou quem pode comentar.');
           if (post.comments.length >= 60) fail(409, 'Esta publicação atingiu o limite de comentários na homologação.');
           {
             // Respostas ficam em um nível só, presas ao comentário principal, como nas redes sociais.
@@ -1124,6 +1148,17 @@ export default async function handler(req, res) {
           // O aparelho manda o estado que a pessoa quer (seguir ou deixar de seguir): repetir o pedido, por rede ruim, não desfaz o que ela fez.
           const want = typeof body.following === 'boolean' ? body.following : !list.includes(key);
           const was = list.includes(key);
+          // Conta que aprova seguidores: vira pedido; tocar de novo cancela o pedido.
+          if (!was && key.startsWith('id:') && followNeedsApproval(state, key.slice(3))) {
+            state.followRequests ||= {};
+            const pending = state.followRequests[key] || [];
+            const mine = `id:${me.id}`, asked = pending.includes(mine);
+            if (want && !asked && pending.length >= 500) fail(409, 'Esta pessoa tem muitos pedidos pendentes. Tente mais tarde.');
+            state.followRequests[key] = want && !asked ? [...pending, mine] : pending.filter(k => k !== mine);
+            if (want && !asked) pushNotice = { to: [key.slice(3)], payload: { title: 'Pedido para seguir', body: `${me.name} quer seguir você`, href: '/configuracoes/#seguidores', tag: `follow-req-${me.id}` } };
+            followResult = { requested: want && !asked };
+            break;
+          }
           state.follows[me.id] = want ? (was ? list : [...list, key].slice(-2000)) : list.filter(item => item !== key);
           if (want && !was && key.startsWith('id:')) {
             state.followEvents = [...(state.followEvents || []), { from: me.id, to: key, at: Date.now() }].slice(-5000);
@@ -1226,7 +1261,9 @@ export default async function handler(req, res) {
     fileUpload = null;
     photoUploads = [];
     // Entrega em segundo plano: a resposta não espera os serviços de push.
-    for (const notice of [pushNotice, mentionNotice]) if (notice) sendPush({ readState, transact }, notice.to, notice.payload).catch(error => console.error('push:', error.message));
+    // Respeita os avisos que cada pessoa desligou em Configurações.
+    const wants = (notice, cat) => notice && { ...notice, to: notice.to.filter(id => wantsPush(data.accounts.find(a => a.id === id), notice.payload.tag, cat)) };
+    for (const notice of [wants(pushNotice), wants(mentionNotice, 'mentions')]) if (notice?.to.length) sendPush({ readState, transact }, notice.to, notice.payload).catch(error => console.error('push:', error.message));
     // Gravação da live encerrada entra na publicação assim que o MediaMTX fecha o arquivo (ao parar, e nas escritas seguintes).
     if (body.action === 'live_stop') await attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
     else attachRecordings({ readState, transact }).catch(error => console.error('live:', error.message));
@@ -1238,7 +1275,7 @@ export default async function handler(req, res) {
     if (accountResult?.signOut) { res.setHeader('Set-Cookie', `opy_visitor=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureCookie()}`); return res.end(JSON.stringify({ signedOut: true })); }
     if (boostResult?.silent) return res.end('{"ok":true}');
     if (planActions.includes(body.action) || boostActions.includes(body.action)) { const acc = data.accounts.find(a => a.id === activeMe.id); return res.end(JSON.stringify({ ...snapshot(data, activeMe), plans: { ...plansView(data, acc), finance: financeView(data, activeMe) } })); }
-    if (accountActions.includes(body.action)) return res.end(JSON.stringify({ ...snapshot(data, activeMe), account: accountView(data, data.accounts.find(a => a.id === activeMe.id), session.id) }));
+    if (accountActions.includes(body.action)) return res.end(JSON.stringify({ ...snapshot(data, activeMe), ...(accountResult?.totp ? { totp: accountResult.totp } : {}), account: accountView(data, data.accounts.find(a => a.id === activeMe.id), session.id) }));
     if (i18nActions.includes(body.action) && body.action !== 'set_locale') return res.end(JSON.stringify(i18nView(data, data.accounts.find(a => a.id === activeMe.id))));
     // A senha provisória só existe nesta resposta: não fica no estado nem no registro.
     if (adminActions.includes(body.action)) return res.end(JSON.stringify({ ...adminView(data, data.accounts.find(a => a.id === activeMe.id), new URL(req.url, 'http://local').searchParams), ...(adminResult?.temporaryPassword ? { temporaryPassword: adminResult.temporaryPassword } : {}) }));
@@ -1250,6 +1287,7 @@ export default async function handler(req, res) {
     if (liveResult?.silent) return res.end(JSON.stringify({ ok: true, live: { postId: liveResult.postId, guestToken: liveResult.guestToken || '' } }));
     const fresh = body.action === 'live_stop' ? (await readState()).data : data;
     const out = snapshot(fresh, activeMe);
+    if (followResult) out.follow = followResult;
     if (liveResult) out.live = { postId: liveResult.postId, key: liveResult.key || '', guestToken: liveResult.guestToken || '' };
     // A publicação alterada pode estar fora da primeira página do feed: devolvê-la mantém a tela do cliente atualizada.
     const touched = typeof body.postId === 'string' ? fresh.posts.find(p => p.id === body.postId) : null;
