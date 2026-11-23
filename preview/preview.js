@@ -2044,8 +2044,8 @@ function paintPhotos(){
 function selectFormat(tool){
  // Live abre na tela Criar em tela cheia (câmera, título e botão de transmitir no padrão do Instagram).
  if(tool==='live'&&window.OpyCreator){window.OpyCreator.open('live');tool='text';}
- const panel={photo:'compose-photo',video:'compose-video',file:'compose-file',location:'compose-location',live:'compose-live'}[tool];
- ['compose-photo','compose-video','compose-file','compose-location','compose-live'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=id!==panel;});
+ const panel={photo:'compose-photo',video:'compose-video',file:'compose-file',location:'compose-location',poll:'compose-poll',live:'compose-live'}[tool];
+ ['compose-photo','compose-video','compose-file','compose-location','compose-poll','compose-live'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=id!==panel;});
  if(liveSession&&tool!=='live'){toast('Você está ao vivo. Encerre a live para usar outro formato.');return;}
  if(tool!=='live'&&liveMode==='preview'){stopCamera();liveUi('idle');}
  all('[data-compose-tool]').forEach(item=>{const on=item.dataset.composeTool===tool;item.setAttribute('aria-selected',String(on));item.tabIndex=on?0:-1;});
@@ -2093,6 +2093,8 @@ if(publisher){
    if(format==='video'&&!videoAttachment)throw Error('Escolha o vídeo desta publicação.');
    if(format==='file'&&!fileAttachment)throw Error('Escolha o arquivo desta publicação.');
    if(format==='location'&&place.length<2)throw Error('Escreva a localização com pelo menos 2 caracteres.');
+   const poll=format==='poll'?all('#compose-poll input').map(i=>i.value.trim()).filter(Boolean):null;
+   if(poll&&poll.length<2)throw Error('Preencha pelo menos duas opções da enquete.');
    if(progress){progress.hidden=false;progress.classList.add('is-busy');}
    const communityId=$('#preview-community-target')?.value||'';
    await change({
@@ -2106,7 +2108,8 @@ if(publisher){
     ...(!videoAttachment&&photoAttachments.length>1?{photos:photoAttachments.map(p=>({name:p.name,data:p.data}))}:{}),
     file:fileAttachment?{name:fileAttachment.name,data:fileAttachment.data}:null,
     ...(!videoAttachment&&photoAttachments.length&&$('#photo-alt')?.value.trim()?{alt:$('#photo-alt').value.trim()}:{}),
-    location:place
+    location:place,
+    ...(poll?{poll}:{})
    });
    publisher.reset();videoAttachment=null;fileAttachment=null;photoAttachments=[];if($('#compose-emoji-box')){$('#compose-emoji-box').hidden=true;$('#compose-emoji').setAttribute('aria-expanded','false');}
    paintSlot('video-slot',null);paintSlot('file-slot',null);paintPhotos();

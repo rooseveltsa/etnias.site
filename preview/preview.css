@@ -2105,3 +2105,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable
 /* MOMENTOS: seguir pelo avatar */
 .vp-follow{position:absolute;left:24px;top:26px;width:20px;height:20px;min-height:0;padding:0;border:2px solid #fff;border-radius:50%;background:var(--color-terracotta,#b84a27);color:#fff;font-size:14px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer}
 html[data-nav=icons] .opy-bottom .opy-create svg.opy-icon{width:52px;height:52px;flex-basis:52px;padding:13px}
+/* Enquete no campo de publicação: 2 a 4 opções; a pergunta é o texto da publicação. */
+.preview-composer #compose-poll{margin-top:12px}
+.compose-poll fieldset{display:grid;gap:8px;margin:0;padding:0;border:0}
+.compose-poll legend{margin-bottom:8px;font-weight:700}
+.compose-poll input{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--color-border-strong);border-radius:10px;background:var(--color-surface);color:var(--color-text-primary);font:inherit;font-size:16px}
+.compose-poll p{margin:8px 0 0;color:var(--color-text-secondary);font-size:14px}
