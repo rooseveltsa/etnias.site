@@ -107,3 +107,25 @@ test('senha provisória: só administração, com motivo, derruba sessões e obr
   const other = fresh(); other.accounts.push({ id: 'a0000000-0000-4000-8000-000000000009', name: 'Servidor', username: 'chefe2', createdAt: 1 });
   rejects(() => admin.adminAction(other, acc(other, boss), { action: 'admin_reset_password', userKey: 'id:a0000000-0000-4000-8000-000000000009', reason: 'x' }, { OPY_ADMIN_USERNAMES: 'chefe,chefe2' }, 1000), 403);
 });
+
+test('suspender comunidade ou Página: some das listas e das ações; reativar devolve; tudo no registro', async () => {
+  const { projectCommunities, canViewCommunityContent, communityAction } = await import('../../preview/server/communities.mjs');
+  const { pagesList } = await import('../../preview/server/pages.mjs');
+  const s = fresh();
+  s.communities = [{ id: 'c1', name: 'Roda', category: 'cultura', visibility: 'public', members: [key(ana)], admins: [key(ana)], moderators: [], createdBy: key(ana), createdAt: 1 }];
+  s.pages = [{ id: 'g1', name: 'Coletivo', category: 'cultura', ownerId: ana.id, followers: [], events: [], createdAt: 1 }];
+  rejects(() => act(s, ana, { action: 'admin_suspend_space', kind: 'community', id: 'c1', reason: 'x' }), 403);
+  rejects(() => act(s, mod, { action: 'admin_suspend_space', kind: 'community', id: 'c1', reason: '' }), 400);
+  act(s, mod, { action: 'admin_suspend_space', kind: 'community', id: 'c1', reason: 'Discurso de ódio' });
+  act(s, mod, { action: 'admin_suspend_space', kind: 'page', id: 'g1', reason: 'Golpe' });
+  assert.equal(projectCommunities(s, acc(s, ana)).length, 0, 'comunidade some da lista');
+  assert.equal(canViewCommunityContent(s, acc(s, ana), 'c1'), false, 'publicações dela saem do feed');
+  assert.throws(() => communityAction(s, acc(s, ana), { action: 'community_leave', communityId: 'c1' }), e => e.status === 404);
+  assert.equal(pagesList(s, acc(s, beto), new URLSearchParams()).pages.length, 0, 'Página some da lista');
+  const v = admin.adminView(s, acc(s, boss), undefined, env, 1000);
+  assert.equal(v.communities[0].suspended.reason, 'Discurso de ódio'); assert.equal(v.pages[0].suspended.reason, 'Golpe');
+  rejects(() => act(s, mod, { action: 'admin_suspend_space', kind: 'page', id: 'g1', reason: 'de novo' }), 409);
+  act(s, boss, { action: 'admin_reactivate_space', kind: 'community', id: 'c1', reason: '' });
+  assert.equal(projectCommunities(s, acc(s, ana)).length, 1, 'reativada volta');
+  assert.ok(s.adminLog.some(l => /Comunidade suspensa/.test(l.action)) && s.adminLog.some(l => /Página suspensa/.test(l.action)));
+});

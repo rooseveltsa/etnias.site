@@ -74,6 +74,14 @@ async function resetPassword(p) {
   } catch (e) { toast(e.message, true); } finally { busy = false; }
 }
 async function reactivate(p) { const r = await ask({ title: 'Reativar ' + p.name, confirm: 'Reativar' }); if (r) act({ action: 'admin_reactivate', userKey: p.key, reason: r.reason }, 'Conta de ' + p.name + ' reativada.'); }
+// Suspensa: some das listas, do feed e das ações para todos até reativar. O motivo fica no Registro.
+function spaceToggle(kind, item) {
+  const what = kind === 'community' ? 'comunidade' : 'Página';
+  const cell = el('div', undefined, 'adm-actions');
+  if (item.suspended) { const p = pill('Suspensa', 'is-danger'); p.title = item.suspended.reason; cell.append(p, btn('Reativar', async () => { const r = await ask({ title: 'Reativar ' + what + ' ' + item.name, help: 'Volta a aparecer para todos.', confirm: 'Reativar' }); if (r) act({ action: 'admin_reactivate_space', kind, id: item.id, reason: r.reason }, 'Reativada.'); })); }
+  else cell.append(btn('Suspender', async () => { const r = await ask({ title: 'Suspender ' + what + ' ' + item.name, help: 'Some das listas, do feed e das ações para todos até ser reativada. O motivo fica no registro.', confirm: 'Suspender', danger: true }); if (r) act({ action: 'admin_suspend_space', kind, id: item.id, reason: r.reason }, 'Suspensa.'); }, 'is-danger-ghost'));
+  return cell;
+}
 async function removePost(id, who) { const r = await ask({ title: 'Remover publicação de ' + who, help: 'A publicação some para todos. O motivo fica registrado.', confirm: 'Remover', danger: true }); if (r) act({ action: 'admin_remove_post', postId: id, reason: r.reason }, 'Publicação removida.'); }
 
 function kpiCard(label, value, cur, prev, note) {
@@ -189,7 +197,11 @@ const views = {
     return box;
   },
   comunidades() {
-    return table(['Comunidade', 'Tema', 'Acesso', 'Membros', 'Pedidos', 'Publicações', 'Denúncias'], data.communities.map(c => { const a = el('a', c.name); a.href = '/grupos/?c=' + encodeURIComponent(c.id); return [a, c.category || '—', c.visibility === 'private' ? 'Privada' : 'Pública', c.members, c.pending ? pill(String(c.pending), 'is-warn') : '0', c.posts, c.reports ? pill(String(c.reports), 'is-danger') : '0']; }));
+    const box = el('div');
+    box.append(table(['Comunidade', 'Tema', 'Acesso', 'Membros', 'Pedidos', 'Publicações', 'Denúncias', 'Situação'], data.communities.map(c => { const a = el('a', c.name); a.href = '/grupos/?c=' + encodeURIComponent(c.id); return [a, c.category || '—', c.visibility === 'private' ? 'Privada' : 'Pública', c.members, c.pending ? pill(String(c.pending), 'is-warn') : '0', c.posts, c.reports ? pill(String(c.reports), 'is-danger') : '0', spaceToggle('community', c)]; })));
+    box.append(el('h3', 'Páginas'));
+    box.append((data.pages || []).length ? table(['Página', 'Categoria', 'Seguidores', 'Eventos', 'Situação'], data.pages.map(p => { const a = el('a', p.name); a.href = '/paginas/?p=' + encodeURIComponent(p.id); return [a, p.category || '—', p.followers, p.events, spaceToggle('page', p)]; })) : el('p', 'Nenhuma Página criada ainda.', 'adm-empty'));
+    return box;
   },
   comunicados() {
     const box = el('div');

@@ -167,7 +167,7 @@ export function canViewCommunityContent(state, me, communityId) {
   if (!communityId) return true;
   const list = ensureCommunities(state);
   const c = list.find(item => item.id === communityId);
-  if (!c) return false;
+  if (!c || c.suspended) return false;
   if (c.visibility !== 'private') return true;
   return !!me && c.members.includes(keyOf(me));
 }
@@ -175,7 +175,7 @@ export function canViewCommunityContent(state, me, communityId) {
 export function canPostInCommunity(state, me, communityId) {
   const list = ensureCommunities(state);
   const c = list.find(item => item.id === communityId);
-  if (!c) fail(404, 'Comunidade não encontrada.');
+  if (!c || c.suspended) fail(404, 'Comunidade não encontrada.');
   const mine = keyOf(me);
   if (!c.members.includes(mine)) {
     fail(403, 'Participe desta comunidade antes de publicar nela.');
@@ -212,7 +212,7 @@ export function projectCommunities(state, me) {
   const byKey = new Map((state.accounts || []).map(a => [keyOf(a), a]));
   const postsCounts = new Map();
   for (const p of state.posts || []) if (p.communityId && (p.audience !== 'private' || p.authorId === me.id)) postsCounts.set(p.communityId, (postsCounts.get(p.communityId) || 0) + 1);
-  return list.map(c => {
+  return list.filter(c => !c.suspended).map(c => {
     const joined = c.members.includes(mine);
     const pending = (c.pendingRequests || []).includes(mine);
     const invited = (c.invited || []).includes(mine);
@@ -328,7 +328,7 @@ export function communityAction(state, me, body) {
 
   if (body.action === 'community_join_link') {
     const token = typeof body.token === 'string' ? body.token : '';
-    const target = token.length >= 20 && token.length <= 64 ? list.find(item => (item.inviteLinks || []).some(l => l.token === token)) : null;
+    const target = token.length >= 20 && token.length <= 64 ? list.find(item => !item.suspended && (item.inviteLinks || []).some(l => l.token === token)) : null;
     const link = target && activeLinks(target).find(l => l.token === token);
     if (!link) fail(404, 'Este convite não vale mais. Peça um novo link a quem convidou.');
     if (isBanned(target, mine)) fail(403, 'Você não pode entrar nesta comunidade. Fale com a administração dela.');
@@ -345,7 +345,7 @@ export function communityAction(state, me, body) {
     return { joinedId: target.id };
   }
 
-  const c = list.find(item => item.id === body.communityId);
+  const c = list.find(item => item.id === body.communityId && !item.suspended);
   if (!c) fail(404, 'Comunidade não encontrada.');
   c.members ||= [];
   c.admins ||= [];

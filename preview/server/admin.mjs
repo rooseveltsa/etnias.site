@@ -8,7 +8,7 @@ import development from './desenvolvimento.json' with { type: 'json' };
 
 // Centro de gestão do Etnias: indicadores, alertas de moderação, pessoas, conteúdo, comunidades,
 // comunicados e registro de transparência. Toda ação fica no adminLog com autor, alvo e motivo.
-export const adminActions = ['admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end', 'admin_verify', 'admin_verification_decide', 'admin_plan_decide', 'admin_boost_decide'];
+export const adminActions = ['admin_suspend_space', 'admin_reactivate_space', 'admin_resolve_alert', 'admin_remove_post', 'admin_suspend', 'admin_reactivate', 'admin_role', 'admin_reset_password', 'admin_announce', 'admin_announce_end', 'admin_verify', 'admin_verification_decide', 'admin_plan_decide', 'admin_boost_decide'];
 const DAY = 864e5;
 // Senha provisória fácil de ditar por telefone (sem 0/O/1/I); a pessoa é obrigada a trocá-la na primeira entrada.
 function temporaryPassword() {
@@ -127,10 +127,11 @@ export function adminView(state, viewer, params = new URLSearchParams(), env = p
     .sort((a, b) => Number(reportedPosts.has(b.id)) - Number(reportedPosts.has(a.id)) || b.createdAt - a.createdAt).slice(0, 40)
     .map(p => ({ id: p.id, author: p.author, authorKey: 'id:' + p.authorId, text: (p.text || '').slice(0, 400), createdAt: p.createdAt, community: p.communityName || '', media: p.media?.kind || p.file?.kind || '', comments: (p.comments || []).length, reported: reportedPosts.has(p.id) }));
   const communities = (state.communities || []).map(c => ({ id: c.id, name: c.name, category: c.category, visibility: c.visibility, members: c.members?.length || 0, pending: (c.pendingRequests || []).length,
-    posts: posts.filter(p => p.communityId === c.id).length, reports: (state.communityReports || []).filter(r => r.communityId === c.id).length }));
+    posts: posts.filter(p => p.communityId === c.id).length, reports: (state.communityReports || []).filter(r => r.communityId === c.id).length, suspended: c.suspended ? { reason: c.suspended.reason, at: c.suspended.at } : null }));
+  const pages = (state.pages || []).map(p => ({ id: p.id, name: p.name, category: p.category, followers: (p.followers || []).length, events: (p.events || []).length, suspended: p.suspended ? { reason: p.suspended.reason, at: p.suspended.at } : null }));
   const announcements = (state.announcements || []).slice().sort((a, b) => b.createdAt - a.createdAt).map(a => ({ ...a, active: !a.endedAt && (!a.until || a.until > now) }));
   const health = { accounts: accounts.length, posts: posts.length, messages: dms.length, media: new Set([...posts.flatMap(ownMediaIds), ...dms.map(m => m.media?.id), ...accounts.flatMap(a => [a.avatarId, a.coverId])].filter(Boolean)).size, dataKb: Math.round(JSON.stringify(state).length / 1024) };
-  return { role, viewer: { key: keyOf(viewer), name: viewer.name }, ...(role === 'admin' ? { development } : {}), kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, announcements, log: (state.adminLog || []).slice(-150).reverse(), health, filas: { ...adminQueues(state), campanhas: boostQueue(state), contratacaoAberta: plansOpen(env), pagamentoTeste: testPayments(env) } };
+  return { role, viewer: { key: keyOf(viewer), name: viewer.name }, ...(role === 'admin' ? { development } : {}), kpis, series, alerts, openAlerts: alerts.filter(a => a.status === 'aberto').length, people, content, communities, pages, announcements, log: (state.adminLog || []).slice(-150).reverse(), health, filas: { ...adminQueues(state), campanhas: boostQueue(state), contratacaoAberta: plansOpen(env), pagamentoTeste: testPayments(env) } };
 }
 
 export function adminAction(state, actor, body, env = process.env, now = Date.now()) {
@@ -143,6 +144,23 @@ export function adminAction(state, actor, body, env = process.env, now = Date.no
     const alert = alertsOf(state).find(a => a.id === body.alertId); if (!alert) fail(404, 'Alerta não encontrado.');
     state.adminResolutions ||= {}; state.adminResolutions[alert.id] = { status: body.status, at: now, by: keyOf(actor), byName: actor.name };
     log(state, actor, body.status === 'resolvido' ? 'Alerta resolvido' : 'Alerta dispensado', alert.targetName, reason || alert.kind);
+    return {};
+  }
+  // Suspender comunidade ou Página: some das listas, do feed e das ações para todos; o motivo fica no registro.
+  if (body.action === 'admin_suspend_space' || body.action === 'admin_reactivate_space') {
+    const list = body.kind === 'community' ? state.communities : body.kind === 'page' ? state.pages : fail(400, 'Escolha comunidade ou Página.');
+    const space = (list || []).find(x => x.id === body.id); if (!space) fail(404, 'Não encontrada.');
+    const label = body.kind === 'community' ? 'Comunidade' : 'Página';
+    if (body.action === 'admin_suspend_space') {
+      if (!reason) fail(400, 'Informe o motivo da suspensão. Ele fica no registro de transparência.');
+      if (space.suspended) fail(409, `Esta ${label.toLowerCase()} já está suspensa.`);
+      space.suspended = { reason, at: now, by: keyOf(actor) };
+      log(state, actor, `${label} suspensa`, space.name, reason);
+    } else {
+      if (!space.suspended) fail(409, `Esta ${label.toLowerCase()} não está suspensa.`);
+      delete space.suspended;
+      log(state, actor, `${label} reativada`, space.name, reason);
+    }
     return {};
   }
   if (body.action === 'admin_remove_post') {
