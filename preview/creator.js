@@ -51,7 +51,7 @@ function setMode(next) {
 }
 // ---------- captura ----------
 function discard() {
-  file = null; gallery = []; review.classList.remove('is-multi'); review.replaceChildren(); caption.value = ''; textArea.value = '';
+  file = null; frame = null; gallery = []; review.classList.remove('is-multi'); review.replaceChildren(); caption.value = ''; textArea.value = '';
   setStep(dlg.dataset.textMode === '1' ? 'text' : 'camera');
 }
 function showReview(f) {
@@ -62,7 +62,46 @@ function showReview(f) {
   if (isVideo) { m.loop = true; m.playsInline = true; m.autoplay = true; m.play().catch(() => { m.muted = true; m.play().catch(() => {}); }); }
   else m.alt = 'Prévia';
   review.append(m); setStep('review'); closeCamera();
+  frame = null;
+  if (mode === 'story' && !isVideo) m.addEventListener('load', () => enableFraming(m), { once: true });
   say(isVideo ? 'Vídeo pronto para enviar.' : 'Foto pronta para enviar.');
+}
+// Enquadrar a foto do story antes de publicar: arrastar move, pinça ou roda do mouse aproxima. Ao enviar, recorta o que está no quadro.
+let frame = null;
+function enableFraming(img) {
+  frame = { img, s: 1, x: 0, y: 0 };
+  const pts = new Map(); let last = null;
+  const clamp = () => {
+    const W = review.clientWidth, H = review.clientHeight, k = Math.max(W / img.naturalWidth, H / img.naturalHeight) * frame.s;
+    const mx = Math.max(0, (img.naturalWidth * k - W) / 2), my = Math.max(0, (img.naturalHeight * k - H) / 2);
+    frame.x = Math.min(mx, Math.max(-mx, frame.x)); frame.y = Math.min(my, Math.max(-my, frame.y));
+    img.style.transform = `translate(-50%,-50%) translate(${frame.x}px,${frame.y}px) scale(${frame.s})`;
+  };
+  // A foto ganha o tamanho de "cobrir o quadro" de verdade (não recortada pela caixa), para mover sem mostrar bordas.
+  { const W = review.clientWidth, H = review.clientHeight, k0 = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    Object.assign(img.style, { inset: 'auto', left: '50%', top: '50%', width: img.naturalWidth * k0 + 'px', height: img.naturalHeight * k0 + 'px', maxWidth: 'none', objectFit: 'fill' }); clamp(); }
+  const state = () => { const p = [...pts.values()]; return p.length > 1 ? { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2 } : { d: 0, cx: p[0].x, cy: p[0].y }; };
+  img.style.touchAction = 'none'; img.style.cursor = 'grab';
+  img.addEventListener('pointerdown', e => { img.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = state(); });
+  img.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const now = state(); frame.x += now.cx - last.cx; frame.y += now.cy - last.cy;
+    if (now.d && last.d) frame.s = Math.min(4, Math.max(1, frame.s * now.d / last.d));
+    last = now; clamp();
+  });
+  const up = e => { pts.delete(e.pointerId); last = pts.size ? state() : null; };
+  img.addEventListener('pointerup', up); img.addEventListener('pointercancel', up);
+  img.addEventListener('wheel', e => { e.preventDefault(); frame.s = Math.min(4, Math.max(1, frame.s * (e.deltaY < 0 ? 1.1 : 0.9))); clamp(); }, { passive: false });
+  say('Arraste para enquadrar. Use dois dedos ou a roda do mouse para aproximar.');
+}
+async function framedFile() {
+  if (!frame || (frame.s === 1 && !frame.x && !frame.y)) return file;
+  const { img, s, x, y } = frame, W = review.clientWidth, H = review.clientHeight;
+  const k = Math.max(W / img.naturalWidth, H / img.naturalHeight) * s;
+  const c = document.createElement('canvas'); c.width = 1080; c.height = Math.round(1080 * H / W);
+  c.getContext('2d').drawImage(img, img.naturalWidth / 2 + (-W / 2 - x) / k, img.naturalHeight / 2 + (-H / 2 - y) / k, W / k, H / k, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
+  return blob ? new File([blob], 'story.jpg', { type: 'image/jpeg' }) : file;
 }
 async function takePhoto() {
   if (!S.cameraStream) { el('creator-file').click(); return; }
@@ -135,7 +174,7 @@ sendBtn.addEventListener('click', async () => {
   if (sendBtn.disabled) return;
   sendBtn.disabled = true; const label = sendBtn.textContent; sendBtn.textContent = 'Enviando…';
   try {
-    const media = file ? await S.readSlot(file) : null;
+    const media = file ? await S.readSlot(mode === 'story' ? await framedFile() : file) : null;
     const photos = [];
     for (const f of gallery) { const p = await S.readSlot(f, 900 * 1024); photos.push({ name: p.name, data: p.data }); }
     const text = step === 'text' ? textArea.value.trim() : caption.value.trim();

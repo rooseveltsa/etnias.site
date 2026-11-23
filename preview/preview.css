@@ -2128,3 +2128,7 @@ html[data-nav=icons] .opy-bottom .opy-create svg.opy-icon{width:52px;height:52px
 .rail-item-info small{font-size:12px;color:var(--opy-muted,#6b5b4e);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rail-date{flex:0 0 44px;display:grid;place-items:center;height:44px;border-radius:10px;background:var(--opy-red,#b84a27);color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;text-align:center;line-height:1.1}
 .rail-thumb{flex:0 0 44px;height:44px;border-radius:10px;background:var(--opy-surface-2,#efe6dc) center/cover}
+#compose-progress-bar{transition:width .2s ease}
+/* Pedido da gerência: botões Escrever / Tirar foto / Filmar / Galeria maiores e fáceis de tocar */
+body.opy-preview .story-modes{gap:8px}
+body.opy-preview .story-modes button{min-height:48px;padding:12px 18px;font-size:15px}

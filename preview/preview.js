@@ -46,8 +46,13 @@ const fullDate=value=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium',timeSt
 const date=value=>{const d=(Date.now()-new Date(value).getTime())/1000;if(d<45)return 'agora';if(d<3600)return `há ${Math.max(1,Math.round(d/60))} min`;if(d<86400)return `há ${Math.round(d/3600)} h`;if(d<172800)return 'ontem';if(d<604800)return `há ${Math.round(d/86400)} dias`;return fullDate(value);};
 function showError(message){let el=$('#community-error');if(!el){el=make('p',undefined,'preview-feedback');el.id='community-error';el.setAttribute('role','alert');$('.middlecol').prepend(el);}el.textContent=message;}
 // Sem internet o navegador diz "Failed to fetch" (em inglês): troca por uma mensagem clara e humana.
-async function api(body,query=''){try{return await apiRaw(body,query);}catch(e){if(e instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(e&&e.message||'')){const err=Error(navigator.onLine===false?'Você está sem internet. Confira a conexão e tente de novo. O que você escreveu continua aqui.':'Não foi possível falar com o servidor agora. Tente de novo em instantes.');err.offline=true;throw err;}throw e;}}
-async function apiRaw(body,query=''){const prev=body?null:lastRead.get(query);const response=await fetch('/api/community'+query,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:prev?{'If-None-Match':prev.etag}:{},...(body?{body:JSON.stringify(body)}:{})});if(response.status===304&&prev){const copy=structuredClone(prev.data);notModified.add(copy);return copy;}const data=await response.json().catch(()=>({}));if(!body&&response.ok&&response.headers.get('ETag')){lastRead.set(query,{etag:response.headers.get('ETag'),data:structuredClone(data)});if(lastRead.size>40)lastRead.delete(lastRead.keys().next().value);}if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;error.data=data;throw error;}return data;}
+async function api(body,query='',opts){try{return await apiRaw(body,query,opts);}catch(e){if(e instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(e&&e.message||'')){const err=Error(navigator.onLine===false?'Você está sem internet. Confira a conexão e tente de novo. O que você escreveu continua aqui.':'Não foi possível falar com o servidor agora. Tente de novo em instantes.');err.offline=true;throw err;}throw e;}}
+// Envio com progresso real (fetch não informa o upload): usado ao publicar foto, vídeo ou arquivo.
+function postWithProgress(body,onProgress){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST','/api/community');x.withCredentials=true;x.setRequestHeader('Content-Type','application/json');
+ x.upload.onprogress=e=>{if(e.lengthComputable)onProgress(e.loaded/e.total);};x.upload.onload=()=>onProgress(1);
+ x.onerror=()=>reject(new TypeError('Failed to fetch'));x.onload=()=>{let data={};try{data=JSON.parse(x.responseText);}catch{}if(x.status<200||x.status>=300){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=x.status;error.data=data;return reject(error);}resolve(data);};
+ x.send(JSON.stringify(body));});}
+async function apiRaw(body,query='',opts){if(body&&opts?.onProgress)return postWithProgress(body,opts.onProgress);const prev=body?null:lastRead.get(query);const response=await fetch('/api/community'+query,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:prev?{'If-None-Match':prev.etag}:{},...(body?{body:JSON.stringify(body)}:{})});if(response.status===304&&prev){const copy=structuredClone(prev.data);notModified.add(copy);return copy;}const data=await response.json().catch(()=>({}));if(!body&&response.ok&&response.headers.get('ETag')){lastRead.set(query,{etag:response.headers.get('ETag'),data:structuredClone(data)});if(lastRead.size>40)lastRead.delete(lastRead.keys().next().value);}if(!response.ok){const error=Error(data.error||'Não foi possível carregar. Tente novamente.');error.status=response.status;error.data=data;throw error;}return data;}
 // Estado vazio com próximo passo: título, explicação e ações (href ou função).
 function emptyState(title,text,actions=[]){
  const box=make('div',undefined,'opy-empty');box.append(make('strong',title),make('p',text));
@@ -79,7 +84,7 @@ async function optimistic(post,patch,body){
  try{await change(body);}catch(error){Object.assign(post,before);for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,post);render();throw error;}
 }
 function reactPatch(post,next){const reactions={...post.reactions};if(post.reaction)reactions[post.reaction]=Math.max(0,(reactions[post.reaction]||1)-1);if(next)reactions[next]=(reactions[next]||0)+1;return {reaction:next,reactions};}
-async function change(body){const next=await api(body);feedGen++;const touched=next.touched;delete next.touched;const followReq=next.follow;delete next.follow;state=next;
+async function change(body,opts){const next=await api(body,'',opts);feedGen++;const touched=next.touched;delete next.touched;const followReq=next.follow;delete next.follow;state=next;
  if(touched){for(const l of [feed.posts,profileData.posts,communityPosts.posts])upsertPost(l,touched);if(feed.pinned?.id===touched.id)feed.pinned=touched;}
  else if(body.action==='delete'||body.action==='community_moderate_post'){dropPost(body.postId);if(feed.pinned?.id===body.postId)feed.pinned=null;}
  if(['friend','follow','community_accept_invite','community_decline_invite','community_approve','community_reject'].includes(body.action))notifData.loaded=false;
@@ -2161,14 +2166,14 @@ if(publisher){
     ...(!videoAttachment&&photoAttachments.length&&$('#photo-alt')?.value.trim()?{alt:$('#photo-alt').value.trim()}:{}),
     location:place,
     ...(poll?{poll}:{})
-   });
+   },videoAttachment||photoAttachments.length||fileAttachment?{onProgress:f=>{if(!progress)return;const pct=Math.round(f*100);progress.classList.toggle('is-busy',pct>=100);$('#compose-progress-bar').style.width=pct>=100?'':pct+'%';$('#compose-progress-label').textContent=pct>=100?'Processando no servidor…':'Enviando… '+pct+'%';}}:undefined);
    publisher.reset();videoAttachment=null;fileAttachment=null;photoAttachments=[];if($('#compose-emoji-box')){$('#compose-emoji-box').hidden=true;$('#compose-emoji').setAttribute('aria-expanded','false');}
    paintSlot('video-slot',null);paintSlot('file-slot',null);paintPhotos();
    $('#video-status').textContent='';$('#video-status').hidden=true;$('#file-status').textContent='';$('#file-status').hidden=true;
    selectFormat('text');publisher.classList.remove('is-open');$('#preview-text').style.height='';
    status.textContent='Publicação compartilhada. O texto fica visível para quem vê.';
   }catch(err){status.textContent=err.message;}
-  finally{if(progress){progress.classList.remove('is-busy');progress.hidden=true;}submit.disabled=false;}
+  finally{if(progress){progress.classList.remove('is-busy');progress.hidden=true;$('#compose-progress-bar').style.width='';$('#compose-progress-label').textContent='Enviando publicação…';}submit.disabled=false;}
  };
 }
 $('#chat-dock-close')?.addEventListener('click',()=>{const dock=$('#chat-dock');if(dock)dock.hidden=true;dockChatKey='';});
