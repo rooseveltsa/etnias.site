@@ -104,7 +104,19 @@ async function paintPage(id) {
   const all = make('a', 'Ver todos os eventos do Etnias'); all.href = pg.eventsLink; all.className = 'pg-all'; agenda.append(all);
   body.append(about, agenda);
   if (pg.stats) body.append(statsCard(pg), teamCard(pg));
+  body.append(postsCard(pg));
   page.append(back, top, body); root.replaceChildren(page);
+}
+// Feed da Página: publicações feitas em nome dela (quem administra publica pelo campo "Onde publicar" do feed).
+function postsCard(pg) {
+  const box = make('section', undefined, 'pf-card pg-posts'); box.append(make('h2', 'Publicações'));
+  const list = make('div', undefined, 'pg-posts-list'); box.append(list);
+  if (['owner', 'admin'].includes(pg.role)) box.insertBefore(make('p', 'Para publicar como esta Página, escolha "Como Página: ' + pg.name + '" em "Onde publicar", no feed.', 'pf-empty'), list);
+  get('view=posts&limit=20&page=' + encodeURIComponent(pg.id)).then(d => {
+    if (!d.posts.length) return list.append(make('p', 'Nenhuma publicação ainda.', 'pf-empty'));
+    d.posts.forEach(p => list.append(S.renderPost(p)));
+  }).catch(e => list.append(make('p', e.message, 'pf-empty')));
+  return box;
 }
 function eventItem(pg, e) {
   const li = make('li'); const when = make('time', fmtDate(e.startsAt)); when.dateTime = new Date(e.startsAt).toISOString();

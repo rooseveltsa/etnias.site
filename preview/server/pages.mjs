@@ -39,6 +39,10 @@ export function upcomingEvents(state, limit = 3, now = Date.now()) {
   return pagesOf(state).filter(p => !p.suspended).flatMap(p => (p.events || []).filter(e => e.startsAt > now).map(e => ({ id: e.id, title: e.title, startsAt: e.startsAt, place: e.place || '', page: p.name, href: `/paginas/?p=${encodeURIComponent(p.id)}` })))
     .sort((a, b) => a.startsAt - b.startsAt).slice(0, limit);
 }
+// Publicar em nome da Página: só quem cria ou administra (moderação cuida de eventos, não fala pela Página).
+export const canPostAsPage = (page, account) => !!page && !page.suspended && ['owner', 'admin'].includes(pageRole(page, account));
+export const postablePages = (state, account) => pagesOf(state).filter(p => canPostAsPage(p, account)).map(p => ({ id: p.id, name: p.name }));
+export const pageAvatar = page => avatarUrl(page?.avatarId);
 export const pageMedia = (state, id) => (state.pages || []).some(p => p.avatarId === id || p.coverId === id) ? { kind: 'image', name: 'pagina' } : null;
 
 function summary(state, page, me) {

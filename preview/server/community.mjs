@@ -32,7 +32,7 @@ import { boostActions, boostAction, sponsoredFor, financeView, settleBoosts } fr
 import { areaView } from './areas.mjs';
 import { saberesActions, saberesAction, saberesView, saberMedia } from './saberes.mjs';
 import { marketActions, marketAction, marketMedia, MAX_MARKET_PHOTOS } from './mercado.mjs';
-import { pageActions, pageUploadActions, pageAction, pagesPrepareUpload, pagesList, pageView, pageMedia, upcomingEvents } from './pages.mjs';
+import { pageActions, pageUploadActions, pageAction, pagesPrepareUpload, pagesList, pageView, pageMedia, upcomingEvents, canPostAsPage, postablePages, pageAvatar } from './pages.mjs';
 import { markStaffUsername, extrasActions, extrasUploadActions, extrasAction, extrasPrepareUpload, extrasMedia, reactionConfig, reactionIds, reactionSet, reactionAllowed, usernameCheck, usernameCheckAllowed, usernameInfo, reverseGeocode, stickerCatalog, stickerById } from './extras.mjs';
 import { verifyCode, useBackup } from './totp.mjs';
 import { accountActions, accountAction, accountView, profileAccess, isBlockedPair, isInactive, stampSession, reactivateOnLogin, canComment, canSeeStory, canReplyStory, followNeedsApproval, wantsNotice, wantsPush } from './account.mjs';
@@ -165,7 +165,9 @@ function authorKeyOf(post) {
 }
 function visible(post, me, state) {
   if (post.audience === 'private' && post.authorId !== me.id) return false;
-  if (state && post.authorId && post.authorId !== me.id && profileAccess(state, me.id, post.authorId) !== 'full') return false;
+  // Publicação de Página: pública como a Página; some se ela for suspensa ou apagada (quem escreveu ainda vê).
+  if (post.pageId && state) { const pg = (state.pages || []).find(p => p.id === post.pageId); if (post.authorId !== me.id && (!pg || pg.suspended)) return false; }
+  else if (state && post.authorId && post.authorId !== me.id && profileAccess(state, me.id, post.authorId) !== 'full') return false;
   // "Amigos": só o autor e quem tem amizade confirmada com ele.
   if (post.audience === 'friends' && post.authorId !== me.id && !(state?.friends?.['id:' + post.authorId] || []).includes('id:' + me.id)) return false;
   if (post.communityId && state && !canViewCommunityContent(state, me, post.communityId)) return false;
@@ -223,7 +225,9 @@ function mentionKeys(ids, ctx) {
 function projectPost(p, me, state, ctx) {
   const aKey = authorKeyOf(p);
   const author = ctx.accountsById.get(p.authorId);
+  const page = p.pageId ? (state.pages || []).find(x => x.id === p.pageId) : null;
   return {
+    ...(page ? { page: { id: page.id, name: page.name, avatar: pageAvatar(page) } } : {}),
     id: p.id, text: p.text, mentions: mentionKeys(p.mentions, ctx), author: p.author, authorKey: aKey, following: ctx.followed.has(aKey), friendStatus: friendStatusOf(state, ctx.myKey, aKey),
     origin: p.origin || 'preview', createdAt: p.createdAt, alt: p.alt || '', image: p.image || '', images: p.photos?.length > 1 ? p.photos.map(m => `/api/media?id=${m.id}`) : Array.isArray(p.images) && p.images.length > 1 ? p.images : [],
     avatar: archiveAvatar(p) || personAvatar(author), verified: !!author?.verified, attachmentMissing: !!p.attachmentMissing,
@@ -262,7 +266,8 @@ function postMatches(p, params, me, ctx) {
   if (feed === 'saved' && !(p.saves || []).includes(me.id)) return false;
   if (feed === 'archive' && p.origin !== 'legacy') return false;
   const id = params.get('id'); if (id && p.id !== id) return false;
-  const author = params.get('author'); if (author && aKey !== author) return false;
+  const author = params.get('author'); if (author && (aKey !== author || p.pageId)) return false;
+  const page = params.get('page'); if (page && p.pageId !== page) return false;
   const community = params.get('community'); if (community && p.communityId !== community) return false;
   const origin = params.get('origin'); if (origin && origin !== 'all' && (p.origin || 'preview') !== origin) return false;
   const kind = params.get('kind'); if (kind && !matchesKind(p, kind)) return false;
@@ -471,6 +476,7 @@ function snapshot(state, me) {
   if (pick?.inPage) { const inPage = posts.find(p => p.id === pick.post.id); if (inPage) inPage.sponsored = tag; }
   const presence = presenceMap(new Set([myKey, ...posts.map(p => p.authorKey), ...(directory || []).map(d => d.key), ...(chatView.conversations || []).map(c => c.key)]), ctx.accountsById);
   return { presence, me: { ...me, availability: (ctx.accountsById.get(me.id)?.availability) || '', muted: state.mutes?.[myKey] || [] }, reactionSet: reactionSet(state), reactionAll: reactionConfig(state).map(r => ({ id: r.id, label: r.label, ...(r.mediaId ? { mediaId: r.mediaId } : {}) })), usernameInfo: usernameInfo((state.accounts || []).find(a => a.id === me.id) || {}, state), i18n: i18nFor(state, (state.accounts || []).find(a => a.id === me.id)), announcements: announcementsFor(state, me), posts, postsHasMore: page.hasMore, stories, dms, directory, communities, unreadChatCount, unreadNotifications: notificationItems(state, me, ctx).filter(i => i.unread).length, pushPublicKey: pushPublicKey(), liveEnabled: liveEnabled(), lives: liveNow(state, me), povos: povosOf(state), sponsored, group: { joined: primaryGroup ? primaryGroup.joined : !!state.interests[me.id], count: primaryGroup ? primaryGroup.membersCount : Object.values(state.interests).filter(Boolean).length }, saberes, music, submissions, etnia, iaraTickets: iaraTickets(state, me.id),
+    myPages: postablePages(state, (state.accounts || []).find(a => a.id === me.id)),
     rail: { events: upcomingEvents(state), saberes: (saberesView(state, me, new URLSearchParams()).trilhas || []).slice(0, 3).map(t => ({ id: t.id, title: t.title, povo: t.povo || '', cover: t.cover, lessonsCount: t.lessonsCount })) } };
 }
 function pdfAt(bytes) {
@@ -1020,11 +1026,14 @@ export default async function handler(req, res) {
         case 'publish': {
           if (capacity('publicações', state.posts.length, Number(process.env.OPY_MAX_POSTS) || 500000)) fail(409, 'A rede atingiu o limite de publicações deste servidor. Remova uma publicação sua para continuar.');
           postBudget(state, me);
-          let targetCommunity = null;
-          if (typeof body.communityId === 'string' && body.communityId.trim()) {
+          let targetCommunity = null, asPage = null;
+          if (typeof body.pageId === 'string' && body.pageId) {
+            asPage = (state.pages || []).find(p => p.id === body.pageId);
+            if (!canPostAsPage(asPage, currentAccount)) fail(403, 'Só quem cria ou administra a Página publica em nome dela.');
+          } else if (typeof body.communityId === 'string' && body.communityId.trim()) {
             targetCommunity = canPostInCommunity(state, me, body.communityId.trim());
           }
-          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity ? 'public' : body.audience, communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(typeof body.alt === 'string' && body.alt.trim() && ((upload && upload.kind === 'image') || photoUploads.length) ? { alt: body.alt.trim().slice(0, 300) } : {}), ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name, ...(posterUpload ? { posterId: posterUpload.id } : {}) } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) });
+          state.posts.unshift({ id: randomUUID(), authorId: me.id, author: me.name, text: body.text.trim(), origin: 'preview', createdAt: Date.now(), audience: targetCommunity || asPage ? 'public' : body.audience, ...(asPage ? { pageId: asPage.id } : {}), communityId: targetCommunity?.id || '', communityName: targetCommunity?.name || '', feeling: body.feeling || '', location: body.location || '', reactions: {}, comments: [], saves: [], shares: 0, ...(typeof body.alt === 'string' && body.alt.trim() && ((upload && upload.kind === 'image') || photoUploads.length) ? { alt: body.alt.trim().slice(0, 300) } : {}), ...(upload ? { media: { id: upload.id, kind: upload.kind, name: upload.name, ...(posterUpload ? { posterId: posterUpload.id } : {}) } } : {}), ...(photoUploads.length > 1 ? { photos: photoUploads.map(u => ({ id: u.id, kind: u.kind, name: u.name })) } : {}), ...(fileUpload ? { file: { id: fileUpload.id, kind: fileUpload.kind, name: fileUpload.name } } : {}), ...(body.poll ? { poll: { options: body.poll.map(v => v.trim()), votes: {} } } : {}) });
           { const created = state.posts[0]; const ids = mentionsIn(state, created.text, me.id).filter(id => visible(created, { id }, state));
             if (ids.length) { created.mentions = ids; mentionNotice = { to: ids, payload: { title: `${me.name} mencionou você`, body: created.text.slice(0, 120), href: `/#post-${created.id}`, tag: `mention-${created.id}` } }; } }
           break;

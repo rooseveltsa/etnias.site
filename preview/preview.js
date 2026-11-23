@@ -446,9 +446,11 @@ function renderPost(post, communityContext=null){
  if(post.sponsored){const tag=make('p',post.sponsored.label+(post.sponsored.test?' · teste':''),'post-sponsored');card.dataset.boost=post.sponsored.boostId;card.classList.add('is-sponsored');card.append(tag);}
  const head=make('div',undefined,'preview-author');
  const pKey=post.authorKey||`name:${post.author}`;
- const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label','Abrir perfil de '+post.author);avBtn.append(avatarNode(post.author,post.avatar,42),presenceDot(post.authorKey));avBtn.classList.add('has-presence');avBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
+ // Publicação em nome de uma Página: a Página aparece como autora e o toque abre a Página.
+ const pg=post.page;const openAuthor=pg?()=>{location.href='/paginas/?p='+encodeURIComponent(pg.id);}:()=>openProfile(pKey,post.author,post.avatar);
+ const avBtn=make('button',undefined,'author-trigger');avBtn.type='button';avBtn.setAttribute('aria-label',pg?'Abrir a Página '+pg.name:'Abrir perfil de '+post.author);avBtn.append(pg?avatarNode(pg.name,pg.avatar,42):avatarNode(post.author,post.avatar,42));if(!pg){avBtn.append(presenceDot(post.authorKey));avBtn.classList.add('has-presence');}avBtn.onclick=openAuthor;
  const who=make('div');
- const nameBtn=make('button',post.author,'author-name-btn');nameBtn.type='button';nameBtn.onclick=()=>openProfile(pKey,post.author,post.avatar);
+ const nameBtn=make('button',pg?pg.name:post.author,'author-name-btn');nameBtn.type='button';nameBtn.onclick=openAuthor;
  if(post.verified){const v=make('span','✓','opy-verified');v.setAttribute('role','img');v.setAttribute('aria-label','Conta verificada');nameBtn.append(v);}
  const metaLine=make('small');metaLine.title=fullDate(post.createdAt);
  // "Acervo público" só para publicações do acervo sem conta por trás; o Etnias antigo faz parte da rede.
@@ -464,7 +466,8 @@ function renderPost(post, communityContext=null){
  }
  who.append(metaLine);
  head.append(avBtn,who);
- if(!post.own&&post.authorKey){const follow=button(post.following?'Seguindo':'Seguir',()=>toggleFollow(post.authorKey),head);follow.classList.add('preview-follow');follow.setAttribute('aria-pressed',String(!!post.following));}
+ if(pg)who.insertBefore(make('span','Página','post-community-badge'),metaLine);
+ if(!pg&&!post.own&&post.authorKey){const follow=button(post.following?'Seguindo':'Seguir',()=>toggleFollow(post.authorKey),head);follow.classList.add('preview-follow');follow.setAttribute('aria-pressed',String(!!post.following));}
  card.append(head);
  appendPostBody(post,card);
  if(post.repostOf){
@@ -1671,10 +1674,10 @@ function render(){if(!state)return;syncReactionSet();setTimeout(watchSponsored,0
  }
  const cList=communitiesList();
  const commTarget=$('#preview-community-target');
- if(commTarget&&cList.length){
+ if(commTarget&&(cList.length||state.myPages?.length)){
   const prev=commTarget.value;
   const joined=cList.filter(c=>c.joined);
-  commTarget.replaceChildren(new Option('Feed geral da aldeia',''),...joined.map(c=>new Option(`Comunidade: ${c.name}${(c.visibility||c.privacy)==='private'?' (Privada)':''}`,c.id)));
+  commTarget.replaceChildren(new Option('Feed geral da aldeia',''),...joined.map(c=>new Option(`Comunidade: ${c.name}${(c.visibility||c.privacy)==='private'?' (Privada)':''}`,c.id)),...(state.myPages||[]).map(p=>new Option(`Como Página: ${p.name}`,'page:'+p.id)));
   if([...commTarget.options].some(o=>o.value===prev))commTarget.value=prev;
  }
  const chatHeaderLink=$('.messages-notification-container a');
@@ -2152,12 +2155,13 @@ if(publisher){
    const poll=format==='poll'?all('#compose-poll input').map(i=>i.value.trim()).filter(Boolean):null;
    if(poll&&poll.length<2)throw Error('Preencha pelo menos duas opções da enquete.');
    if(progress){progress.hidden=false;progress.classList.add('is-busy');}
-   const communityId=$('#preview-community-target')?.value||'';
+   const target=$('#preview-community-target')?.value||'';const pageId=target.startsWith('page:')?target.slice(5):'';const communityId=pageId?'':target;
    await change({
     action:'publish',
     text:$('#preview-text').value,
-    audience:$('#preview-audience').value,
+    audience:pageId?'public':$('#preview-audience').value,
     communityId,
+    ...(pageId?{pageId}:{}),
     // O que foi anexado vai junto, mesmo que a pessoa tenha voltado para outra aba antes de publicar.
     ...(videoAttachment?.poster?{poster:{name:'capa.jpg',data:videoAttachment.poster}}:{}),
     media:videoAttachment?{name:videoAttachment.name,data:videoAttachment.data}:photoAttachments.length===1?{name:photoAttachments[0].name,data:photoAttachments[0].data}:null,
@@ -2285,7 +2289,7 @@ if(!window.__opyPressBound){
 }
 // Ponte para preview/live.js (estúdio, convidado e visualizador da live), que vive fora deste escopo.
 labelBottomBar();
-window.OpyShared={$,all,make,button,api,apiGet,change,toast,showError,emptyState,youtubeCard,linkified,openLightbox,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,shrinkPhoto,recorderMime,readSlot,
+window.OpyShared={renderPost,$,all,make,button,api,apiGet,change,toast,showError,emptyState,youtubeCard,linkified,openLightbox,avatarNode,openProfile,plural,startCamera,stopCamera,render:()=>render(),refresh:()=>refresh(),isSeen:id=>seenStories.has(id),markSeen:id=>markStorySeen(id),snapPhoto,shrinkPhoto,recorderMime,readSlot,
  get state(){return state;},get cameraStream(){return cameraStream;},get cameraFacing(){return cameraFacing;},set cameraFacing(v){cameraFacing=v;},
  get liveSession(){return liveSession;},set liveSession(v){liveSession=v;},get liveMode(){return liveMode;},set liveMode(v){liveMode=v;},get liveViewer(){return liveViewer;},set liveViewer(v){liveViewer=v;}};
 })();
