@@ -2104,3 +2104,4 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable
 
 /* MOMENTOS: seguir pelo avatar */
 .vp-follow{position:absolute;left:24px;top:26px;width:20px;height:20px;min-height:0;padding:0;border:2px solid #fff;border-radius:50%;background:var(--color-terracotta,#b84a27);color:#fff;font-size:14px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer}
+html[data-nav=icons] .opy-bottom .opy-create svg.opy-icon{width:52px;height:52px;flex-basis:52px;padding:13px}

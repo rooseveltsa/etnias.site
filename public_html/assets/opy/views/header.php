@@ -7,7 +7,6 @@
                 <span class="opy-logo-crop"><img src="<?php echo Etnias_OpyEscape(Etnias_OpyAsset('etnias-logo.png')); ?>" alt="" width="150" height="40"></span>
                 <svg class="opy-brand-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <?php if (function_exists('Etnias_OpyToolsMenu')) { echo Etnias_OpyToolsMenu(); } ?>
         </div>
         <form class="opy-search" id="opy-search" action="<?php echo Etnias_OpyEscape(rtrim($wo['config']['site_url'], '/') . '/index.php'); ?>" method="get" role="search" autocomplete="off">
             <input type="hidden" name="link1" value="search">
@@ -18,6 +17,9 @@
             <button type="submit" class="opy-search-submit" aria-label="Pesquisar"><?php echo Etnias_OpyIcon('search'); ?></button>
             <div id="opy-search-results" class="opy-search-results" role="listbox" aria-label="Sugestões de pesquisa" hidden></div>
         </form>
+        <?php // Ordem pedida pela gerência (08/11): Recursos, Interativo, Pesquisa, Amigos, Chat, Maracá, Foto. ?>
+        <?php if (function_exists('Etnias_OpyToolsMenu')) { echo Etnias_OpyToolsMenu(); } ?>
+        <button type="button" class="opy-topbar-interact" data-opy-open="opy-interactivity" aria-label="Interatividade" title="Interatividade" aria-haspopup="dialog" aria-controls="opy-interactivity" aria-expanded="false"><?php echo Etnias_OpyIcon('interatividade'); ?></button>
         <button type="button" class="opy-search-open" aria-label="Pesquisar" aria-controls="opy-search" aria-expanded="false"><?php echo Etnias_OpyIcon('search'); ?></button>
         <div class="opy-member-controls">
             <?php

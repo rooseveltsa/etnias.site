@@ -454,3 +454,23 @@ body.opy-scroll-lock { position: fixed; left: 0; right: 0; width: 100%; overflow
 @media (max-width: 700px) {
     .opy-topbar-start .opy-tools .opy-account-menu { left: 8px; right: auto; }
 }
+/* Barra (gerência 08/11): Recursos e Interativo à direita, antes da pesquisa. Menu Opy com logo no topo e tema/gestão no rodapé. */
+.opy-topbar-interact { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--opy-ink); cursor: pointer; }
+.opy-topbar-interact:hover, .opy-topbar-interact[aria-expanded="true"] { background: var(--opy-hover, #efe6da); }
+.opy-topbar-interact svg, .opy-topbar-interact img.opy-picture { width: 24px; height: 24px; flex: 0 0 24px; }
+.opy-topbar-inner > .opy-tools { flex-shrink: 0; }
+@media (max-width: 700px) {
+    .opy-topbar-inner > .opy-tools { margin-left: auto; }
+    .opy-search-open { margin-left: 0; }
+    .opy-topbar-interact { width: 40px; height: 44px; flex-basis: 40px; }
+}
+@media (max-width: 359px) { .opy-topbar-interact { width: 34px; flex-basis: 34px; } }
+.opy-menu-logo { margin: 0; line-height: 0; }
+.opy-menu-logo img { width: 140px; height: auto; max-height: 40px; object-fit: contain; }
+.opy-menu-foot { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--opy-line); }
+.opy-menu-foot .opy-theme-toggle, .opy-menu-foot .opy-tools-staff a { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--opy-ink); font: inherit; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
+.opy-menu-foot .opy-theme-toggle:hover, .opy-menu-foot .opy-tools-staff a:hover { background: var(--opy-hover, #efe6da); }
+.opy-menu-foot .opy-theme-toggle svg { width: 22px; height: 22px; flex: 0 0 22px; }
+.opy-menu-foot .opy-tools-staff hr { display: none; }
+/* Barra inferior (referências Projeto Opy e Design de Interface): "+" circular, vermelho e elevado acima da barra. */
+.opy-bottom .opy-create svg.opy-icon { width: 48px; height: 48px; flex: 0 0 48px; padding: 12px; margin-top: -22px; border-radius: 50%; border: 3px solid var(--opy-paper, #fff); box-shadow: 0 4px 12px rgba(184, 74, 39, .35); }

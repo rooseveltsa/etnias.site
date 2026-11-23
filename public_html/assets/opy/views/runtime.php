@@ -11,7 +11,7 @@ $opyConfig = Etnias_OpyConfig();
     <?php $opyEtniaBarra = $opyItems['etnia']; $opyEtniaBarra['icon'] = 'intelligence'; echo Etnias_OpyItem('etnia', $opyEtniaBarra); ?>
 </nav>
 <dialog id="opy-menu" class="opy-dialog opy-drawer" aria-labelledby="opy-menu-title">
-    <div class="opy-dialog-heading"><div><h2 id="opy-menu-title">Etnias</h2><p>Encontre seu caminho no Etnias.</p></div><button type="button" data-opy-close aria-label="Fechar Etnias"><?php echo Etnias_OpyIcon('close'); ?></button></div>
+    <div class="opy-dialog-heading"><div><h2 id="opy-menu-title" class="opy-menu-logo"><img src="<?php echo Etnias_OpyEscape(Etnias_OpyAsset('etnias-logo.png')); ?>" alt="Etnias" width="150" height="40"></h2><p>Encontre seu caminho no Etnias.</p></div><button type="button" data-opy-close aria-label="Fechar Etnias"><?php echo Etnias_OpyIcon('close'); ?></button></div>
     <?php require __DIR__ . '/sidebar.php'; ?>
     <nav class="opy-create-links" aria-label="Criar">
         <p class="opy-create-title">Criar</p>
@@ -19,6 +19,10 @@ $opyConfig = Etnias_OpyConfig();
         <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('home')); ?>#criar-story"><?php echo Etnias_OpyIcon('camera'); ?><span>Story</span></a>
         <a class="opy-nav-item" href="<?php echo Etnias_OpyEscape(Etnias_OpyUrl('suggested-groups')); ?>#criar"><?php echo Etnias_OpyIcon('grupos'); ?><span>Comunidade ou aldeia</span></a>
     </nav>
+    <div class="opy-menu-foot">
+        <button type="button" id="opy-theme-toggle" class="opy-theme-toggle" role="switch" aria-checked="false"><svg class="opy-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><svg class="opy-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Tema escuro</span></button>
+        <div class="opy-tools-staff" data-opy-staff-links hidden></div>
+    </div>
 </dialog>
 <dialog id="opy-interactivity" class="opy-dialog" aria-labelledby="opy-interactivity-title">
     <div class="opy-dialog-heading"><div><h2 id="opy-interactivity-title">Interatividade</h2><p>Outras formas de participar da aldeia.</p></div><button type="button" data-opy-close aria-label="Fechar Interatividade"><?php echo Etnias_OpyIcon('close'); ?></button></div>
